@@ -1,0 +1,30 @@
+FROM node:22-alpine AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+
+FROM node:22-alpine
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY package.json ./
+# Pure logic-only runtime: zero HTML, CSS, GLTF/GLB models, textures, or audio files.
+COPY server ./server
+COPY shared ./shared
+COPY scripts/maps/load-private-physics.mjs ./scripts/maps/load-private-physics.mjs
+COPY public/assets/map/collision.json ./public/assets/map/collision.json
+COPY public/assets/map/penetration-materials.u8 ./public/assets/map/penetration-materials.u8
+
+# Mount compiled map packs (e.g. /maps/de_dust2) and set DUSTII_PRIVATE_MAP_ID +
+# DUSTII_PRIVATE_MAP_DIRECTORY to run any of the 9 performance maps as a dedicated worker.
+ENV NODE_ENV=production \
+    HOST=0.0.0.0 \
+    PORT=3005 \
+    DUST2_LOGIC_ONLY=1 \
+    DUST2_SERVE_MAP_FILES=0 \
+    DUST2_REQUIRE_JOIN_TOKEN=1 \
+    DUST2_PRIVATE_MAX_ROOMS=6 \
+    DUST2_RECONNECT_GRACE_MS=30000
+
+USER node
+EXPOSE 3005
+CMD ["sh", "-c", "if [ -n \"$DUSTII_PRIVATE_MAP_DIRECTORY\" ]; then exec node server/private-map-server.js; else exec node server/index.js; fi"]

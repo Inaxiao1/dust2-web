@@ -5,7 +5,7 @@ import { readFile, stat } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { createHash,randomBytes } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { WebSocketServer, WebSocket } from 'ws';
 import { PRIMARY_WEAPONS } from '../shared/weapons.js';
 import { normalizeSkinLoadout } from '../shared/skins.js';
@@ -19,6 +19,10 @@ import { GameRoom, TICK_RATE, SNAPSHOT_RATE } from './game.js';
 import {CLIENT_BUILD,RULES_VERSION,ASSET_VERSION,compatibilityError} from '../shared/online-build.js';
 import {ServerPerformance} from './performance-metrics.js';
 import {serverDownloadConfig,sendDownloadConfig} from './download-config.js';
+import { verifyJoinToken } from './join-token.js';
+import { startControlPlaneReporter } from './control-plane-client.js';
+import { decodeInputBinary, encodeSnapshotBinary } from '../shared/binary-protocol.js';
+import { encodeDeltaSnapshot } from '../shared/snapshot-delta.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TYPES = { '.webmanifest': 'application/manifest+json; charset=utf-8', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.glb': 'model/gltf-binary', '.gltf': 'model/gltf+json', '.wasm': 'application/wasm', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav', '.ico': 'image/x-icon', '.txt': 'text/plain; charset=utf-8' };
@@ -41,7 +45,35 @@ function send(socket, value) {
 
 function error(socket, code, message) { send(socket, { type: 'error', code, message }); }
 
-function publicRoomDirectory(rooms, includeNames = false) {
+function parseAllowedOrigins(value) {
+  if (!value || value === '*') return value === '*' ? '*' : null;
+  const list = Array.isArray(value) ? value : String(value).split(',');
+  const origins = new Set();
+  for (const item of list) {
+    const trimmed = String(item).trim();
+    if (!trimmed) continue;
+    if (trimmed === '*') return '*';
+    origins.add(new URL(trimmed).origin);
+  }
+  return origins.size ? origins : null;
+}
+
+function applyCors(req, res, allowedOrigins) {
+  if (!allowedOrigins) return;
+  if (allowedOrigins === '*') {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  } else {
+    const origin = req.headers.origin;
+    if (typeof origin === 'string' && allowedOrigins.has(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+    }
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+}
+
+function publicRoomDirectory(rooms, includeNames = false, draining = false) {
   const rows = [];
   for (const room of rooms.values()) {
     if (room.visibility !== 'public') continue;
@@ -53,7 +85,7 @@ function publicRoomDirectory(rooms, includeNames = false) {
     rows.push({
       code: room.code, mode: room.mode, botDifficulty: room.botDifficulty,
       humans: players.length, bots: room.botCount, capacity: room.humanCapacity,
-      full: room.humanCount >= room.humanCapacity, joinable: room.joinable,
+      full: room.humanCount >= room.humanCapacity, joinable: !draining && room.joinable,
       scores: { CT: room.scores.CT, T: room.scores.T }, phase: room.round.phase,
       ...(includeNames ? {players} : {})
     });
@@ -86,38 +118,99 @@ function joinSettings(msg) {
   const bots = botCount(msg.bots),botDifficulty=normalizeBotDifficulty(msg.botDifficulty);
   if(msg.musicKit!==undefined&&!isMusicKit(msg.musicKit))return {error:'无效的音乐盒。'};
   const primary = PRIMARY_WEAPONS.includes(msg.primary) ? msg.primary : 'auto';
-  return { name, room, mode, team, bots, botDifficulty, primary, musicKit:msg.musicKit, visibility:msg.visibility, weaponLoadout:msg.weaponLoadout,skins:normalizeSkinLoadout(msg.skins),agents:normalizeAgentLoadout(msg.agents),movementProtocol:msg.movementProtocol===1?1:0,shotProtocol:msg.shotProtocol===1?1:0 };
+  const resumeToken = typeof msg.resumeToken === 'string' && /^[a-f0-9]{16,64}$/i.test(msg.resumeToken.trim()) ? msg.resumeToken.trim() : null;
+  const playerUid = typeof msg.playerUid === 'string' && /^[A-Za-z0-9._:@-]{1,128}$/.test(msg.playerUid.trim()) ? msg.playerUid.trim() : null;
+  return { name, room, mode, team, bots, botDifficulty, primary, musicKit:msg.musicKit, visibility:msg.visibility, weaponLoadout:msg.weaponLoadout,skins:normalizeSkinLoadout(msg.skins),agents:normalizeAgentLoadout(msg.agents),movementProtocol:msg.movementProtocol===1?1:0,shotProtocol:msg.shotProtocol===1?1:0, resumeToken, playerUid };
+}
+
+function tokensMatch(expected, actual) {
+  if (typeof expected !== 'string' || typeof actual !== 'string') return false;
+  const a = Buffer.from(expected), b = Buffer.from(actual);
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 /** Start the authoritative server after loading collision geometry. No external services. */
-export async function startGameServer({ port = Number(process.env.PORT || 3000), host = process.env.HOST || '0.0.0.0', staticDir = path.join(ROOT, 'dist'), rules = {}, privateMap=null,indexFile='index.html', performanceDirectory=false } = {}) {
+export async function startGameServer({
+  port = Number(process.env.PORT || 3000),
+  host = process.env.HOST || '0.0.0.0',
+  staticDir = path.join(ROOT, 'dist'),
+  rules = {},
+  privateMap = null,
+  indexFile = 'index.html',
+  performanceDirectory = false,
+  logicOnly = process.env.DUST2_LOGIC_ONLY === '1',
+  serveMapFiles = process.env.DUST2_SERVE_MAP_FILES !== '0',
+  allowedOrigins = process.env.DUST2_ALLOWED_ORIGINS || null,
+  drainToken = process.env.DUST2_DRAIN_TOKEN || null,
+  joinTokenSecret = process.env.DUST2_JOIN_TOKEN_SECRET || null,
+  requireJoinToken = process.env.DUST2_REQUIRE_JOIN_TOKEN === '1',
+  workerId = process.env.DUST2_WORKER_ID || null,
+  controlPlaneUrl = process.env.DUST2_CONTROL_PLANE_URL || null,
+  workerAuthToken = process.env.DUST2_WORKER_AUTH_TOKEN || null,
+  workerPublicWsUrl = process.env.DUST2_WORKER_WS_URL || null,
+  heartbeatIntervalMs = Number(process.env.DUST2_HEARTBEAT_MS) || 3000,
+  reconnectGraceMs = Math.max(0, Math.min(120000, Number(process.env.DUST2_RECONNECT_GRACE_MS ?? 30000))),
+} = {}) {
   if(MAP.private&&(!privateMap||privateMap.mapSignature!==MAP.mapSignature))throw Error('A fixed private-map process cannot start a different map server');
   if(!privateMap)await loadPhysics();
+  if (requireJoinToken && !joinTokenSecret) {
+    throw Error('DUST2_JOIN_TOKEN_SECRET is required when DUST2_REQUIRE_JOIN_TOKEN=1');
+  }
+  const corsOrigins = parseAllowedOrigins(allowedOrigins);
   const rooms = new Map();
-  const maxRooms = privateMap?1:Math.max(1, Math.min(100, Number(process.env.MAX_ROOMS) || 12));
+  const usedJTIs = new Map();
+  const privateMaxRooms = Math.max(1, Math.min(24, Number(process.env.DUST2_PRIVATE_MAX_ROOMS) || 1));
+  const maxRooms = privateMap ? privateMaxRooms : Math.max(1, Math.min(100, Number(process.env.MAX_ROOMS) || 12));
   const startedAt = Date.now();
   const performanceMetrics=new ServerPerformance();
   const publicDir = path.join(ROOT, 'public');
   const downloadConfig=serverDownloadConfig();
+  let draining = false;
+  let reporter = null;
+  const beginDrain = () => { draining = true; reporter?.reportNow(); };
   const server = createServer(async (req, res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    if(req.url?.startsWith('/assets/'))res.setHeader('Access-Control-Allow-Origin','*');
+    applyCors(req, res, corsOrigins);
+    if(!corsOrigins && req.url?.startsWith('/assets/'))res.setHeader('Access-Control-Allow-Origin','*');
     res.setHeader('Referrer-Policy', 'same-origin');
-    if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); res.end(); return; }
+    if (corsOrigins && req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
     let requestPath;
     try { requestPath = decodeURIComponent(new URL(req.url, 'http://localhost').pathname); }
     catch { res.writeHead(400); res.end('Bad URL'); return; }
+    if (requestPath === '/drain') {
+      if (req.method !== 'POST') { res.writeHead(405); res.end(); return; }
+      if (!drainToken) { res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify({ ok: false, error: 'DRAIN_DISABLED' })); return; }
+      const auth = req.headers.authorization || '';
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      if (!tokensMatch(drainToken, token)) { res.writeHead(401, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify({ ok: false, error: 'UNAUTHORIZED' })); return; }
+      beginDrain();
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify({ ok: true, ready: false, draining: true, rooms: rooms.size }));
+      return;
+    }
+    if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); res.end(); return; }
     if(requestPath==='/download-config.json'){sendDownloadConfig(req,res,downloadConfig);return;}
     if (performanceDirectory && requestPath === '/room-directory.json') {
       res.writeHead(200, {'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});
-      res.end(req.method === 'HEAD' ? undefined : JSON.stringify(publicRoomDirectory(rooms, true)));
+      res.end(req.method === 'HEAD' ? undefined : JSON.stringify(publicRoomDirectory(rooms, true, draining)));
       return;
     }
-    if(privateMap?.handleRequest(req,res,requestPath))return;
+    if((serveMapFiles || requestPath === '/private-map.json') && privateMap?.handleRequest(req,res,requestPath))return;
+    if (requestPath === '/ready') {
+      const ready = !draining;
+      res.writeHead(ready ? 200 : 503, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end(req.method === 'HEAD' ? undefined : JSON.stringify({ ok: true, ready, draining, logicOnly, serveMapFiles, rooms: rooms.size, humans: [...rooms.values()].reduce((n, r) => n + r.humanCount, 0) }));
+      return;
+    }
     if (requestPath === '/health') {
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
       const memory = process.memoryUsage();
-      res.end(JSON.stringify({ ok: true, service: privateMap?'dust2-private-game':'dust2-web',...(privateMap?{mapId:privateMap.mapId,mapSignature:privateMap.mapSignature,physicsSha256:privateMap.config.physicsSha256}:{}), release: process.env.DUST2_RELEASE || 'local', protocol: 1, tickRate: TICK_RATE, uptime: Math.round((Date.now() - startedAt) / 1000), rooms: rooms.size, humans: [...rooms.values()].reduce((n, r) => n + r.humanCount, 0), players: [...rooms.values()].reduce((n, r) => n + r.players.size, 0), memory: { rssMiB: Math.round(memory.rss / 1048576), heapMiB: Math.round(memory.heapUsed / 1048576) },performance:performanceMetrics.snapshot() })); return;
+      res.end(req.method === 'HEAD' ? undefined : JSON.stringify({ ok: true, ready: !draining, draining, logicOnly, serveMapFiles, service: privateMap?'dust2-private-game':'dust2-web',...(privateMap?{mapId:privateMap.mapId,mapSignature:privateMap.mapSignature,physicsSha256:privateMap.config.physicsSha256}:{}), release: process.env.DUST2_RELEASE || 'local', protocol: 1, tickRate: TICK_RATE, uptime: Math.round((Date.now() - startedAt) / 1000), rooms: rooms.size, humans: [...rooms.values()].reduce((n, r) => n + r.humanCount, 0), players: [...rooms.values()].reduce((n, r) => n + r.players.size, 0), memory: { rssMiB: Math.round(memory.rss / 1048576), heapMiB: Math.round(memory.heapUsed / 1048576) },performance:performanceMetrics.snapshot() })); return;
+    }
+    if (logicOnly) {
+      res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end(req.method === 'HEAD' ? undefined : JSON.stringify({ ok: false, error: 'STATIC_DISABLED_LOGIC_ONLY', message: 'Static assets and client files are disabled in logic-only mode.' }));
+      return;
     }
     if (requestPath.includes('\0') || requestPath.includes('\\')) { res.writeHead(400); res.end('Bad path'); return; }
     let found = null, info = null;
@@ -136,12 +229,23 @@ export async function startGameServer({ port = Number(process.env.PORT || 3000),
     res.writeHead(200, { 'Content-Type': TYPES[path.extname(found).toLowerCase()] || 'application/octet-stream', 'Content-Length': info.size, 'Cache-Control': path.extname(found) === '.html' ? 'no-cache' : 'public, max-age=3600' });
     if (req.method === 'HEAD') res.end(); else { const stream = createReadStream(found); stream.on('error', () => res.destroy()); stream.pipe(res); }
   });
-  const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 4096, perMessageDeflate: {serverNoContextTakeover:true,clientNoContextTakeover:true,threshold:1024,concurrencyLimit:2,zlibDeflateOptions:{level:1,memLevel:7}} });
-  wss.on('connection', socket => {
+  const wss = new WebSocketServer({
+    server,
+    path: '/ws',
+    maxPayload: 4096,
+    verifyClient: corsOrigins instanceof Set
+      ? ({ origin }, callback) => callback(!origin || corsOrigins.has(origin), 403, 'Origin not allowed')
+      : undefined,
+    perMessageDeflate: {serverNoContextTakeover:true,clientNoContextTakeover:true,threshold:1024,concurrencyLimit:2,zlibDeflateOptions:{level:1,memLevel:7}}
+  });
+  wss.on('connection', (socket, req) => {
     // Rejected connections can still receive invalid frames while closing.
     socket.on('error', () => {});
     if (wss.clients.size > maxRooms * 10 + 20) { socket.close(1013, 'Server busy'); return; }
-    socket.isAlive = true; socket.playerId = null; socket.roomCode = null;
+    socket.isAlive = true; socket.playerId = null; socket.roomCode = null; socket.binaryProtocol = 0; socket.lastBinaryPlayers = null;
+    socket.snapshotDelta = 0; socket.lastDeltaSnap = null; socket.reconnectOptIn = false; socket.resumeToken = null;
+    try { socket.handshakeToken = req?.url ? new URL(req.url, 'http://localhost').searchParams.get('token') : null; }
+    catch { socket.handshakeToken = null; }
     socket.tokens = 150; socket.tokensAt = Date.now(); socket.strikes = 0; socket.connectedAt = Date.now(); socket.buyAt = 0;
     socket.on('pong', () => { socket.isAlive = true; });
     socket.on('message', (data, binary) => {
@@ -150,13 +254,22 @@ export async function startGameServer({ port = Number(process.env.PORT || 3000),
       if (socket.tokens < 1) { error(socket, 'RATE_LIMIT', '请求过于频繁。'); socket.close(1008, 'Rate limit'); return; }
       socket.tokens--;
       let msg;
-      try { if (binary) throw new Error('binary'); msg = JSON.parse(data.toString()); if (!msg || typeof msg !== 'object' || Array.isArray(msg)) throw new Error('object'); }
+      try {
+        if (binary) {
+          if (socket.binaryProtocol !== 2) throw new Error('binary');
+          msg = decodeInputBinary(data);
+          if (!msg) throw new Error('bad binary frame');
+        } else {
+          msg = JSON.parse(data.toString());
+          if (!msg || typeof msg !== 'object' || Array.isArray(msg)) throw new Error('object');
+        }
+      }
       catch { error(socket, 'BAD_MESSAGE', '消息格式无效。'); if (++socket.strikes > 5) socket.close(1008, 'Bad messages'); return; }
       if (msg.type === 'ping') { send(socket, { type: 'pong', time: typeof msg.time === 'number' ? msg.time : null, serverTime: now }); return; }
       if(msg.type==='listRooms'){
         if(now-(socket.listRoomsAt||0)<1000)return;
         socket.listRoomsAt=now;
-        send(socket,{type:'rooms',...(privateMap?{mapId:privateMap.mapId,mapSignature:privateMap.mapSignature,physicsSha256:privateMap.config.physicsSha256}:{}),rooms:publicRoomDirectory(rooms)});return;
+        send(socket,{type:'rooms',...(privateMap?{mapId:privateMap.mapId,mapSignature:privateMap.mapSignature,physicsSha256:privateMap.config.physicsSha256}:{}),rooms:publicRoomDirectory(rooms,false,draining)});return;
       }
       if (msg.type === 'roomCosmetics') {
         if (socket.playerId || now - (socket.cosmeticsAt || 0) < 1000) return;
@@ -164,26 +277,61 @@ export async function startGameServer({ port = Number(process.env.PORT || 3000),
         const code = typeof msg.room === 'string' ? msg.room.trim().toUpperCase() : '';
         const room = rooms.get(code);
         if (!room) { error(socket,'ROOM_GONE','房间已经关闭，请在大厅重新选择。'); return; }
-        if (!room.joinable) {
-          error(socket,'ROOM_UNAVAILABLE','房间已满或对局已结束，请在大厅重新选择。'); return;
+        if (draining || !room.joinable) {
+          error(socket, draining ? 'SERVER_DRAINING' : 'ROOM_UNAVAILABLE', draining ? '服务器正在下线维护，请从大厅选择其他节点。' : '房间已满或对局已结束，请在大厅重新选择。'); return;
         }
         send(socket,{type:'roomCosmetics',...roomAppearance(room)});
         return;
       }
       if (msg.type === 'join') {
         if (socket.playerId) { error(socket, 'ALREADY_JOINED', '当前连接已经加入房间。'); return; }
+        if (draining) { error(socket, 'SERVER_DRAINING', '服务器正在下线维护，请从大厅进入其他可用节点。'); return; }
         if(privateMap&&(msg.mapId!==privateMap.mapId||msg.mapSignature!==privateMap.mapSignature)){error(socket,'MAP_MISMATCH','地图或碰撞版本不匹配，请重新载入当前地图。');return;}
-        const settings = joinSettings(msg);
+        const suppliedToken = typeof msg.joinToken === 'string' && msg.joinToken ? msg.joinToken : socket.handshakeToken;
+        let tokenClaims = null;
+        if (requireJoinToken && !suppliedToken) {
+          error(socket, 'JOIN_TOKEN_REQUIRED', '请先通过大厅获取有效加入凭证。');
+          return;
+        }
+        if (suppliedToken && (joinTokenSecret || requireJoinToken)) {
+          const verified = verifyJoinToken(suppliedToken, joinTokenSecret, {
+            expectedWorkerId: workerId,
+            expectedMapId: privateMap?.mapId || null,
+          });
+          if (!verified.ok) { error(socket, verified.code, verified.message); return; }
+          tokenClaims = verified.claims;
+          if (tokenClaims.jti && usedJTIs.has(tokenClaims.jti)) {
+            error(socket, 'JOIN_TOKEN_REPLAYED', '加入凭证已使用，请重新获取。');
+            return;
+          }
+          const requestedRoom = typeof msg.room === 'string' ? msg.room.trim().toUpperCase() : '';
+          if (requestedRoom && tokenClaims.roomCode && requestedRoom !== tokenClaims.roomCode) {
+            error(socket, 'TOKEN_ROOM_MISMATCH', '加入凭证与请求的房间不匹配。');
+            return;
+          }
+        }
+        const effectiveMsg = tokenClaims
+          ? {
+              ...msg,
+              room: tokenClaims.roomCode || msg.room,
+              mode: tokenClaims.mode || msg.mode,
+              visibility: tokenClaims.visibility || msg.visibility,
+              name: tokenClaims.playerName || msg.name,
+              playerUid: tokenClaims.playerUid || msg.playerUid,
+              existing: tokenClaims.action === 'join' ? true : msg.existing,
+            }
+          : msg;
+        const settings = joinSettings(effectiveMsg);
         if (settings.error) { error(socket, 'BAD_JOIN', settings.error); return; }
         if (!settings.room) { do { settings.room = randomBytes(3).toString('hex').toUpperCase(); } while (rooms.has(settings.room)); }
         let room = rooms.get(settings.room), created = false;
-        if(msg.existing===true&&!room){error(socket,'ROOM_GONE','房间已经关闭，请在大厅选择有玩家的房间。');return;}
-        if (room && msg.existing === true && !room.joinable) {
+        if(effectiveMsg.existing===true&&!room){error(socket,'ROOM_GONE','房间已经关闭，请在大厅选择有玩家的房间。');return;}
+        if (room && effectiveMsg.existing === true && !room.joinable) {
           error(socket,'ROOM_UNAVAILABLE','房间已满或对局已结束，请在大厅重新选择。'); return;
         }
-        if(room && msg.existing===true && typeof msg.appearanceRevision==='string'){
+        if(room && effectiveMsg.existing===true && typeof effectiveMsg.appearanceRevision==='string'){
           const appearance=roomAppearance(room);
-          if(appearance.revision!==msg.appearanceRevision){
+          if(appearance.revision!==effectiveMsg.appearanceRevision){
             send(socket,{type:'roomCosmeticsChanged',...appearance});
             return;
           }
@@ -194,8 +342,21 @@ export async function startGameServer({ port = Number(process.env.PORT || 3000),
         }
         try {
           const player = room.addHuman(socket, settings); socket.playerId = player.id; socket.roomCode = room.code;
-          send(socket, { type: 'welcome', ...(privateMap?{mapId:privateMap.mapId,mapSignature:privateMap.mapSignature,physicsSha256:privateMap.config.physicsSha256}:{}),clientBuild:CLIENT_BUILD,rulesVersion:RULES_VERSION,assetVersion:ASSET_VERSION,id: player.id, room: room.code, mode: room.mode, team: player.team,teamId:player.teamId,hostId:room.hostId,desiredBots:room.desiredBots,botCount:room.botCount,botDifficulty:room.botDifficulty,match:room.matchSnapshot(), tickRate: TICK_RATE, snapshotRate: SNAPSHOT_RATE, serverTime: now, protocol: 1, movementProtocol:1,shotProtocol:1 });
-          send(socket, snapshotForSide(room.snapshot({ drainEvents: false }),player.team));
+          socket.binaryProtocol = msg.binaryProtocol === 2 ? 2 : 0;
+          socket.snapshotDelta = socket.binaryProtocol === 0 && msg.snapshotDelta === 1 ? 1 : 0;
+          socket.reconnectOptIn = msg.reconnect === true;
+          socket.resumeToken = player.resumeToken;
+          if (tokenClaims?.jti) usedJTIs.set(tokenClaims.jti, tokenClaims.exp);
+          reporter?.reportNow();
+          send(socket, { type: 'welcome', ...(privateMap?{mapId:privateMap.mapId,mapSignature:privateMap.mapSignature,physicsSha256:privateMap.config.physicsSha256}:{}),clientBuild:CLIENT_BUILD,rulesVersion:RULES_VERSION,assetVersion:ASSET_VERSION,id: player.id, room: room.code, mode: room.mode, team: player.team,teamId:player.teamId,hostId:room.hostId,desiredBots:room.desiredBots,botCount:room.botCount,botDifficulty:room.botDifficulty,match:room.matchSnapshot(), tickRate: TICK_RATE, snapshotRate: SNAPSHOT_RATE, serverTime: now, protocol: 1, binaryProtocol: socket.binaryProtocol, snapshotDelta: socket.snapshotDelta, resumeToken: player.resumeToken, resumed: player.resumed === true, reconnectGraceMs, movementProtocol:1,shotProtocol:1 });
+          const initialSnap = snapshotForSide(room.snapshot({ drainEvents: false }), player.team);
+          if (socket.binaryProtocol === 2) {
+            socket.lastBinaryPlayers = new Map(initialSnap.players.map(p => [p.id, { ...p }]));
+            if (socket.readyState === WebSocket.OPEN) socket.send(encodeSnapshotBinary(initialSnap, null), { compress: false });
+          } else {
+            if (socket.snapshotDelta === 1) socket.lastDeltaSnap = initialSnap;
+            send(socket, initialSnap);
+          }
         } catch (e) { if (created) rooms.delete(room.code); error(socket, 'JOIN_FAILED', e.message); }
         return;
       }
@@ -255,23 +416,69 @@ export async function startGameServer({ port = Number(process.env.PORT || 3000),
         if (!result.ok) error(socket, 'BUY_REJECTED', result.message); else send(socket, { type: 'purchase', ...result });
       } else error(socket, 'UNKNOWN_MESSAGE', '不支持的消息类型。');
     });
-    socket.on('close', () => {
+    socket.on('close', (code) => {
       const room = rooms.get(socket.roomCode); if (!room) return;
+      const abnormalDrop = socket.reconnectOptIn && code !== 1000 && reconnectGraceMs > 0;
+      if (reconnectGraceMs > 0 && (room.humanCount > 1 || abnormalDrop)) {
+        room.saveReconnectSession(socket.playerId, reconnectGraceMs);
+      }
       room.removePlayer(socket.playerId);
-      if (!room.humanCount) rooms.delete(room.code); else { room.ensureBots(); room.maybeStart(); }
+      if (!room.humanCount) {
+        if (abnormalDrop) {
+          room.emptyExpiresAt = Date.now() + reconnectGraceMs;
+        } else {
+          rooms.delete(room.code);
+        }
+      } else {
+        room.ensureBots();
+        room.maybeStart();
+      }
+      reporter?.reportNow();
     });
   });
   let tickNumber = 0,lastTickAt=performance.now();
   const tickTimer = setInterval(() => {
     const tickStarted=performance.now(),delay=Math.max(0,tickStarted-lastTickAt-1000/TICK_RATE);lastTickAt=tickStarted;
     tickNumber++;
-    for (const room of rooms.values()) {
+    const nowWall = Date.now();
+    for (const [code, room] of rooms) {
+      if (!room.humanCount && room.emptyExpiresAt) {
+        if (nowWall >= room.emptyExpiresAt) {
+          rooms.delete(code);
+          reporter?.reportNow();
+        }
+        continue;
+      }
       try {
         room.tick(1 / TICK_RATE);
         if (tickNumber % (TICK_RATE / SNAPSHOT_RATE) === 0) {
-          const snapshot=room.snapshot(),views=new Map();
+          const snapshot = room.snapshot(), sideSnaps = new Map(), jsonViews = new Map(), deltaViews = new Map();
           for (const socket of room.clients.values()) {
-            if (socket.readyState === WebSocket.OPEN) { if (socket.bufferedAmount > 1024 * 1024) socket.close(1008, 'Client too slow'); else {const side=room.players.get(socket.playerId)?.team;if(!views.has(side))views.set(side,JSON.stringify(snapshotForSide(snapshot,side)));socket.send(views.get(side));} }
+            if (socket.readyState === WebSocket.OPEN) {
+              if (socket.bufferedAmount > 1024 * 1024) { socket.close(1008, 'Client too slow'); continue; }
+              const side = room.players.get(socket.playerId)?.team;
+              if (!sideSnaps.has(side)) sideSnaps.set(side, snapshotForSide(snapshot, side));
+              const sideSnap = sideSnaps.get(side);
+              if (socket.binaryProtocol === 2) {
+                const frame = encodeSnapshotBinary(sideSnap, socket.lastBinaryPlayers);
+                socket.lastBinaryPlayers = new Map(sideSnap.players.map(p => [p.id, { ...p }]));
+                socket.send(frame, { compress: false });
+              } else if (socket.snapshotDelta === 1 && socket.lastDeltaSnap) {
+                let byPrev = deltaViews.get(side);
+                if (!byPrev) { byPrev = new Map(); deltaViews.set(side, byPrev); }
+                let payload = byPrev.get(socket.lastDeltaSnap);
+                if (payload === undefined) {
+                  payload = JSON.stringify(encodeDeltaSnapshot(sideSnap, socket.lastDeltaSnap));
+                  byPrev.set(socket.lastDeltaSnap, payload);
+                }
+                socket.lastDeltaSnap = sideSnap;
+                socket.send(payload);
+              } else {
+                if (socket.snapshotDelta === 1) socket.lastDeltaSnap = sideSnap;
+                if (!jsonViews.has(side)) jsonViews.set(side, JSON.stringify(sideSnap));
+                socket.send(jsonViews.get(side));
+              }
+            }
           }
         }
       } catch (e) { console.error(`[room ${room.code}]`, e); for (const socket of room.clients.values()) error(socket, 'SIMULATION_ERROR', '房间模拟出现错误，请重新加入。'); }
@@ -279,26 +486,80 @@ export async function startGameServer({ port = Number(process.env.PORT || 3000),
     performanceMetrics.record(performance.now()-tickStarted,delay);
   }, 1000 / TICK_RATE);
   const heartbeatTimer = setInterval(() => {
+    const nowMs = Date.now();
+    const nowSec = Math.floor(nowMs / 1000);
+    for (const [jti, exp] of usedJTIs) {
+      if (nowSec > exp) usedJTIs.delete(jti);
+    }
+    for (const [code, room] of rooms) {
+      room.pruneDisconnectedSessions(nowMs);
+      if (!room.humanCount && room.emptyExpiresAt && nowMs >= room.emptyExpiresAt) {
+        rooms.delete(code);
+        reporter?.reportNow();
+      }
+    }
     for (const socket of wss.clients) {
-      if (!socket.isAlive || (!socket.playerId && Date.now() - socket.connectedAt > 20000)) { socket.terminate(); continue; }
+      if (!socket.isAlive || (!socket.playerId && nowMs - socket.connectedAt > 20000)) { socket.terminate(); continue; }
       socket.isAlive = false; socket.ping();
     }
   }, 10000);
   try { await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, host, () => { server.off('error', reject); resolve(); }); }); }
   catch (e) { clearInterval(tickTimer); clearInterval(heartbeatTimer); wss.close(); throw e; }
   const actualPort = server.address().port;
+  if (controlPlaneUrl) {
+    const advertisedMapId = privateMap?.mapId || MAP.id || 'de_dust2';
+    const effectiveWorkerId = workerId || `worker-${advertisedMapId}-${actualPort}`;
+    reporter = startControlPlaneReporter({
+      controlPlaneUrl,
+      authToken: workerAuthToken,
+      workerId: effectiveWorkerId,
+      wsUrlProvider: () => workerPublicWsUrl || `ws://${host === '0.0.0.0' ? '127.0.0.1' : host}:${actualPort}/ws`,
+      maps: [advertisedMapId],
+      maxRooms,
+      intervalMs: heartbeatIntervalMs,
+      getState: () => ({
+        draining,
+        tickP99Ms: performanceMetrics.snapshot().tickP95Ms || 0,
+        rooms: [...rooms.values()].map(r => {
+          const playerNames = [];
+          for (const [pid, sock] of r.clients) {
+            if (sock.readyState === WebSocket.OPEN) {
+              const pl = r.players.get(pid);
+              if (pl) playerNames.push(pl.name);
+            }
+          }
+          return {
+            code: r.code,
+            mapId: advertisedMapId,
+            mode: r.mode,
+            visibility: r.visibility,
+            botDifficulty: r.botDifficulty,
+            humans: playerNames.length,
+            bots: r.botCount,
+            capacity: r.humanCapacity,
+            phase: r.round.phase,
+            joinable: !draining && r.joinable,
+            scores: { CT: r.scores.CT, T: r.scores.T },
+            players: playerNames,
+          };
+        }),
+      }),
+    });
+  }
   let closed = false;
   const close = async () => {
     if (closed) return; closed = true; clearInterval(tickTimer); clearInterval(heartbeatTimer);
+    await reporter?.stop();
     for (const socket of wss.clients) socket.terminate();
     await Promise.all([new Promise(resolve => wss.close(resolve)), new Promise(resolve => server.close(resolve))]); rooms.clear();
   };
-  return { server, wss, rooms, port: actualPort, close };
+  return { server, wss, rooms, port: actualPort, maxRooms, close, beginDrain, isDraining: () => draining, reporter };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   startGameServer().then(app => {
     console.log(`Dust2 Web ready: http://localhost:${app.port} | WebSocket /ws | Health /health`);
+    process.on('SIGUSR2', () => { app.beginDrain(); console.log('Dust2 Web draining: new joins disabled'); });
     const stop = () => app.close().then(() => process.exit(0));
     process.once('SIGINT', stop); process.once('SIGTERM', stop);
   }).catch(e => { console.error('Dust2 Web failed to start:', e); process.exitCode = 1; });

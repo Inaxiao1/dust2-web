@@ -1,0 +1,14 @@
+[package]
+name = "duskrain-physics-core"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Shared deterministic FPS movement and collision raycast core for Rust Battle Server and Browser WASM"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

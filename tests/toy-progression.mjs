@@ -1,0 +1,250 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { SKINS } from '../shared/skins.js';
+import { AGENT_CATALOG } from '../shared/agents.js';
+import {
+  STARTER_SKINS,
+  STARTER_KNIFE_IDS,
+  STARTER_AGENTS,
+  TOY_FOLLOW_SKIN_IDS,
+  TOY_FOLLOW_AGENT_IDS,
+  TOY_TRIPLE_SKIN_IDS,
+  TOY_TRIPLE_AGENT_IDS,
+  createEmptyProgress,
+  isSkinUnlocked,
+  isAgentUnlocked,
+  enforceUnlockedSkinLoadout,
+  enforceUnlockedAgentLoadout,
+  mergeProgress,
+  computeCareerLevel,
+  diffNewUnlocks,
+  getSkinUnlockRequirement,
+  getAgentUnlockRequirement,
+} from '../shared/progression.js';
+import { ToyIdentity } from '../scripts/maps/mode-ui/toy-identity.js';
+import { ToyProgressStore, CLOUD_KEY_PROGRESS, CLOUD_KEY_LOADOUT } from '../client/toy-cloud-progress.js';
+import { createPreferenceStore } from '../client/persistence.js';
+
+function memoryStorage() {
+  const map = new Map();
+  return {
+    getItem: (k) => (map.has(k) ? map.get(k) : null),
+    setItem: (k, v) => map.set(k, String(v)),
+    removeItem: (k) => map.delete(k),
+  };
+}
+
+test('fresh player starts ONLY with stock vanilla guns, basic CT/T knives, and default agents', () => {
+  const fresh = createEmptyProgress('toy_fresh_01');
+  for (const skin of SKINS) {
+    const unlocked = isSkinUnlocked(skin.id, fresh);
+    const expectedStarter =
+      (skin.weapon !== 'knife' && skin.condition === 'Vanilla') ||
+      STARTER_KNIFE_IDS.includes(skin.id);
+    assert.equal(unlocked, expectedStarter, `skin ${skin.id} starter state mismatch`);
+  }
+  for (const agent of AGENT_CATALOG) {
+    assert.equal(isAgentUnlocked(agent.id, fresh), agent.isDefault, `agent ${agent.id} starter state mismatch`);
+  }
+  // Attempting to equip locked prestige skins or exotic knives falls back strictly to vanilla starters!
+  const enforcedSkins = enforceUnlockedSkinLoadout(
+    { ak47: 'ak47-vulcan', awp: 'awp-dragon-lore', knife: 'karambit-sapphire', m4a4: 'm4a4-howl' },
+    fresh,
+  );
+  assert.equal(enforcedSkins.ak47, 'ak47-vanilla');
+  assert.equal(enforcedSkins.awp, 'awp-vanilla');
+  assert.equal(enforcedSkins.knife, 'default-ct-vanilla');
+  assert.equal(enforcedSkins.m4a4, 'm4a4-vanilla');
+  assert.deepEqual(enforcedSkins, STARTER_SKINS);
+
+  const enforcedAgents = enforceUnlockedAgentLoadout({ CT: 'ct-ava', T: 't-miami' }, fresh);
+  assert.deepEqual(enforcedAgents, STARTER_AGENTS);
+});
+
+test('every skin and agent has a valid unlock rule covering starter, growth, toy_follow, and toy_triple', () => {
+  const skinTypes = new Set();
+  for (const skin of SKINS) {
+    const req = getSkinUnlockRequirement(skin.id);
+    assert.ok(req, `missing requirement for ${skin.id}`);
+    skinTypes.add(req.type);
+  }
+  assert.deepEqual([...skinTypes].sort(), ['growth', 'starter', 'toy_follow', 'toy_triple']);
+
+  const agentTypes = new Set();
+  for (const agent of AGENT_CATALOG) {
+    const req = getAgentUnlockRequirement(agent.id);
+    assert.ok(req, `missing requirement for ${agent.id}`);
+    agentTypes.add(req.type);
+  }
+  assert.deepEqual([...agentTypes].sort(), ['growth', 'starter', 'toy_follow', 'toy_triple']);
+});
+
+test('combat kills and completed matches gradually unlock growth skins, knives, and agents', () => {
+  const p0 = createEmptyProgress('toy_grow_1');
+  assert.equal(isSkinUnlocked('ak47-slate-1035', p0), false);
+  assert.equal(isAgentUnlocked('ct-operator', p0), false);
+
+  const p1 = { ...p0, kills: 15, matches: 2 };
+  assert.equal(isSkinUnlocked('ak47-slate-1035', p1), true);
+  assert.equal(isSkinUnlocked('navaja-vanilla', p1), true);
+  assert.equal(isAgentUnlocked('ct-operator', p1), true);
+  assert.equal(isSkinUnlocked('awp-dragon-lore', p1), false);
+  assert.equal(isAgentUnlocked('t-silent-darryl', p1), false);
+
+  const p2 = { ...p0, kills: 200, headshots: 60, matches: 16, rounds: 180, wins: 10 };
+  assert.equal(isSkinUnlocked('awp-dragon-lore', p2), true);
+  assert.equal(isSkinUnlocked('karambit-sapphire', p2), true);
+  assert.equal(isAgentUnlocked('ct-syfers', p2), true);
+  assert.equal(isAgentUnlocked('t-silent-darryl', p2), true);
+  // Social-exclusive items still require follow/triple even at high kills
+  assert.equal(isAgentUnlocked('ct-ava', p2), false);
+  assert.equal(isAgentUnlocked('t-miami', p2), false);
+  assert.equal(isSkinUnlocked('butterfly-vanilla', p2), false);
+
+  const diff = diffNewUnlocks(p0, p1);
+  assert.ok(diff.skins.some((s) => s.id === 'ak47-slate-1035'));
+  assert.ok(diff.agents.some((a) => a.id === 'ct-operator'));
+  assert.ok(computeCareerLevel(p2).level > computeCareerLevel(p1).level);
+});
+
+test('Toy SDK follow, triple, and cloud storage sync (with 307044 backoff & valid keys) work end-to-end', async () => {
+  const keyRegex = /^[a-zA-Z0-9_-]{1,128}$/;
+  assert.match(CLOUD_KEY_PROGRESS, keyRegex);
+  assert.match(CLOUD_KEY_LOADOUT, keyRegex);
+
+  const cloud = new Map();
+  let setCalls = 0;
+  let rateLimitOnce = false;
+  let followed = false;
+  let videoAction = { aid: 10086, liked: true, coined: false, favorited: false };
+
+  const sdk = {
+    async isSupport() { return true; },
+    async getUserProfile() {
+      return { toyOpenId: 'toy_open_hero_01', nickname: '沙城狙神', avatar: 'https://i0.hdslb.com/hero.jpg' };
+    },
+    async getAuthorRelation() {
+      return { status: 'ok', isFollowing: followed };
+    },
+    async getAuthorVideoRange() {
+      return { status: 'ok', items: [{ aid: 10086, bvid: 'BV17x411w7KC' }] };
+    },
+    async getVideoUserActions({ aids }) {
+      assert.deepEqual(aids, [10086]);
+      return { status: 'ok', items: [videoAction] };
+    },
+    async getCloudStorage(keys) {
+      const out = {};
+      for (const k of keys) if (cloud.has(k)) out[k] = cloud.get(k);
+      return out;
+    },
+    async setCloudStorage(entries) {
+      setCalls++;
+      if (rateLimitOnce) {
+        rateLimitOnce = false;
+        throw { type: 'http_error', code: 307044 };
+      }
+      for (const [k, v] of Object.entries(entries)) {
+        assert.match(k, keyRegex);
+        cloud.set(k, v);
+      }
+    },
+  };
+
+  let now = 10000;
+  const rawStorage = memoryStorage();
+  const prefs = createPreferenceStore(rawStorage);
+  const identity = new ToyIdentity({
+    sdk,
+    storage: rawStorage,
+    window: { location: { href: 'https://www.bilibilitoy.com/toy/cs2/1.0/index.html' } },
+    document: {},
+  });
+  const store = new ToyProgressStore({
+    identity,
+    storage: prefs,
+    now: () => now,
+    baseBackoffMs: 4000,
+    minSyncIntervalMs: 3000,
+  });
+
+  await store.init();
+  assert.equal(store.uid, 'toy_open_hero_01');
+  assert.equal(store.identity.playerName, '沙城狙神');
+
+  // Recording kills in combat MUST NOT spam Toy Cloud Storage!
+  for (let i = 0; i < 6; i++) store.recordKill({ weapon: 'ak47', headshot: i < 2 });
+  assert.equal(setCalls, 0);
+  assert.equal(store.progress.kills, 6);
+  assert.equal(store.progress.headshots, 2);
+  assert.equal(isSkinUnlocked('ak47-slate-1035', store.progress), true);
+
+  // Completing a match batches progress + loadout to Toy Cloud Storage!
+  store.recordMatchComplete({ won: true });
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(setCalls, 1);
+  assert.ok(cloud.has(CLOUD_KEY_PROGRESS));
+  assert.ok(cloud.has(CLOUD_KEY_LOADOUT));
+
+  // Follow verification unlocks all TOY_FOLLOW_SKIN_IDS & TOY_FOLLOW_AGENT_IDS
+  followed = true;
+  now += 6000;
+  const followRes = await store.verifyToyFollow();
+  assert.equal(followRes.followed, true);
+  for (const sid of TOY_FOLLOW_SKIN_IDS) assert.equal(isSkinUnlocked(sid, store.progress), true);
+  for (const aid of TOY_FOLLOW_AGENT_IDS) assert.equal(isAgentUnlocked(aid, store.progress), true);
+
+  // Partial triple check records liked=true without unlocking triple rewards yet
+  now += 6000;
+  const partialRes = await store.verifyToyTriple();
+  assert.equal(partialRes.liked, true);
+  assert.equal(partialRes.tripled, false);
+  assert.equal(isAgentUnlocked('t-miami', store.progress), false);
+
+  // Full triple unlocks all TOY_TRIPLE_SKIN_IDS & TOY_TRIPLE_AGENT_IDS
+  videoAction = { aid: 10086, liked: true, coined: true, favorited: true };
+  now += 6000;
+  const tripleRes = await store.verifyToyTriple();
+  assert.equal(tripleRes.tripled, true);
+  for (const sid of TOY_TRIPLE_SKIN_IDS) assert.equal(isSkinUnlocked(sid, store.progress), true);
+  for (const aid of TOY_TRIPLE_AGENT_IDS) assert.equal(isAgentUnlocked(aid, store.progress), true);
+
+  // 307044 rate limit triggers exponential backoff and blocks spam during cooldown
+  rateLimitOnce = true;
+  now += 6000;
+  store.recordKill({ weapon: 'awp' });
+  const limited = await store.flushCloud({ force: true });
+  assert.equal(limited.status, 'rate-limited');
+  assert.equal(limited.retryAfterMs, 4000);
+  const duringCooldown = await store.flushCloud({ force: true });
+  assert.equal(duringCooldown.status, 'skipped-cooldown');
+
+  // Monotone cloud merge on a fresh second device restores all kills, matches, follow & triple unlocks!
+  now += 5000;
+  await store.flushCloud({ force: true });
+  const freshDeviceStorage = memoryStorage();
+  const secondIdentity = new ToyIdentity({
+    sdk,
+    storage: freshDeviceStorage,
+    window: { location: { href: 'https://www.bilibilitoy.com/toy/cs2/1.0/index.html' } },
+    document: {},
+  });
+  const secondDevice = new ToyProgressStore({
+    identity: secondIdentity,
+    storage: createPreferenceStore(freshDeviceStorage),
+    now: () => now,
+  });
+  await secondDevice.init();
+  assert.equal(secondDevice.progress.kills, 7);
+  assert.equal(secondDevice.progress.matches, 1);
+  assert.equal(secondDevice.progress.social.followed, true);
+  assert.equal(secondDevice.progress.social.tripled, true);
+  assert.equal(isSkinUnlocked('butterfly-vanilla', secondDevice.progress), true);
+  assert.equal(isAgentUnlocked('ct-ava', secondDevice.progress), true);
+
+  // Verify mergeProgress never drops higher local counters
+  const merged = mergeProgress({ kills: 20, matches: 3 }, { kills: 7, matches: 5, social: { followed: true } }, 'u1');
+  assert.equal(merged.kills, 20);
+  assert.equal(merged.matches, 5);
+  assert.equal(merged.social.followed, true);
+});

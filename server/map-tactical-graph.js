@@ -1,3 +1,5 @@
+import { MinHeap } from '../shared/min-heap.js';
+
 /** Private map AI adapter. Uses the map's own NAV, never Dust II coordinates.
  * Collision-validated edges are supplied by the preview validator. No known
  * valid path means no move order, rather than a direct line through a wall.
@@ -24,20 +26,24 @@ export class MapTacticalGraph {
     const from=typeof start==='number'?this.nodes.get(start):this.nearest(start);
     const to=typeof end==='number'?this.nodes.get(end):this.nearest(end);
     if(!from||!to||!this.standAllowed(from)||!this.standAllowed(to))return null;
-    const scores=new Map([[from.id,0]]),parent=new Map(),open=new Set([from.id]);
+    const scores=new Map([[from.id,0]]),parent=new Map(),closed=new Set(),open=new MinHeap();
+    open.push({id:from.id,cost:Math.hypot(from.x-to.x,from.y-to.y,from.z-to.z)});
     let visited=0;
-    while(open.size&&visited++<maxVisited) {
-      let current=null,best=Infinity;
-      for(const id of open){const a=this.nodes.get(id),score=scores.get(id)+Math.hypot(a.x-to.x,a.y-to.y,a.z-to.z);if(score<best){current=id;best=score;}}
+    while(open.size&&visited<maxVisited) {
+      const current=open.pop().id;
+      if(closed.has(current))continue;
+      closed.add(current);
+      visited++;
       if(current===to.id){const path=[];for(let id=current;id!==undefined;id=parent.get(id))path.push(this.nodes.get(id));return path.reverse();}
-      open.delete(current);
-      const a=this.nodes.get(current);
+      const a=this.nodes.get(current),base=scores.get(current);
       for(const id of a.neighbors) {
+        if(closed.has(id))continue;
         const b=this.nodes.get(id);
         if(!b||!this.standAllowed(b)||!this.edgeAllowed(a,b))continue;
-        const cost=scores.get(current)+Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z)+(penalties.get(id)||0);
+        const cost=base+Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z)+(penalties.get(id)||0);
         if(cost>=(scores.get(id)??Infinity))continue;
-        scores.set(id,cost);parent.set(id,current);open.add(id);
+        scores.set(id,cost);parent.set(id,current);
+        open.push({id,cost:cost+Math.hypot(b.x-to.x,b.y-to.y,b.z-to.z)});
       }
     }
     return null;

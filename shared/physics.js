@@ -36,9 +36,14 @@ const ray = new Ray();
 // Broadphase BVH with a flat, axis-aligned player hull. Render meshes are not
 // used as the character collider; both peers use this same collision geometry.
 class MapCollision {
-  constructor(geometry,enabled=null){this.bvh=new MeshBVH(geometry,{strategy:CENTER,targetLeafSize:16,maxDepth:32});this.geometry=geometry;this.contact=new HullContact();this.enabled=enabled;}
-  triangleEnabled(index){return !this.enabled||this.enabled(Math.floor(this.geometry.index.getX(index*3)/3));}
-  hitEnabled(hit){return !this.enabled||this.enabled(Math.floor(hit.face.a/3));}
+  constructor(geometry,enabled=null,{bvh=null,channelMask=null,channelBit=0}={}){
+    this.bvh=bvh||new MeshBVH(geometry,{strategy:CENTER,targetLeafSize:16,maxDepth:32});
+    this.geometry=geometry;this.contact=new HullContact();this.enabled=enabled;
+    this.channelMask=channelMask;this.channelBit=channelBit;
+  }
+  origEnabled(orig){return (!this.channelMask||(this.channelMask[orig]&this.channelBit)!==0)&&(!this.enabled||this.enabled(orig));}
+  triangleEnabled(index){return this.origEnabled(Math.floor(this.geometry.index.getX(index*3)/3));}
+  hitEnabled(hit){return this.origEnabled(Math.floor(hit.face.a/3));}
   rayIntersect(r){const first=this.bvh.raycastFirst(r,DoubleSide);if(!first||this.hitEnabled(first))return first;return this.bvh.raycast(r,DoubleSide).filter(h=>this.hitEnabled(h)).sort((a,b)=>a.distance-b.distance)[0]||null;}
   sweepDown(c,maxDrop){
     const bounds=c.clone();bounds.min.y-=maxDrop;let distance=Infinity,walkable=false;
@@ -75,17 +80,27 @@ class MapCollision {
   }
 }
 
-export function initPhysics(positions, surfaceMaterials = null, {mapPatches=true,bulletPositions=null,grenadePositions=null,copyPositions=true,airMovement='legacy',triangleEnabled=null,map=null,collisionKey=null}={}) {
+export function initPhysics(positions, surfaceMaterials = null, {mapPatches=true,bulletPositions=null,grenadePositions=null,sharedChannelMask=null,copyPositions=true,airMovement='legacy',triangleEnabled=null,map=null,collisionKey=null}={}) {
   ladders=map?laddersForMap(map):[];ladderIO.landings.clear();
   ladderIO.collisionKey=collisionKey;
   sourceAirMovement=airMovement==='source';
   if(mapPatches){const patched=patchMapCollision(positions,surfaceMaterials);positions=patched.positions;surfaceMaterials=patched.materials;}
-  for(const old of new Set([world,bulletWorld,grenadeWorld]))old?.geometry?.dispose();
+  for(const old of new Set([world?.geometry,bulletWorld?.geometry,grenadeWorld?.geometry]))old?.dispose();
   const attribute=source=>!copyPositions&&source instanceof Float32Array?new BufferAttribute(source,3):new Float32BufferAttribute(source,3);
   const geometry = new BufferGeometry();
   geometry.setAttribute('position', attribute(positions));
   geometry.computeBoundingBox();
   worldBounds.copy(geometry.boundingBox);
+  if(sharedChannelMask){
+    // Single shared BufferGeometry + single MeshBVH for player (1), bullet (2) and grenade (4):
+    // cuts collision RAM and BVH build time by ~67% while preserving exact per-channel filtering.
+    const sharedBvh=new MeshBVH(geometry,{strategy:CENTER,targetLeafSize:16,maxDepth:32});
+    world=new MapCollision(geometry,triangleEnabled?i=>triangleEnabled(1,i):null,{bvh:sharedBvh,channelMask:sharedChannelMask,channelBit:1});
+    world.surfaceMaterials=surfaceMaterials;
+    bulletWorld=new MapCollision(geometry,triangleEnabled?i=>triangleEnabled(2,i):null,{bvh:sharedBvh,channelMask:sharedChannelMask,channelBit:2});
+    grenadeWorld=new MapCollision(geometry,triangleEnabled?i=>triangleEnabled(4,i):null,{bvh:sharedBvh,channelMask:sharedChannelMask,channelBit:4});
+    return world;
+  }
   world = new MapCollision(geometry,triangleEnabled?i=>triangleEnabled(1,i):null);
   world.surfaceMaterials = surfaceMaterials;
   const channel=(source,id)=>{if(!source||source===positions)return world;const g=new BufferGeometry();g.setAttribute('position',attribute(source));return new MapCollision(g,triangleEnabled?i=>triangleEnabled(id,i):null);};

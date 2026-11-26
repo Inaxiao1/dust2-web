@@ -29,7 +29,7 @@ if(installed){
   for(const card of document.querySelectorAll('[data-map-id]')){const chosen=card.dataset.mapId===selected.id;card.classList.toggle('selected',chosen);card.setAttribute('aria-pressed',String(chosen));}
   for(const label of document.querySelectorAll('.selected-map-name'))label.textContent=selected.name;
   $('room-capacity-note').textContent=selected.id==='de_mirage'?'荒漠迷城：1 个共享房间 · 最多 10 名玩家':'最多 10 名玩家 · 人机填充空位';
-  document.title=selected.name+' · DUSKRAIN 战术对战';
+  document.title=selected.name+' · 随时随地CS';
  }
  function mountSelectedLobby(){
   lobby?.dispose();

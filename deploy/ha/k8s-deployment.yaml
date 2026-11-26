@@ -1,0 +1,213 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: cs2-control-plane
+spec:
+  selector:
+    app: cs2-control-plane
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cs2-control-plane
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cs2-control-plane
+  template:
+    metadata:
+      labels:
+        app: cs2-control-plane
+    spec:
+      containers:
+        - name: control-plane
+          image: ghcr.io/duskrain/cs2-control-plane:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: CONTROL_PLANE_ENV
+              value: production
+            - name: REDIS_ADDR
+              value: redis-master:6379
+            - name: RATE_LIMIT_PER_MIN
+              value: "90"
+            - name: RATE_LIMIT_BURST
+              value: "25"
+            - name: ALLOWED_ORIGINS
+              value: https://www.bilibilitoy.com,https://cs2.duskrain.cn
+            - name: JOIN_TOKEN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: cs2-cluster-secrets
+                  key: join-token-secret
+            - name: WORKER_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: cs2-cluster-secrets
+                  key: worker-auth-token
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8080
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /api/v1/ready
+              port: 8080
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: cs2-control-plane-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: cs2-control-plane
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cs2-battle-worker
+spec:
+  clusterIP: None
+  selector:
+    app: cs2-battle-worker
+  ports:
+    - name: ws
+      port: 3005
+      targetPort: 3005
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cs2-battle-worker
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: cs2-battle-worker
+  template:
+    metadata:
+      labels:
+        app: cs2-battle-worker
+    spec:
+      terminationGracePeriodSeconds: 1800
+      containers:
+        - name: battle-worker
+          image: ghcr.io/duskrain/cs2-battle-worker:latest
+          ports:
+            - containerPort: 3005
+          env:
+            - name: DUST2_LOGIC_ONLY
+              value: "1"
+            - name: DUST2_SERVE_MAP_FILES
+              value: "0"
+            - name: DUST2_REQUIRE_JOIN_TOKEN
+              value: "1"
+            - name: DUST2_PRIVATE_MAX_ROOMS
+              value: "6"
+            - name: DUST2_RECONNECT_GRACE_MS
+              value: "30000"
+            - name: DUST2_ALLOWED_ORIGINS
+              value: https://www.bilibilitoy.com,https://cs2.duskrain.cn
+            - name: DUST2_CONTROL_PLANE_URL
+              value: http://cs2-control-plane:8080
+            - name: DUST2_WORKER_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: DUST2_JOIN_TOKEN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: cs2-cluster-secrets
+                  key: join-token-secret
+            - name: DUST2_WORKER_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: cs2-cluster-secrets
+                  key: worker-auth-token
+          lifecycle:
+            preStop:
+              exec:
+                # Enter drain mode so Control Plane stops routing new rooms here,
+                # then wait until every live match finishes (humans == 0) before SIGTERM.
+                command:
+                  - sh
+                  - -c
+                  - >-
+                    kill -USR2 1 &&
+                    node -e '
+                      const deadline = Date.now() + 1740000;
+                      const poll = async () => {
+                        try {
+                          const r = await fetch("http://127.0.0.1:3005/health");
+                          const j = await r.json();
+                          if ((j.humans || 0) === 0 && (j.rooms || 0) === 0) process.exit(0);
+                        } catch { process.exit(0); }
+                        if (Date.now() >= deadline) process.exit(0);
+                        setTimeout(poll, 5000);
+                      };
+                      setTimeout(poll, 3000);
+                    '
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3005
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 3005
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: "1"
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 1Gi
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: cs2-battle-worker-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: cs2-battle-worker
+  minReplicas: 4
+  maxReplicas: 24
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 65

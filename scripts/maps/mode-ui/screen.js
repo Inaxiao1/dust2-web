@@ -1,40 +1,322 @@
 import {mountRoomDirectory} from './room-directory.js';
+import {ToyIdentity} from './toy-identity.js';
 
 const $ = (id) => document.getElementById(id);
 const storageKey = 'duskrain.map-graphics.v1';
-const modeLabels = { quality: '高画质', performance: '高帧率' };
-const validMode = value => Object.hasOwn(modeLabels, value);
+const modeLabels = { defuse: '竞技爆破', deathmatch: '团队死斗' };
+const teamLabels = { auto: '自动平衡', T: 'T · 恐怖分子', CT: 'CT · 反恐精英' };
 const query = new URLSearchParams(location.search);
-const radios = [...document.querySelectorAll('input[name="mode"]')];
-const rail = $('rail');
+
+const AGENT_SHOWCASE = {
+  'ct-sas': { team: 'CT', name: '默认反恐精英 · SAS', en: 'SAS', img: '/perf/assets/characters-cs2/previews/ct-sas.webp' },
+  't-phoenix': { team: 'T', name: '默认恐怖分子 · 凤凰战士', en: 'Phoenix', img: '/perf/assets/characters-cs2/previews/t-phoenix.webp' },
+  'ct-ava': { team: 'CT', name: '特别探员艾娃 · 联邦调查局', en: 'Special Agent Ava | FBI', img: '/perf/assets/characters-cs2/previews/ct-ava.webp' },
+  't-miami': { team: 'T', name: '迈阿密达里尔爵士 · 专业人士', en: 'Sir Bloody Miami Darryl', img: '/perf/assets/characters-cs2/previews/t-miami.webp' },
+  'ct-syfers': { team: 'CT', name: '迈克·赛弗斯 | FBI 狙击手', en: 'Michael Syfers | FBI Sniper', img: '/perf/assets/characters-cs2/popular/ct-syfers/portrait-d31a4bb10887.webp' },
+  'ct-ricksaw': { team: 'CT', name: '海军上尉里克索尔 | 海豹部队', en: 'Lt. Commander Ricksaw | SEAL', img: '/perf/assets/characters-cs2/popular/ct-ricksaw/portrait-31b70d1a6dbf.webp' },
+  'ct-operator': { team: 'CT', name: '特种兵 | FBI 特警', en: 'Operator | FBI SWAT', img: '/perf/assets/characters-cs2/popular/ct-operator/portrait-c96d669698b2.webp' },
+  't-number-k': { team: 'T', name: '老K | 专业人士', en: 'Number K | The Professionals', img: '/perf/assets/characters-cs2/popular/t-number-k/portrait-2189df87326f.webp' },
+  't-silent-darryl': { team: 'T', name: '残酷的达里尔爵士（沉默）', en: 'Sir Bloody Silent Darryl', img: '/perf/assets/characters-cs2/popular/t-silent-darryl/portrait-a4685d65236d.webp' },
+  't-enforcer': { team: 'T', name: '执行者 | 凤凰战士', en: 'Enforcer | Phoenix', img: '/perf/assets/characters-cs2/popular/t-enforcer/portrait-909fe8d4460e.webp' },
+};
+
 let saved = {};
 try { saved = JSON.parse(localStorage.getItem(storageKey)) || {}; } catch {}
-let preferred = [query.get('mode'), saved.mode].find(validMode) || 'performance';
+let quickMode = ['any', 'defuse', 'deathmatch'].includes(saved.quickMode) ? saved.quickMode : 'any';
+let customMode = saved.customMode === 'deathmatch' ? 'deathmatch' : 'defuse';
+let customTeam = ['auto', 'T', 'CT'].includes(saved.customTeam) ? saved.customTeam : 'auto';
+let customBots = Number.isInteger(saved.customBots) && saved.customBots >= 0 && saved.customBots <= 9 ? saved.customBots : 9;
+let previewFaction = saved.previewFaction === 'T' ? 'T' : 'CT';
 let maps = [];
 let selected;
-let currentMode;
 let images = {};
-let comparing = false;
-let cards = [];
+let stageTiles = [];
+let modalMapCards = [];
+let latestRecommendation = null;
+let controlPlaneEnabled = false;
+let activeBackdropLayer = 'A';
+let currentBackdropSrc = '';
 const failedFiles = new Set();
-const directory = mountRoomDirectory($('onlineRooms'), {graphics:() => preferred});
 
-if (['localhost', '127.0.0.1', '[::1]'].includes(location.hostname)) $('environment').hidden = false;
+function stageJoinTicket(ticket) {
+  if (!ticket?.workerWsUrl || !ticket?.joinToken) return;
+  try {
+    sessionStorage.setItem('cs.join.ticket.v1', JSON.stringify({
+      action: ticket.action || 'join',
+      roomCode: ticket.roomCode || '',
+      mapId: ticket.mapId || '',
+      mode: ticket.mode || 'defuse',
+      workerId: ticket.workerId || '',
+      workerWsUrl: ticket.workerWsUrl,
+      joinToken: ticket.joinToken,
+      expiresAt: ticket.expiresAt || 0,
+    }));
+  } catch {}
+}
+
+async function postJson(url, body) {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    cache: 'no-store',
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.message || data.error || '请求失败');
+  return data;
+}
+
+/* 1. Bilibili Toy SDK Identity & Cloud Progression (Zero-UGC) */
+const toyIdentity = new ToyIdentity();
+window.__CS2_TOY_IDENTITY__ = toyIdentity;
+let lobbyProgressSummary = '';
+
+function readLocalCareerSummary(uid) {
+  try {
+    const clean = String(uid || 'guest').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64);
+    const raw = JSON.parse(localStorage.getItem('cs.progression.v1.' + clean) || 'null');
+    if (!raw || typeof raw !== 'object') return 'Lv.1 · 0 杀';
+    const kills = Math.max(0, Math.floor(Number(raw.kills) || 0));
+    const headshots = Math.max(0, Math.floor(Number(raw.headshots) || 0));
+    const rounds = Math.max(0, Math.floor(Number(raw.rounds) || 0));
+    const matches = Math.max(0, Math.floor(Number(raw.matches) || 0));
+    const wins = Math.max(0, Math.floor(Number(raw.wins) || 0));
+    const xp = kills * 25 + headshots * 15 + rounds * 20 + matches * 120 + wins * 80;
+    let level = 1, floorXp = 0, stepXp = 150;
+    while (level < 30 && xp >= floorXp + stepXp) { floorXp += stepXp; level++; stepXp = Math.round(150 + (level - 1) * 95); }
+    return `Lv.${level} · ${kills} 杀 · ${matches} 局`;
+  } catch {
+    return 'Lv.1 · 0 杀';
+  }
+}
+
+function renderToyCard() {
+  const s = toyIdentity.state;
+  const nameEl = $('toyPlayerName');
+  const idEl = $('toyPlayerId');
+  const avatarEl = $('toyPlayerAvatar');
+  const authBtn = $('toyAuthBtn');
+  if (nameEl) nameEl.textContent = s.displayName;
+  const careerTag = lobbyProgressSummary || readLocalCareerSummary(s.uid);
+  if (idEl) idEl.textContent = s.source === 'toy' && s.authenticated
+    ? `TOY · ${s.shortId} · ${careerTag}`
+    : `ID #${s.shortId} · ${careerTag}`;
+  if (avatarEl) {
+    if (s.avatar) {
+      const img = new Image();
+      img.src = s.avatar;
+      img.alt = '';
+      avatarEl.replaceChildren(img);
+    } else {
+      const span = document.createElement('span');
+      span.textContent = s.shortId.slice(0, 2) || 'OP';
+      avatarEl.replaceChildren(span);
+    }
+  }
+  if (authBtn) {
+    authBtn.hidden = !(s.inToy && !s.authenticated);
+    authBtn.disabled = s.status === 'authorizing';
+    authBtn.textContent = s.status === 'authorizing' ? '授权中…' : '授权 Toy';
+  }
+}
+toyIdentity.addEventListener('change', () => {
+  renderToyCard();
+  if (toyIdentity.state.inToy && toyIdentity.state.authenticated) {
+    void syncLobbyCloudProgression();
+  }
+});
+$('toyAuthBtn')?.addEventListener('click', (e) => { e.stopPropagation(); toyIdentity.authorize(); });
+$('toyPlayerCard')?.addEventListener('click', (e) => {
+  if (e.target.closest('#toyAuthBtn')) return;
+  void openHub('progression');
+});
+const playerCardEl = $('toyPlayerCard');
+if (playerCardEl) { playerCardEl.style.cursor = 'pointer'; playerCardEl.title = '点击查看成长任务与 Toy 云存档'; }
+window.addEventListener('cs2-progression-synced', () => {
+  lobbyProgressSummary = '';
+  renderToyCard();
+  renderHeroAgent(false);
+});
+renderToyCard();
+toyIdentity.init().then((s) => {
+  if (s?.inToy && s?.authenticated) void syncLobbyCloudProgression();
+});
+
+async function syncLobbyCloudProgression() {
+  try {
+    if (!hubLoader) hubLoader = import('/perf/assets/lobby-hub.js');
+    const mod = await hubLoader;
+    const initProg = mod?.initHubProgression || globalThis.__CS2_LOBBY_HUB__?.initHubProgression;
+    if (typeof initProg === 'function') {
+      const store = await initProg();
+      const updateMeta = () => {
+        const c = store.career;
+        const p = store.progress;
+        lobbyProgressSummary = `Lv.${c.level} · ${p.kills} 杀 · ${p.matches} 局`;
+        renderToyCard();
+        renderHeroAgent(false);
+      };
+      store.addEventListener('change', updateMeta);
+      updateMeta();
+    }
+  } catch {}
+}
+
+/* 2. Equipped Hero Agent Showcase (Synced Live with Agent Warehouse) */
+function readEquippedAgents() {
+  try {
+    const raw = JSON.parse(localStorage.getItem('dust2.agents.v1') || '{}');
+    return {
+      CT: AGENT_SHOWCASE[raw?.CT]?.team === 'CT' ? raw.CT : 'ct-sas',
+      T: AGENT_SHOWCASE[raw?.T]?.team === 'T' ? raw.T : 't-phoenix',
+    };
+  } catch {
+    return { CT: 'ct-sas', T: 't-phoenix' };
+  }
+}
+
+function renderHeroAgent(animate = false) {
+  const loadout = readEquippedAgents();
+  const agent = AGENT_SHOWCASE[loadout[previewFaction]] || AGENT_SHOWCASE['ct-sas'];
+  document.body.dataset.faction = previewFaction;
+  document.querySelectorAll('[data-preview-faction]').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.previewFaction === previewFaction);
+  });
+  const img = $('heroAgentImg');
+  const nameEl = $('heroAgentName');
+  const enEl = $('heroAgentEn');
+  if (nameEl) nameEl.textContent = agent.name;
+  if (enEl) enEl.textContent = agent.en;
+  if (img && img.getAttribute('src') !== agent.img) {
+    if (animate) {
+      img.classList.add('switching');
+      setTimeout(() => {
+        img.src = agent.img;
+        img.onload = () => img.classList.remove('switching');
+        if (img.complete) img.classList.remove('switching');
+      }, 110);
+    } else {
+      img.src = agent.img;
+    }
+  }
+}
+
+document.querySelectorAll('[data-preview-faction]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    previewFaction = btn.dataset.previewFaction === 'T' ? 'T' : 'CT';
+    renderHeroAgent(true);
+    remember();
+  });
+});
+window.addEventListener('cs2-agent-updated', (event) => {
+  const team = event?.detail?.agent?.team;
+  if (team === 'CT' || team === 'T') previewFaction = team;
+  renderHeroAgent(true);
+});
+renderHeroAgent(false);
+
+/* 3. Live Online Rooms Directory (Docked Full-Height Right Sidebar) */
+const directory = mountRoomDirectory($('onlineRooms'), {
+  graphics: () => 'performance',
+  onJoin: async (event, room) => {
+    if (!controlPlaneEnabled) return;
+    event.preventDefault();
+    try {
+      const ticket = await postJson('/perf/api/rooms/' + encodeURIComponent(room.code) + '/join', {
+        playerName: toyIdentity.playerName,
+        playerUid: toyIdentity.uid || '',
+      });
+      stageJoinTicket({ ...ticket, action: 'join' });
+      location.assign(ticket.joinUrl || ('/perf/play/' + room.mapId + '/?room=' + encodeURIComponent(room.code) + '&join=1&matchMode=' + room.mode));
+    } catch {
+      location.assign('/perf/play/' + room.mapId + '/?room=' + encodeURIComponent(room.code) + '&join=1&matchMode=' + room.mode);
+    }
+  },
+  onCount: (rooms, humans) => {
+    const statusText = $('serverStatusText');
+    if (statusText) {
+      statusText.textContent = rooms > 0
+        ? `${humans} 人在线 · ${rooms} 个活跃房间`
+        : '服务在线 · 5v5 实时联网';
+    }
+    refreshQuickJoin();
+    refreshMapActivity();
+  },
+});
+
+/* 4. Folded Custom Room Modal Controls */
+const customModal = $('customModal');
+let lastFocusedBeforeModal = null;
+
+function openCustomModal() {
+  if (!customModal) return;
+  lastFocusedBeforeModal = document.activeElement;
+  customModal.hidden = false;
+  $('closeCustomModal')?.focus();
+}
+function closeCustomModal() {
+  if (!customModal || customModal.hidden) return;
+  customModal.hidden = true;
+  if (lastFocusedBeforeModal?.isConnected) lastFocusedBeforeModal.focus?.({ preventScroll: true });
+}
+
+$('openCustomModal')?.addEventListener('click', openCustomModal);
+$('openCustomFromBar')?.addEventListener('click', openCustomModal);
+$('closeCustomModal')?.addEventListener('click', closeCustomModal);
+customModal?.addEventListener('click', (event) => {
+  if (event.target === customModal) closeCustomModal();
+});
+document.addEventListener('keydown', (event) => {
+  if (event.code === 'Escape' && customModal && !customModal.hidden) {
+    event.preventDefault();
+    closeCustomModal();
+  }
+});
+if (location.hash === '#custom' || location.hash === '#maps') openCustomModal();
+
+/* 5. Lazy-Loaded Armory, Agents, Skins & Settings Modals right on Homepage */
+let hubLoader = null;
+async function openHub(panel, triggerBtn) {
+  if (triggerBtn) triggerBtn.disabled = true;
+  try {
+    closeCustomModal();
+    if (!hubLoader) {
+      hubLoader = import('/perf/assets/lobby-hub.js');
+    }
+    const mod = await hubLoader;
+    const opener = mod?.openHubPanel || globalThis.__CS2_LOBBY_HUB__?.openHubPanel;
+    if (typeof opener !== 'function') throw new Error('lobby-hub entrypoint unavailable');
+    await opener(panel);
+  } catch (err) {
+    console.error('Failed to open hub panel:', err);
+    hubLoader = null;
+  } finally {
+    if (triggerBtn) triggerBtn.disabled = false;
+  }
+}
+document.querySelectorAll('[data-hub]').forEach((btn) => {
+  btn.addEventListener('click', () => openHub(btn.dataset.hub, btn));
+});
+document.querySelector('[data-tab-home]')?.addEventListener('click', () => closeCustomModal());
 
 async function json(url) {
-  const response = await fetch(url, { cache: 'no-cache' });
+  const response = await fetch(url, { cache: 'no-store' });
   if (!response.ok) throw new Error(String(response.status));
   return response.json();
 }
 
 function remember() {
-  try { localStorage.setItem(storageKey, JSON.stringify({ map: selected.id, mode: preferred })); } catch {}
-  const url = new URL(location.href);
-  if (url.searchParams.has('map') || url.searchParams.has('mode')) {
-    url.searchParams.set('map', selected.id);
-    url.searchParams.set('mode', preferred);
-    history.replaceState(null, '', url);
-  }
+  try {
+    localStorage.setItem(storageKey, JSON.stringify({
+      map: selected?.id || 'de_dust2',
+      mode: 'performance',
+      quickMode,
+      customMode,
+      customTeam,
+      customBots,
+      previewFaction,
+    }));
+  } catch {}
 }
 
 function imageURL(file) {
@@ -42,192 +324,339 @@ function imageURL(file) {
   return '/perf/mode-previews/' + file;
 }
 
-function showImage(element, file) {
-  const url = imageURL(file);
-  element.hidden = !url;
-  if (!url) {
-    element.removeAttribute('src');
-    return;
+/* 6. Dual-Layer Crossfade Living Map Stage */
+function setStageMapVisual(map) {
+  if (!map) return;
+  if ($('stageMapZh')) $('stageMapZh').textContent = map.nameZh;
+  if ($('stageMapEn')) $('stageMapEn').textContent = map.name;
+  if ($('stageMapSize')) {
+    $('stageMapSize').textContent = Number.isFinite(map.gzipBytes)
+      ? `极速加载 · ${(map.gzipBytes / 1e6).toFixed(1)} MB`
+      : '5v5 经典地图';
   }
-  if (element.getAttribute('src') === url) return;
-  element.onerror = () => {
-    failedFiles.add(file);
-    renderScene();
+  const file = images[map.id]?.performance;
+  const url = imageURL(file) || ('/perf/radars/' + map.id + '.png');
+  if (url === currentBackdropSrc) return;
+  currentBackdropSrc = url;
+  const incoming = activeBackdropLayer === 'A' ? $('backdropB') : $('backdropA');
+  const outgoing = activeBackdropLayer === 'A' ? $('backdropA') : $('backdropB');
+  if (!incoming || !outgoing) return;
+  incoming.onload = () => {
+    incoming.classList.add('active');
+    outgoing.classList.remove('active');
+    activeBackdropLayer = activeBackdropLayer === 'A' ? 'B' : 'A';
   };
-  element.src = url;
+  incoming.onerror = () => {
+    if (file) failedFiles.add(file);
+  };
+  incoming.src = url;
+  if (incoming.complete && incoming.naturalWidth > 0) incoming.onload();
 }
 
-function setSplit(value) {
-  $('split').value = String(value);
-  $('split').setAttribute('aria-valuetext', '高画质 ' + value + '%');
-  $('scene').style.setProperty('--split', value + '%');
-}
-
-function renderScene() {
-  const assets = images[selected.id] || {};
-  const hasPair = selected.qualityURL && assets.aligned === true && imageURL(assets.quality) && imageURL(assets.performance);
-  if (!hasPair) comparing = false;
-  const sceneFile = comparing ? assets.quality : assets[currentMode];
-  const sceneURL = imageURL(sceneFile);
-  showImage($('world'), sceneFile);
-  showImage($('after'), comparing ? assets.performance : null);
-  if (!sceneURL) $('largeRadar').src = '/perf/radars/' + selected.id + '.png';
-  $('radarArt').hidden = !!sceneURL;
-  $('compare').hidden = !hasPair;
-  $('compare').setAttribute('aria-pressed', String(comparing));
-  $('compare').querySelector('span').textContent = comparing ? '退出对比' : '画面对比';
-  $('sceneType').textContent = comparing ? '同视角对比' : (sceneURL ? modeLabels[currentMode] + '预览' : '地图雷达');
-  $('scene').classList.toggle('comparing', comparing);
-  $('wipe').hidden = !comparing;
-  $('mapZh').textContent = selected.nameZh;
-  $('mapName').textContent = selected.name;
-  $('scene').setAttribute('aria-label', selected.nameZh + ' · ' + $('sceneType').textContent);
-}
-
-function update() {
-  currentMode = preferred === 'quality' && selected.qualityURL ? 'quality' : 'performance';
-  directory.render();
-  for (const button of radios) {
-    button.disabled = button.value === 'quality' && !selected.qualityURL;
-    button.checked = button.value === currentMode;
+/* 7. Quick Join Recommendation */
+function renderQuickJoinUI(rec) {
+  latestRecommendation = rec;
+  const title = $('quickJoinTitle');
+  const hint = $('quickJoinHint');
+  if (!rec || !title || !hint) return;
+  if (rec.action === 'join' && rec.room) {
+    const r = rec.room;
+    const mapLabel = r.mapNameZh || r.mapName || r.mapId;
+    const modeLabel = modeLabels[r.mode] || '对战';
+    title.textContent = `快速加入 · ${mapLabel}`;
+    hint.textContent = `${modeLabel} · ${r.humans}/${r.capacity} 真人在线 · 点击直连`;
+  } else {
+    const mapObj = maps.find(m => m.id === rec.mapId) || selected;
+    const mapLabel = mapObj?.nameZh || '炙热沙城 II';
+    const modeLabel = modeLabels[rec.mode] || '竞技爆破';
+    title.textContent = `快速开战 · ${mapLabel}`;
+    hint.textContent = `秒开「${modeLabel}」新战局 · 自动补齐人机`;
   }
-  $('qualityNote').textContent = selected.qualityURL ? '原版地图材质与场景细节' : '此地图暂供高帧率模式';
-  const launch = $('enter');
-  launch.href = currentMode === 'quality' ? selected.qualityURL : selected.performanceURL;
-  launch.setAttribute('aria-label', '进入对战，' + selected.nameZh + '，' + modeLabels[currentMode]);
-  for (const card of cards) card.setAttribute('aria-pressed', String(card.dataset.map === selected.id));
-  comparing = false;
-  renderScene();
-  $('announce').textContent = selected.nameZh + '，' + modeLabels[currentMode];
 }
 
-function visibleMaps() { return $('filter').checked ? maps.filter(map => map.qualityURL) : maps; }
+async function refreshQuickJoin() {
+  const preferredMap = selected?.id || 'de_dust2';
+  const params = new URLSearchParams({ mode: quickMode, preferredMap });
+  try {
+    renderQuickJoinUI(await json('/perf/quick-join.json?' + params));
+  } catch {
+    const fallbackMode = quickMode === 'deathmatch' ? 'deathmatch' : 'defuse';
+    renderQuickJoinUI({
+      action: 'create',
+      mapId: preferredMap,
+      mode: fallbackMode,
+      joinUrl: '/perf/play/' + preferredMap + '/?' + new URLSearchParams({ autostart: '1', matchMode: fallbackMode }),
+    });
+  }
+}
 
-function buildCards() {
-  const visible = visibleMaps();
-  cards = visible.map(map => {
-    const card = document.createElement('button');
-    card.className = 'card';
-    card.type = 'button';
-    card.dataset.map = map.id;
-    const image = new Image();
-    image.alt = '';
-    image.decoding = 'async';
-    image.loading = 'lazy';
-    const thumbnail = imageURL(images[map.id]?.thumbnail);
-    const useRadar = () => {
-      image.onerror = null;
-      image.className = 'card-radar';
-      image.src = '/perf/radars/' + map.id + '.png';
+async function refreshMapActivity() {
+  try {
+    const data = await json('/perf/rooms.json');
+    const counts = new Map();
+    for (const room of data.rooms || []) {
+      const prev = counts.get(room.mapId) || { rooms: 0, humans: 0 };
+      prev.rooms += 1;
+      prev.humans += room.humans || 0;
+      counts.set(room.mapId, prev);
+    }
+    for (const tile of stageTiles) {
+      const badge = tile.querySelector('.tile-live');
+      if (!badge) continue;
+      const info = counts.get(tile.dataset.map);
+      badge.hidden = !info;
+      if (info) badge.textContent = `${info.humans}人`;
+    }
+    for (const card of modalMapCards) {
+      const badge = card.querySelector('.cs-map-live');
+      if (!badge) continue;
+      const info = counts.get(card.dataset.map);
+      badge.hidden = !info;
+      if (info) badge.textContent = `${info.humans} 人`;
+    }
+  } catch {}
+}
+
+/* 8. Custom Room Modal Controls (Zero Dropdowns) */
+function renderCustomBotPips() {
+  const container = $('customBotPips');
+  if (!container) return;
+  container.innerHTML = '';
+  for (let i = 1; i <= 9; i++) {
+    const pip = document.createElement('button');
+    pip.type = 'button';
+    pip.className = i <= customBots ? 'filled' : '';
+    pip.setAttribute('aria-label', `${i} 名人机`);
+    pip.onclick = () => {
+      customBots = customBots === i ? i - 1 : i;
+      syncCustomUI();
+      remember();
     };
-    if (thumbnail) { image.onerror = useRadar; image.src = thumbnail; } else useRadar();
-    const caption = document.createElement('span');
+    container.append(pip);
+  }
+}
+
+function syncCustomUI() {
+  document.querySelectorAll('[data-custom-mode]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.customMode === customMode);
+  });
+  document.querySelectorAll('[data-custom-team]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.customTeam === customTeam);
+  });
+  document.querySelectorAll('[data-custom-bots]').forEach(btn => {
+    btn.classList.toggle('active', Number(btn.dataset.customBots) === customBots);
+  });
+  const minus = $('customBotMinus'), plus = $('customBotPlus');
+  if (minus) minus.disabled = customBots <= 0;
+  if (plus) plus.disabled = customBots >= 9;
+  renderCustomBotPips();
+  const readout = $('customBotsReadout');
+  if (readout) {
+    readout.textContent = customBots === 0
+      ? '0 名 · 纯真人'
+      : customBots === 9
+        ? '9 名 · 5v5 满员'
+        : `${customBots} 名人机`;
+  }
+  if (selected) {
+    $('customLaunchSummary').textContent = `${selected.nameZh} · ${modeLabels[customMode]} · ${teamLabels[customTeam]} · ${customBots} 名人机`;
+  }
+}
+
+function updateSelectedMap() {
+  if (!selected) return;
+  setStageMapVisual(selected);
+  if ($('commandSelectedMap')) $('commandSelectedMap').textContent = `首选地图：${selected.nameZh}`;
+  for (const tile of stageTiles) {
+    const active = tile.dataset.map === selected.id;
+    tile.classList.toggle('active', active);
+    tile.setAttribute('aria-pressed', String(active));
+  }
+  for (const card of modalMapCards) {
+    const active = card.dataset.map === selected.id;
+    card.classList.toggle('active', active);
+    card.setAttribute('aria-pressed', String(active));
+  }
+  syncCustomUI();
+  refreshQuickJoin();
+  $('announce').textContent = '已选择 ' + selected.nameZh;
+}
+
+function buildMapUI() {
+  stageTiles = maps.map(map => {
+    const btn = document.createElement('button');
+    btn.className = 'stage-map-tile';
+    btn.type = 'button';
+    btn.dataset.map = map.id;
+    const img = new Image();
+    img.alt = '';
+    img.decoding = 'async';
+    img.loading = 'lazy';
+    const thumb = imageURL(images[map.id]?.thumbnail);
+    const useRadar = () => { img.onerror = null; img.src = '/perf/radars/' + map.id + '.png'; };
+    if (thumb) { img.onerror = useRadar; img.src = thumb; } else useRadar();
+    const live = document.createElement('span');
+    live.className = 'tile-live';
+    live.hidden = true;
     const name = document.createElement('strong');
     name.textContent = map.nameZh;
-    const english = document.createElement('small');
-    english.lang = 'en';
-    english.textContent = map.name;
-    caption.append(name, english);
-    card.append(image, caption);
-    card.setAttribute('aria-pressed', String(map === selected));
-    card.addEventListener('click', () => {
+    btn.append(img, live, name);
+    btn.addEventListener('click', () => {
       selected = map;
-      update();
+      updateSelectedMap();
       remember();
     });
-    return card;
+    return btn;
   });
-  rail.replaceChildren(...cards);
-  $('mapCount').textContent = visible.length + ' 张';
-  requestAnimationFrame(scrollButtons);
+  $('stageMapStrip')?.replaceChildren(...stageTiles);
+
+  modalMapCards = maps.map(map => {
+    const btn = document.createElement('button');
+    btn.className = 'cs-map-card';
+    btn.type = 'button';
+    btn.dataset.map = map.id;
+    const img = new Image();
+    img.alt = '';
+    img.decoding = 'async';
+    img.loading = 'lazy';
+    const thumb = imageURL(images[map.id]?.thumbnail);
+    const useRadar = () => { img.onerror = null; img.className = 'is-radar'; img.src = '/perf/radars/' + map.id + '.png'; };
+    if (thumb) { img.onerror = useRadar; img.src = thumb; } else useRadar();
+    const live = document.createElement('span');
+    live.className = 'cs-map-live';
+    live.hidden = true;
+    const name = document.createElement('strong');
+    name.textContent = map.nameZh;
+    const en = document.createElement('small');
+    en.textContent = map.name;
+    btn.append(img, live, name, en);
+    btn.addEventListener('mouseenter', () => setStageMapVisual(map));
+    btn.addEventListener('click', () => {
+      selected = map;
+      updateSelectedMap();
+      remember();
+    });
+    return btn;
+  });
+  $('customMapGrid')?.replaceChildren(...modalMapCards);
 }
 
-function scrollButtons() {
-  const limit = rail.scrollWidth - rail.clientWidth;
-  document.querySelector('.pages').hidden = limit < 3;
-  $('back').disabled = rail.scrollLeft < 2;
-  $('next').disabled = rail.scrollLeft >= limit - 2;
+/* 9. Event Bindings */
+function syncQuickModePills() {
+  document.querySelectorAll('[data-quick-mode]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.quickMode === quickMode);
+  });
 }
+document.querySelectorAll('[data-quick-mode]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    quickMode = btn.dataset.quickMode;
+    syncQuickModePills();
+    remember();
+    refreshQuickJoin();
+  });
+});
+syncQuickModePills();
 
-function scrollMaps(direction) {
-  const step = cards.length > 1 ? cards[1].offsetLeft - cards[0].offsetLeft : rail.clientWidth;
-  rail.scrollBy({ left: direction * step * Math.max(1, Math.floor(rail.clientWidth / step)), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
-}
+document.querySelectorAll('[data-custom-mode]').forEach(btn => {
+  btn.addEventListener('click', () => { customMode = btn.dataset.customMode; syncCustomUI(); remember(); });
+});
+document.querySelectorAll('[data-custom-team]').forEach(btn => {
+  btn.addEventListener('click', () => { customTeam = btn.dataset.customTeam; syncCustomUI(); remember(); });
+});
+document.querySelectorAll('[data-custom-bots]').forEach(btn => {
+  btn.addEventListener('click', () => { customBots = Number(btn.dataset.customBots); syncCustomUI(); remember(); });
+});
+$('customBotMinus')?.addEventListener('click', () => { if (customBots > 0) { customBots--; syncCustomUI(); remember(); } });
+$('customBotPlus')?.addEventListener('click', () => { if (customBots < 9) { customBots++; syncCustomUI(); remember(); } });
 
-function revealSelected() {
-  const card = cards.find(item => item.dataset.map === selected.id);
-  if (card) rail.scrollLeft += card.getBoundingClientRect().left - rail.getBoundingClientRect().left;
-}
+$('customLaunchBtn')?.addEventListener('click', async () => {
+  if (!selected) return;
+  const btn = $('customLaunchBtn');
+  const params = new URLSearchParams({
+    autostart: '1',
+    matchMode: customMode,
+    bots: String(customBots),
+    team: customTeam,
+  });
+  if (controlPlaneEnabled) {
+    if (btn) btn.disabled = true;
+    try {
+      const ticket = await postJson('/perf/api/rooms', {
+        mapId: selected.id,
+        mode: customMode,
+        visibility: 'public',
+        playerName: toyIdentity.playerName,
+        playerUid: toyIdentity.uid || '',
+      });
+      stageJoinTicket({ ...ticket, action: 'create' });
+      params.set('room', ticket.roomCode);
+      location.assign(selected.performanceURL + '?' + params);
+      return;
+    } catch {
+      // Fall through to local/gateway route if control plane rejected.
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+  location.assign(selected.performanceURL + '?' + params);
+});
+
+$('quickJoinBtn')?.addEventListener('click', async () => {
+  const btn = $('quickJoinBtn');
+  btn.disabled = true;
+  try {
+    const preferredMap = selected?.id || 'de_dust2';
+    if (controlPlaneEnabled) {
+      const ticket = await postJson('/perf/api/quick-join', {
+        mode: quickMode,
+        preferredMap,
+        playerName: toyIdentity.playerName,
+        playerUid: toyIdentity.uid || '',
+      }).catch(() => null);
+      if (ticket?.joinUrl) {
+        stageJoinTicket(ticket);
+        location.assign(ticket.joinUrl);
+        return;
+      }
+    }
+    const params = new URLSearchParams({ mode: quickMode, preferredMap });
+    const fresh = await json('/perf/quick-join.json?' + params).catch(() => latestRecommendation);
+    if (fresh?.joinUrl) {
+      location.assign(fresh.joinUrl);
+      return;
+    }
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 async function load() {
   $('loading').hidden = false;
   $('problem').hidden = true;
   try {
-    const [catalog, entries, previews] = await Promise.all([
+    const [catalog, entries, previews, health] = await Promise.all([
       json('/perf/catalog.json'),
       json('/perf/graphics.json'),
       json('/perf/mode-previews/previews.json').catch(() => ({ maps: {} })),
+      json('/perf/health').catch(() => ({})),
     ]);
+    controlPlaneEnabled = health?.controlPlane === true;
     const routes = new Map(entries.maps.map(route => [route.id, route]));
     images = previews.maps || {};
-    maps = catalog.maps.filter(map => /^de_[a-z0-9_]+$/.test(map.id) && routes.get(map.id)?.performanceURL)
+    maps = catalog.maps
+      .filter(map => /^de_[a-z0-9_]+$/.test(map.id) && routes.get(map.id)?.performanceURL)
       .map(map => ({ ...map, ...routes.get(map.id) }));
     if (!maps.length) throw new Error('empty');
     selected = [query.get('map'), saved.map, 'de_dust2'].map(id => maps.find(map => map.id === id)).find(Boolean) || maps[0];
-    $('setup').hidden = false;
-    $('reset').hidden = false;
-    $('filter').disabled = !maps.some(map => map.qualityURL);
-    buildCards();
-    update();
-    revealSelected();
+    buildMapUI();
+    updateSelectedMap();
+    refreshMapActivity();
   } catch {
-    $('setup').hidden = true;
-    $('reset').hidden = true;
     $('problem').hidden = false;
   } finally {
     $('loading').hidden = true;
   }
 }
 
-for (const radio of radios) radio.addEventListener('change', () => {
-  preferred = radio.value;
-  update();
-  remember();
-});
-$('compare').addEventListener('click', () => {
-  comparing = !comparing;
-  if (comparing) setSplit(50);
-  renderScene();
-});
-$('split').addEventListener('input', e => setSplit(e.currentTarget.value));
-$('filter').addEventListener('change', () => {
-  const visible = visibleMaps();
-  if (!visible.includes(selected)) {
-    selected = visible[0];
-    update();
-    remember();
-  }
-  buildCards();
-  revealSelected();
-});
-$('reset').addEventListener('click', () => {
-  preferred = 'performance';
-  selected = maps.find(map => map.id === 'de_dust2') || maps[0];
-  $('filter').checked = false;
-  if (query.has('map') || query.has('mode')) {
-    const url = new URL(location.href);
-    url.searchParams.delete('map');
-    url.searchParams.delete('mode');
-    history.replaceState(null, '', url);
-  }
-  buildCards();
-  update();
-  remember();
-  revealSelected();
-});
-$('retry').addEventListener('click', load);
-$('back').addEventListener('click', () => scrollMaps(-1));
-$('next').addEventListener('click', () => scrollMaps(1));
-rail.addEventListener('scroll', scrollButtons, { passive: true });
-window.addEventListener('resize', scrollButtons);
+$('retry')?.addEventListener('click', load);
 load();

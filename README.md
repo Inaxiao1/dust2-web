@@ -1,5 +1,15 @@
 # DUSKRAIN · 网页战术对战
 
+> **开源归属与协议声明**：本仓库基于上游项目 [ETO-ze/dust2-web](https://github.com/ETO-ze/dust2-web)（`online-v1.4.0-perf.6.2` / `f4a2634`）派生修改，完整遵循并保留上游 [MIT 许可证](LICENSE.md)、[第三方声明](THIRD-PARTY-NOTICES.md) 与 [素材来源及边界说明](docs/ASSETS.md)。本仓库仅托管原创及派生源代码与文档，不包含任何 Valve / Counter-Strike 游戏二进制素材（运行所需地图与装备素材由本地安装器按 SHA-256 校验获取）。
+
+### 本 Fork 新增与优化特性
+
+- **B站 Toy SDK 成长与云存档体系**：自动读取 `toy.getUserProfile()`（`toyOpenId`）作为玩家账号 ID；全量原厂武器、基础 CT/T 匕首与默认探员开局；216 款皮肤/匕首与 10 名探员支持击杀/完成局数梯度成长解锁，及关注 UP 主、一键三连专属解锁；通过 `cs_prog_v1` / `cs_loadout_v1` 批量同步至 Toy 云存档（支持 `307044` 限流退避与多端单调合并）。
+- **双档画质与九图渲染/显存优化**：支持标准（极简高帧率，修复九图共面 Z-fighting 闪烁、重构材质区分度与几何合批显存优化）与高画质（原版贴图 + 抗闪烁修正）随时切换；扩大鼠标灵敏度调节范围（`0.05–100`）；同步 R8 左轮、Glock 三连发与移动端辅助瞄准等更新。
+- **高可用前后端分离架构与新前端轻壳**：新增纯逻辑对局服模式（`DUST2_LOGIC_ONLY=1`）、Binary Protocol v2 增量二进制协议、Go 无状态控制面（`control-plane/`，支持 Redis 多副本与 HMAC `JoinToken`）、TypeScript + SolidJS + Three.js WebGPU/WebGL2 轻壳（`client-next/`）以及 Rust 共享物理核骨架（`physics-core/`）。详见 [SPEC.md](SPEC.md) 与 [本地使用说明](本地使用说明.md)。
+
+在本目录运行 `npm run play`，打开 `http://127.0.0.1:3240/perf/`。以下保留上游项目原始介绍。
+
 支持 5 对 5 的网页第一人称对战。玩家可以从联机大厅加入已有房间，也可以选择地图、画面模式和人机数量创建房间。游戏按所选地图加载资源，开火、命中、经济和人机由房间服务器计算。
 
 [进入游戏](https://cs2.duskrain.cn/perf/) · [联机大厅](https://cs2.duskrain.cn/perf/#onlineRooms) · [版本更新记录](CHANGELOG.md) · [下载九图发行包](https://github.com/ETO-ze/dust2-web/releases/tag/online-v1.4.0-perf.6.2) · [运行说明](docs/NINE-MAPS-LOBBY.md)

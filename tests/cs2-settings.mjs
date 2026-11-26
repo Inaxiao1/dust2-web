@@ -23,6 +23,8 @@ test('CS reference FOV is horizontal 4:3, while Three receives vertical degrees'
 test('CS mouse counts retain .022 degree base, and use linear engine FOV zoom ratio', () => {
   near(mouseRadiansPerCount(1) * 180 / Math.PI, 0.022);
   near(mouseRadiansPerCount(2, 'pitch'), 2 * mouseRadiansPerCount(1));
+  near(mouseRadiansPerCount(50, 'yaw'), 50 * mouseRadiansPerCount(1));
+  near(mouseRadiansPerCount(100, 'yaw'), 100 * mouseRadiansPerCount(1));
   near(mouseRadiansPerCount(1, 'yaw', 40) / mouseRadiansPerCount(1), 40 / 90);
   near(mouseRadiansPerCount(1, 'yaw', 10, 0.818933) / mouseRadiansPerCount(1), 10 / 90 * 0.818933);
   near(mouseRadiansPerCount(1, 'yaw', CS2_BASE_FOV, 0.5), mouseRadiansPerCount(1));

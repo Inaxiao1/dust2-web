@@ -48,7 +48,7 @@ export function applyPrivateCollisionExclusions(mask,groups,policy){
 
 /** Shared private-map decoding. Source geometry is immutable; only explicitly
  * source-declared nonphysical ranges can be removed. */
-export async function decodePrivateMapCollision({bytes,maskBytes,groupsText,policyText,map,expected={}},{channels=[1]}={}) {
+export async function decodePrivateMapCollision({bytes,maskBytes,groupsText,policyText,map,expected={}},{channels=[1],shared=false}={}) {
  const original=asBytes(bytes),originalMask=asBytes(maskBytes);
  if(!original||!originalMask||original.byteLength%36||!channels.length||channels.some(c=>![1,2,4].includes(c)))throw Error('Invalid private collision buffers or channels');
  const [physicsSha256,maskSha256,groupsSha256,policySha256]=await Promise.all([digest(original),digest(originalMask),digest(encode(groupsText)),digest(encode(policyText))]);
@@ -59,7 +59,26 @@ export async function decodePrivateMapCollision({bytes,maskBytes,groupsText,poli
  applyPrivateCollisionExclusions(mask,groups,policy);
  if(original.byteLength!==mask.length*36||mask.length!==map.physics.triangles)throw Error('Private collision geometry length differs from map');
  const aligned=original.byteOffset%4===0?original:original.slice();
- const all=new Float32Array(aligned.buffer,aligned.byteOffset,aligned.byteLength/4),positionsByChannel={},sourceTrianglesByChannel={};
+ const all=new Float32Array(aligned.buffer,aligned.byteOffset,aligned.byteLength/4);
+ if(shared){
+  let unionMask=0;for(const c of channels)unionMask|=c;
+  let count=0;for(let i=0;i<mask.length;i++)if(mask[i]&unionMask)count++;
+  const sharedPositions=new Float32Array(count*9);
+  const sharedChannelMask=new Uint8Array(count);
+  const sharedSourceTriangles=new Uint32Array(count);
+  for(let i=0,t=0;i<mask.length;i++){
+   const bits=mask[i]&unionMask;
+   if(!bits)continue;
+   sharedPositions.set(all.subarray(i*9,i*9+9),t*9);
+   sharedChannelMask[t]=bits;
+   sharedSourceTriangles[t]=i;
+   t++;
+  }
+  const sourceTrianglesByChannel={};
+  for(const c of new Set(channels))sourceTrianglesByChannel[c]=sharedSourceTriangles;
+  return {sharedPositions,sharedChannelMask,sharedSourceTriangles,sourceTrianglesByChannel,physicsSha256,maskSha256,policySha256};
+ }
+ const positionsByChannel={},sourceTrianglesByChannel={};
  for(const channel of new Set(channels)){
   let count=0;for(const bits of mask)if(bits&channel)count++;
   const positions=new Float32Array(count*9);

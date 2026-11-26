@@ -1,0 +1,27 @@
+{
+  "name": "duskrain-web-client-next",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "TypeScript + Three.js (WebGPU/WebGL2) + SolidJS Web client for DUSKRAIN",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5179 --strictPort",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 4179",
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "solid-js": "^1.9.20",
+    "three": "0.185.1",
+    "three-mesh-bvh": "0.9.14"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.10",
+    "@types/three": "^0.185.0",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.8",
+    "vite-plugin-solid": "^2.11.17"
+  }
+}

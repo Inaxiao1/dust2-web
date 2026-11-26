@@ -5,10 +5,17 @@
   "type": "module",
   "description": "Dust2 inspired personal browser FPS with authoritative multiplayer and bots",
   "scripts": {
+    "setup:local": "node local/install.mjs",
+    "play": "node local/start.mjs",
+    "play:open": "node local/start.mjs --open",
+    "play:lan": "node local/start.mjs --lan --open",
     "dev": "vite --host 0.0.0.0 --port 5178 --strictPort",
     "build": "node scripts/build-asset-manifest.mjs && vite build",
     "start": "node server/index.js",
-    "test": "node --test tests/*.mjs",
+    "start:logic": "DUST2_LOGIC_ONLY=1 DUST2_SERVE_MAP_FILES=0 node server/index.js",
+    "dev:ha": "node scripts/dev-ha-cluster.mjs",
+    "logic:check": "node scripts/verify-logic-split.mjs",
+    "test": "node --test --test-concurrency=4 tests/*.mjs",
     "assets:fetch": "node scripts/fetch-assets.mjs",
     "assets:check": "node scripts/fetch-assets.mjs --check",
     "cdn:plan": "node scripts/cdn/plan-cloudflare.mjs",
@@ -25,7 +32,7 @@
     "ws": "8.21.3"
   },
   "devDependencies": {
-    "vite": "8.2.2"
+    "vite": "8.3.8"
   },
   "engines": {
     "node": ">=22.12.0"

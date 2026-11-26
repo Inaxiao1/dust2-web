@@ -1,14 +1,14 @@
 {
   "id": "./",
-  "name": "DuskRain · Dust II 网页对战",
-  "short_name": "Dust II",
-  "description": "Dust II 网页对战；保存基础资源后可离线打开大厅，多人对战需要联网。",
+  "name": "随时随地CS · 在线网页对战",
+  "short_name": "随时随地CS",
+  "description": "随时随地CS：打开浏览器即点即玩的 5v5 联网战术射击游戏。",
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",
   "orientation": "landscape",
-  "background_color": "#111715",
-  "theme_color": "#111715",
+  "background_color": "#080b10",
+  "theme_color": "#080b10",
   "lang": "zh-CN",
   "icons": [
     {

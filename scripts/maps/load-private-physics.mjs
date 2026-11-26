@@ -26,3 +26,31 @@ export function loadPrivatePhysics(directory,channel=1) {
  for(let i=0,j=0;i<mask.length;i++)if(mask[i]&channel){positions.set(all.subarray(i*9,i*9+9),j);sourceTriangles[j/9]=i;j+=9;}
  return {positions,sourceTriangles,physicsSha256,maskSha256,policySha256:sha(policyBytes),excludedTriangles:policy.excludedTriangles};
 }
+
+/** Load all 3 channels (player=1, bullet=2, grenade=4) into a single shared position buffer + 1-byte mask (~67% less RAM & 3x faster BVH build). */
+export function loadPrivatePhysicsShared(directory) {
+ const compiled=path.join(directory,'compiled'),bytes=fs.readFileSync(path.join(compiled,'physics.f32'));
+ const originalMask=fs.readFileSync(path.join(compiled,'physics-mask.u8'));
+ const policyBytes=fs.readFileSync(path.join(directory,'entity-collision-policy.json'));
+ const policy=JSON.parse(policyBytes);
+ const map=JSON.parse(fs.readFileSync(path.join(compiled,'map.json')));
+ const groupsBytes=fs.readFileSync(path.join(compiled,'physics-groups.json')),groups=JSON.parse(groupsBytes);
+ const physicsSha256=sha(bytes),maskSha256=sha(originalMask);
+ if(policy.map!==map.id||policy.sourceSha256!==map.sourceSha256||policy.physicsSha256!==physicsSha256||policy.maskSha256!==maskSha256||policy.groupsSha256!==sha(groupsBytes))throw new Error('Private collision policy does not match immutable map geometry');
+ const mask=Buffer.from(originalMask);
+ applyPrivateCollisionExclusions(mask,groups,policy);
+ const all=new Float32Array(bytes.buffer,bytes.byteOffset,bytes.length/4);
+ if(all.length!==mask.length*9)throw new Error('Collision mask length does not match geometry');
+ let count=0;for(let i=0;i<mask.length;i++)if(mask[i]&7)count++;
+ const positions=new Float32Array(count*9);
+ const channelMask=new Uint8Array(count);
+ const sourceTriangles=new Uint32Array(count);
+ for(let i=0,t=0;i<mask.length;i++){
+  const bits=mask[i]&7;if(!bits)continue;
+  positions.set(all.subarray(i*9,i*9+9),t*9);
+  channelMask[t]=bits;
+  sourceTriangles[t]=i;
+  t++;
+ }
+ return {positions,channelMask,sourceTriangles,physicsSha256,maskSha256,policySha256:sha(policyBytes),excludedTriangles:policy.excludedTriangles};
+}

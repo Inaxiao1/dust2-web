@@ -131,11 +131,16 @@ export class MatchAudio {
   status(){return {kit:this.kit,volume:this.volume,cue:this.cue,playing:this.voices.playing,cachedClips:this.cache.size,cachedBytes:[...this.cache.values()].reduce((sum,b)=>sum+b.size,0),played:this.played};}
 }
 
-export function mountMusicSettings(settings,music,audio){
-  const tab=document.createElement('button');tab.textContent='声音 / 音乐盒';tab.dataset.tab='audio';settings.element.querySelector('.config-tabs').append(tab);
+export function mountMusicSettings(settings,music,audio,masterAudio=null){
+  const tab=document.createElement('button');tab.textContent='声音 / 音乐盒';tab.dataset.tab='audio';tab.type='button';settings.element.querySelector('.config-tabs').append(tab);
   const panel=document.createElement('section');panel.dataset.panel='audio';panel.hidden=true;
-  panel.innerHTML=`<h3>音乐盒素材库</h3><label class="config-row"><span>选择音乐盒</span><select id="music-kit">${kitOption('none')}<optgroup label="音乐盒">${Object.keys(kits).filter(id=>id!=='none'&&!monstercat[id]).map(kitOption).join('')}</optgroup><optgroup label="Monstercat 音乐盒">${Object.keys(monstercat).map(kitOption).join('')}</optgroup></select></label><p id="music-equipped"></p><label class="config-row">音乐音量 <output id="music-volume-label"></output><input id="music-volume" type="range" min="0" max="1" step=".01"></label><p>额外音乐盒需要先下载。包含开局、胜负、MVP、死亡和 C4 倒计时片段，保存在本机。</p><button id="music-download">检查下载状态…</button> <label class="config-row"><span>试听片段</span><select id="music-preview-cue"></select></label><button id="music-preview">试听所选片段</button> <button id="music-stop">停止试听</button><p id="music-status" role="status"></p>`;
+  const masterBlock=masterAudio?`<div class="settings-group"><h4>主音频与音效</h4><div class="slider-control-head"><div><label class="control-title" for="master-volume">主音量（枪声、脚步与提示音）</label><span class="control-sub">同步控制游戏内主音效输出音量</span></div><output id="master-volume-label" class="value-pill"></output></div><input id="master-volume" class="cs-range" aria-label="主音量" type="range" min="0" max="1" step="0.05"></div>`:'';
+  panel.innerHTML=`<div class="settings-panel-head"><div><h3>声音与音乐盒</h3><p>调节主音量与音乐盒曲目，额外音乐盒下载后将保存在本机。</p></div></div>${masterBlock}<div class="settings-group"><h4>音乐盒配置</h4><label class="config-row"><span><strong>选择音乐盒</strong><small id="music-equipped"></small></span><select id="music-kit">${kitOption('none')}<optgroup label="音乐盒">${Object.keys(kits).filter(id=>id!=='none'&&!monstercat[id]).map(kitOption).join('')}</optgroup><optgroup label="Monstercat 音乐盒">${Object.keys(monstercat).map(kitOption).join('')}</optgroup></select></label><div class="slider-control-head"><div><label class="control-title" for="music-volume">音乐盒音量</label><span class="control-sub">独立控制背景音乐、回合胜负与 MVP 乐曲音量</span></div><output id="music-volume-label" class="value-pill"></output></div><input id="music-volume" class="cs-range" aria-label="音乐盒音量" type="range" min="0" max="1" step=".01"><div class="audio-actions-row"><button id="music-download" type="button">检查下载状态…</button></div></div><div class="settings-group"><h4>片段试听</h4><label class="config-row"><span><strong>试听片段</strong><small>包含开局、胜负、MVP、死亡与 C4 倒计时片段</small></span><select id="music-preview-cue"></select></label><div class="audio-actions-row"><button id="music-preview" type="button">试听所选片段</button><button id="music-stop" class="btn-subtle" type="button">停止试听</button></div><p id="music-status" role="status"></p></div>`;
   settings.element.querySelector('.config-scroll').append(panel);
+  const setFill=el=>{if(!el)return;const min=Number(el.min||0),max=Number(el.max||1),v=Number(el.value||0);el.style.setProperty('--range-pct',((v-min)/(max-min)*100).toFixed(1)+'%');};
+  const masterInput=panel.querySelector('#master-volume'),masterLabel=panel.querySelector('#master-volume-label');
+  const syncMaster=()=>{if(!masterAudio||!masterInput)return;const v=masterAudio.getVolume();masterInput.value=String(v);masterLabel.textContent=Math.round(v*100)+'%';setFill(masterInput);};
+  if(masterInput&&masterAudio){syncMaster();masterInput.oninput=()=>{masterAudio.setVolume(Number(masterInput.value));syncMaster();};}
   const select=panel.querySelector('#music-kit'),volume=panel.querySelector('#music-volume'),label=panel.querySelector('#music-volume-label'),status=panel.querySelector('#music-status'),download=panel.querySelector('#music-download');let busy=false;
   const preview=panel.querySelector('#music-preview'),cueSelect=panel.querySelector('#music-preview-cue');
   async function saved(kit){
@@ -146,6 +151,7 @@ export function mountMusicSettings(settings,music,audio){
   }
   let revision=0;
   async function refresh(){
+    syncMaster();
     const id=select.value,request=++revision;
     download.disabled=true;preview.disabled=true;cueSelect.disabled=true;
     panel.querySelector('#music-equipped').textContent='已装备：'+kits[music.kit];
@@ -164,9 +170,10 @@ export function mountMusicSettings(settings,music,audio){
       status.textContent=error.message;download.textContent='重试检查';download.disabled=false;
     }
   }
-  tab.onclick=()=>{settings.element.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('selected',b===tab));settings.element.querySelectorAll('[data-panel]').forEach(p=>p.hidden=p!==panel);refresh();};
-  select.value=music.kit;volume.value=music.volume;label.textContent=Math.round(music.volume*100)+'%';
-  select.onchange=()=>{music.stop();status.textContent='';refresh();};volume.oninput=()=>{music.setVolume(volume.value);label.textContent=Math.round(music.volume*100)+'%';};
+  tab.onclick=()=>{settings.element.querySelectorAll('.config-tabs [data-tab]').forEach(b=>b.classList.toggle('selected',b===tab));settings.element.querySelectorAll('.config-scroll [data-panel]').forEach(p=>p.hidden=p!==panel);refresh();};
+  const baseOpen=settings.open;settings.open=()=>{syncMaster();baseOpen();};
+  select.value=music.kit;volume.value=music.volume;label.textContent=Math.round(music.volume*100)+'%';setFill(volume);
+  select.onchange=()=>{music.stop();status.textContent='';refresh();};volume.oninput=()=>{music.setVolume(volume.value);label.textContent=Math.round(music.volume*100)+'%';setFill(volume);};
   download.onclick=async()=>{if(busy)return;busy=true;download.disabled=true;select.disabled=true;const id=select.value;try{const kit=await music.kitInfo(id);if(kit.downloadRequired&&!await saved(kit)){const clips=Object.values(kit.cues);for(let i=0;i<clips.length;i++){const clip=clips[i];status.textContent=`下载 ${kits[id]} · ${i+1}/${clips.length}`;const response=await fetchCachedAsset(new URL('assets/audio/music/optional/'+clip.file,document.baseURI),{sha256:clip.sha256,bytes:clip.bytes});if(!response.ok)throw Error('音乐片段下载失败');}if(!await saved(kit))throw Error('存储空间不足，音乐盒未完整保存');status.textContent='下载完成，点击装备后生效。';}else{music.setKit(id);status.textContent='音乐盒已装备并保存';}}catch(e){status.textContent=e.message;}finally{busy=false;select.disabled=false;refresh();}};
   cueSelect.onchange=()=>{music.stop();status.textContent='';};
   preview.onclick=async()=>{

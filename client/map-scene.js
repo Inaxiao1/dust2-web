@@ -16,8 +16,8 @@ const assetUrl=path=>new URL(path.replace(/^\//,''),document.baseURI).href;
  * separately sourced reduced collision mesh for deterministic multiplayer;
  * render/collision alignment is checked by map-render-validate.mjs.
  */
-export async function createMapScene(scene,{onProgress=()=>{},signal,flat=false}={}) {
-  if(globalThis.__DUST2_PRIVATE_MAP__)return (await import('./private-map-scene.js')).createPrivateMapScene(scene,{onProgress,signal,flat});
+export async function createMapScene(scene,{onProgress=()=>{},signal,flat=false,highQuality=false}={}) {
+  if(globalThis.__DUST2_PRIVATE_MAP__)return (await import('./private-map-scene.js')).createPrivateMapScene(scene,{onProgress,signal,flat,highQuality});
   onProgress(flat?'载入 Dust II 极简场景…':'载入 CS2 原版 Dust II 场景…');
   const manager=new THREE.LoadingManager();
   useDownloadedAssets(manager);
@@ -59,7 +59,11 @@ export async function createMapScene(scene,{onProgress=()=>{},signal,flat=false}
     object.frustumCulled=true;
     for(const material of Array.isArray(object.material)?object.material:[object.material]){
       const shaderFlags=material.userData?.vmat?.IntParams||{};
-      if(shaderFlags.F_DO_NOT_CAST_SHADOWS)object.castShadow=false;
+      const shaderName=material.userData?.vmat?.ShaderName||'';
+      const sourceName=material.userData?.vmat?.Name||material.name||'';
+      const isOverlay=Boolean(object.userData.overlayAligned||shaderFlags.F_OVERLAY||shaderName==='csgo_static_overlay.vfx'||material.transparent||/overlay|decal|graffiti|poster|signage/i.test(sourceName));
+      if(shaderFlags.F_DO_NOT_CAST_SHADOWS||isOverlay||material.alphaTest>0||material.side===THREE.DoubleSide)object.castShadow=false;
+      if(isOverlay&&(material.transparent||shaderFlags.F_OVERLAY||shaderName==='csgo_static_overlay.vfx'))object.renderOrder=Math.max(object.renderOrder,2);
       if(materials.has(material))continue;
       materials.add(material);
       // Engine depth-feathered dust volumes have no glTF opacity equivalent.
@@ -67,12 +71,12 @@ export async function createMapScene(scene,{onProgress=()=>{},signal,flat=false}
       if(shaderFlags.F_DEPTH_FEATHER)material.visible=false;
       // In Source foliage/cloth shaders vertex colors encode wind weights,
       // not albedo. Multiplying them into the texture turns green leaves red.
-      if(shaderFlags.F_VERTEX_ANIMATION||['csgo_effects.vfx','csgo_foliage.vfx'].includes(material.userData?.vmat?.ShaderName))material.vertexColors=false;
+      if(shaderFlags.F_VERTEX_ANIMATION||['csgo_effects.vfx','csgo_foliage.vfx'].includes(shaderName))material.vertexColors=false;
       for(const value of Object.values(material))if(value?.isTexture)textures.add(value);
       // Source overlays are authored almost coplanar with their target wall.
-      const sourceName=material.userData?.vmat?.Name||material.name;
-      if(/overlay|decal|graffiti|poster/i.test(sourceName)){
-        material.polygonOffset=true;material.polygonOffsetFactor=-1;material.polygonOffsetUnits=-1;
+      if(isOverlay){
+        material.polygonOffset=true;material.polygonOffsetFactor=-2;material.polygonOffsetUnits=-4;
+        if(material.transparent||shaderFlags.F_OVERLAY||shaderName==='csgo_static_overlay.vfx')material.depthWrite=false;
       }
     }
   });
@@ -105,7 +109,8 @@ export async function createMapScene(scene,{onProgress=()=>{},signal,flat=false}
   sun.position.copy(center).addScaledVector(sunDirection,-110);
   sun.castShadow=!flat;sun.shadow.mapSize.set(2048,2048);
   Object.assign(sun.shadow.camera,{left:-78,right:78,top:78,bottom:-78,near:1,far:230});
-  sun.shadow.normalBias=.035;sun.shadow.bias=-.00012;
+  sun.shadow.camera.updateProjectionMatrix();
+  sun.shadow.normalBias=.055;sun.shadow.bias=-.00045;
   scene.add(hemisphere,sun,sun.target);
   group.userData.renderStats={meshCount,triangles,materials:materials.size,textures:textures.size,originalCS2Materials:!flat,style:flat?'flat':'original',overlayRepair};
   onProgress(flat?'Dust II 极简场景就绪':'CS2 原版 Dust II 场景就绪');

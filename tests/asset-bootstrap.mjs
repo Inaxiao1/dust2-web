@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { execFile as run } from 'node:child_process';
 import { createServer } from 'node:http';
-import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -53,7 +53,7 @@ test('desktop and mobile startup manifests exclude optional agents and music', a
 });
 
 async function fixture(t, handler) {
-  const temporary = await mkdtemp(path.join(os.tmpdir(), 'dust2-assets-test-'));
+  const temporary = await realpath(await mkdtemp(path.join(os.tmpdir(), 'dust2-assets-test-')));
   const root = path.join(temporary, 'public', 'assets');
   const requests = [];
   const server = createServer((request, response) => {

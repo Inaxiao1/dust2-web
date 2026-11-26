@@ -44,6 +44,8 @@ import {PlayerTimeline,MAX_REWIND_MS} from '../shared/player-timeline.js';
 import {MovementStream,sanitizeMoves,movementState} from '../shared/movement-commands.js';
 import {reloadProfile} from '../shared/reload-profiles.js';
 import {traceKnife,knifeDamage,knifeInterval} from '../shared/melee.js';
+import {RevolverTrigger,revolverFireMode,weaponFireInterval} from '../shared/revolver.js';
+import {MinHeap} from '../shared/min-heap.js';
 
 export const TICK_RATE = 30;
 export const SNAPSHOT_RATE = 15;
@@ -146,6 +148,8 @@ export class GameRoom {
     this.poseHistory=new PlayerTimeline(16);
     this.mapBreakables=privateMap?.createBreakables?.()||null;
     this.privateBots=privateMap?.createBots(this)||null;
+    this.disconnectedSessions=new Map();
+    this.emptyExpiresAt=0;
   }
 
   emptyBomb() { return { state: 'none', carrierId: null, x: 0, y: 0, z: 0, site: null, plantedAt: 0, explodesAt: 0, planterId: null, actorId: null, action: null, progress: 0, remaining: 0 }; }
@@ -221,33 +225,113 @@ export class GameRoom {
     this.desiredBots=this.botCount;syncChallengeRoster(this);this.maybeStart();this.emit('bots_changed',{botCount:this.botCount,desiredBots:this.desiredBots});return {ok:true,botCount:this.botCount};
   }
 
-  addHuman(socket, { musicKit, name, team = 'auto', primary = 'auto', skins, agents, weaponLoadout, movementProtocol, shotProtocol }) {
+  pruneDisconnectedSessions(now = this.clock()) {
+    for (const [token, session] of this.disconnectedSessions) {
+      if (now > session.expiresAt) this.disconnectedSessions.delete(token);
+    }
+  }
+
+  saveReconnectSession(id, graceMs = 30000) {
+    const player = this.players.get(id);
+    if (!player || player.bot || !player.resumeToken || graceMs <= 0) return null;
+    const now = this.clock();
+    this.pruneDisconnectedSessions(now);
+    const inventory = {};
+    for (const [wid, state] of Object.entries(player.inventory || {})) {
+      if (wid === 'c4') continue;
+      inventory[wid] = { ...state };
+    }
+    const entry = {
+      token: player.resumeToken,
+      playerUid: player.playerUid || null,
+      name: player.name,
+      team: player.team,
+      teamId: player.teamId,
+      seat: player.seat,
+      money: player.money,
+      kills: player.kills,
+      deaths: player.deaths,
+      assists: player.assists,
+      headshots: player.headshots || 0,
+      roundKills: player.roundKills || 0,
+      lifeKills: player.lifeKills || 0,
+      armor: player.armor,
+      helmet: !!player.helmet,
+      defuseKit: !!player.defuseKit,
+      inventory,
+      weapon: player.weapon === 'c4' ? null : player.weapon,
+      slot: player.slot === 5 ? 2 : player.slot,
+      skins: { ...player.skins },
+      agents: { ...player.agents },
+      weaponLoadout: player.weaponLoadout ? normalizeWeaponLoadout(player.weaponLoadout) : null,
+      musicKit: player.musicKit,
+      wasHost: this.hostId === id,
+      expiresAt: now + graceMs,
+    };
+    this.disconnectedSessions.set(player.resumeToken, entry);
+    return entry;
+  }
+
+  addHuman(socket, { musicKit, name, team = 'auto', primary = 'auto', skins, agents, weaponLoadout, movementProtocol, shotProtocol, resumeToken = null, playerUid = null }) {
+    this.privateMap?.activate?.(this);
+    this.pruneDisconnectedSessions();
     if (this.humanCount >= this.humanCapacity) throw new Error(`房间已满，最多 ${this.humanCapacity} 名玩家。`);
-    let assigned = team;
+    const saved = typeof resumeToken === 'string' && resumeToken ? this.disconnectedSessions.get(resumeToken) : null;
+    const canResume = !!saved && (!saved.playerUid || !playerUid || saved.playerUid === playerUid);
+    if (canResume) this.disconnectedSessions.delete(resumeToken);
+    let assigned = canResume ? saved.team : team;
     if(this.botDifficulty==='vitality'&&this.challengeTeamId){
       const friendly=this.teamSides[this.challengeTeamId==='A'?'B':'A'];
-      if(team!=='auto'&&team!==friendly)throw new Error('Vitality 挑战只能加入玩家队伍。');
+      if(assigned!=='auto'&&assigned!==friendly)throw new Error('Vitality 挑战只能加入玩家队伍。');
       assigned=friendly;
     }
     if (!['T', 'CT'].includes(assigned)) assigned = this.count('T', true) <= this.count('CT', true) ? 'T' : 'CT';
-    if (this.count(assigned, true) >= 5) { if (team !== 'auto') throw new Error('该阵营已有 5 名玩家，请选择另一队。'); assigned = opposite(assigned); }
+    if (this.count(assigned, true) >= 5) { if (!canResume && team !== 'auto') throw new Error('该阵营已有 5 名玩家，请选择另一队。'); assigned = opposite(assigned); }
     const replaceable=[...this.players.values()].filter(p=>p.bot).sort((a,b)=>Number(!!a.controllerId)-Number(!!b.controllerId)||Number(a.alive)-Number(b.alive));
     const botToReplace=(this.count(assigned)>=5||this.players.size>=10)?replaceable.find(p=>p.team===assigned)||replaceable[0]:null;
     if (botToReplace) this.removePlayer(botToReplace.id);
     const id = `p_${randomBytes(6).toString('hex')}`;
     const player = this.makePlayer(id, name, assigned, false, primary, weaponLoadout??null);
+    player.resumeToken = canResume ? saved.token : randomBytes(12).toString('hex');
+    player.playerUid = typeof playerUid === 'string' && playerUid ? playerUid : (canResume ? saved.playerUid : null);
+    player.resumed = canResume;
     player.shotProtocol=shotProtocol===1?1:0;player.shotCommands=player.shotProtocol===1;
     if(movementProtocol===1){player.movementStream=new MovementStream(player.lifeId);player.movementAt=this.clock();}
     if(isMusicKit(musicKit))player.musicKit=musicKit;
     player.skins=normalizeSkinLoadout(skins);
     player.weaponLoadout=normalizeWeaponLoadout(weaponLoadout);
     player.agents=normalizeAgentLoadout(agents);player.agentId=player.agents[assigned];
+    if (canResume) {
+      if (saved.team === assigned && ![...this.players.values()].some(other => other.team === assigned && other.seat === saved.seat)) {
+        player.seat = saved.seat;
+      }
+      player.money = saved.money;
+      player.kills = saved.kills;
+      player.deaths = saved.deaths;
+      player.assists = saved.assists;
+      player.headshots = saved.headshots;
+      player.roundKills = saved.roundKills;
+      player.lifeKills = saved.lifeKills;
+      if (this.mode === 'deathmatch' || ['waiting', 'freeze'].includes(this.round.phase)) {
+        player.armor = saved.armor;
+        player.helmet = saved.helmet;
+        player.defuseKit = saved.defuseKit;
+        if (saved.inventory && Object.keys(saved.inventory).length) {
+          player.inventory = {};
+          for (const [wid, st] of Object.entries(saved.inventory)) player.inventory[wid] = { ...st };
+          const wantedSlot = saved.weapon && player.inventory[saved.weapon] ? getWeapon(saved.weapon).slot : (Object.keys(player.inventory).some(k => getWeapon(k).slot === 1) ? 1 : 2);
+          this.selectSlot(player, wantedSlot);
+        }
+      }
+      if (saved.wasHost) this.hostId = id;
+    }
     this.players.set(id, player); this.clients.set(id, socket);
+    this.emptyExpiresAt = 0;
     if(!this.hostId)this.hostId=id;
     if(this.botDifficulty==='vitality'&&!this.challengeTeamId){this.challengeTeamId=player.teamId==='A'?'B':'A';this.desiredBots=Math.max(5,this.desiredBots);}
     if (this.match.status==='ended'||(this.mode === 'defuse' && ['live', 'ended'].includes(this.round.phase))) { player.alive = false; player.health = 0; player.respawnAt = 0; }
     this.ensureBots();
-    this.emit('join', { playerId: id, name, team: assigned, bot: false, musicKit:player.musicKit });
+    this.emit(canResume ? 'reconnected' : 'join', { playerId: id, name, team: assigned, bot: false, musicKit:player.musicKit, ...(canResume?{resumed:true,money:player.money,kills:player.kills,deaths:player.deaths}:{}) });
     this.maybeStart();
     return player;
   }
@@ -325,7 +409,9 @@ export class GameRoom {
     }
     const explicit=input.shotId>0;
     if(explicit)player.shotCommands=true;
-    const attacking=input.fire||(input.slot===3&&input.fire2);
+    if(this.clock()-player.inputAt>=300)this.resetRevolverTrigger(player,'inactive',true);
+    this.updateRevolverTrigger(player,input,this.clock());
+    const attacking=input.fire||((input.slot===3||player.weapon==='revolver')&&input.fire2);
     if(attacking&&input.slot!==4&&((explicit&&input.shotId>(player.lastShotId||0))||(!player.shotCommands&&(!player.input.fire&&!player.input.fire2)))){
       const weaponId=input.shotWeapon||player.weapon;
       const weapon=getWeapon(weaponId),ammo=player.inventory[weaponId],now=this.clock();
@@ -334,7 +420,14 @@ export class GameRoom {
       else if(readyAt>now+150)this.rejectShot(player,input,'not_ready');
       else if(player.inventory[weaponId]&&weapon.slot<4){
         player.fireQueue||=[];
-        if(player.fireQueue.length<4)player.fireQueue.push({input:{...input},weaponId,receivedAt:now,lifeId:player.lifeId});
+        if(player.fireQueue.length<4){
+          const revolverReadyAt=weaponId==='revolver'&&revolverFireMode(input)==='primary'?player.revolverTrigger?.fireAt:null;
+          if(weaponId==='revolver'&&(!this.revolverTriggerEnabled(player,input,now)||(revolverFireMode(input)==='primary'&&revolverReadyAt===null)))this.rejectShot(player,input,'not_prepared');
+          else {
+            player.fireQueue.push({input:{...input},weaponId,receivedAt:now,lifeId:player.lifeId,...(revolverReadyAt!==null?{revolverReadyAt}:{})});
+            if(weaponId==='revolver')player.revolverTrigger?.reset();
+          }
+        }
         else this.rejectShot(player,input,'queue_full');
       }
       player.lastShotId=Math.max(player.lastShotId||0,input.shotId);
@@ -351,6 +444,24 @@ export class GameRoom {
   donateWeapon(id,to,weapon){return donateWeapon(this,id,to,weapon);}
 
   giveWeapon(player, id) { const w = getWeapon(id); player.inventory[w.id] = { ammo: w.magazine, reserve: w.reserve }; }
+  revolverTriggerEnabled(player,input,now=this.clock()){
+    const ammo=player.inventory.revolver;
+    return player.weapon==='revolver'&&player.alive&&combatPhase(this.round.phase)&&this.match.status!=='ended'&&!player.objectiveLocked&&!player.reloadEndsAt&&!input.reload&&(!input.slot||input.slot===2)&&ammo?.ammo>0&&now>=Math.max(player.equipReadyAt||0,ammo.reloadReadyAt||0);
+  }
+  resetRevolverTrigger(player,reason='cancelled',unpreparedOnly=false,now=this.clock()){
+    player.revolverTrigger?.reset();
+    if(player.fireQueue)player.fireQueue=player.fireQueue.filter(command=>{
+      if(command.weaponId!=='revolver'||command.revolverReadyAt===undefined||(unpreparedOnly&&now>=command.revolverReadyAt))return true;
+      this.rejectShot(player,command.input,reason);return false;
+    });
+  }
+  updateRevolverTrigger(player,input,now=this.clock()){
+    const enabled=this.revolverTriggerEnabled(player,input,now);
+    if(!enabled||revolverFireMode(input)!=='primary')this.resetRevolverTrigger(player,'cancelled',true,now);
+    if(!enabled)return null;
+    player.revolverTrigger||=new RevolverTrigger();
+    return player.revolverTrigger.update(input,now);
+  }
   fireQueued(player){
     const queue=player.fireQueue,now=this.clock();if(!queue?.length)return false;
     // A brief delayed tick or movement backlog must not erase a legal click.
@@ -363,7 +474,7 @@ export class GameRoom {
     const command=queue[0];
     if(command.weaponId!==player.weapon){queue.shift();this.rejectShot(player,command.input,'weapon_changed');return true;}
     if(player.movementStream&&command.input.moveId>player.movementStream.ack)return true;
-    if(now<Math.max(player.nextShotAt,player.inventory[player.weapon]?.reloadReadyAt||0,getWeapon(player.weapon).reloadStyle!=='shell'?player.reloadEndsAt:0))return true;
+    if(now<Math.max(player.nextShotAt,command.revolverReadyAt||0,player.inventory[player.weapon]?.reloadReadyAt||0,getWeapon(player.weapon).reloadStyle!=='shell'?player.reloadEndsAt:0))return true;
     queue.shift();player.triggerWasDown=false;
     if(player.reloadEndsAt&&now>=player.reloadEndsAt)this.finishReload(player);
     const w=getWeapon(player.weapon);
@@ -383,6 +494,7 @@ export class GameRoom {
   selectSlot(player, slot, utilityId=null) {
     const next = slot===4 ? (UTILITY_IDS.includes(utilityId)&&player.inventory[utilityId]?.ammo>0?utilityId:null) : Object.keys(player.inventory).find(id => getWeapon(id).slot === slot);
     if (!next || next === player.weapon) return;
+    this.resetRevolverTrigger(player,'weapon_changed');
     if(player.grenadeState&&player.grenadeState.weapon!==next)this.cancelGrenade(player,'switch');
     this.cancelReload(player);
     player.burst=null;
@@ -499,6 +611,7 @@ export class GameRoom {
   }
 
   respawn(p, newRound = false) {
+    this.resetRevolverTrigger(p,'respawn');
     p.purchases={};p.lifeKills=0;p.killCards=[];p.lastKnifeAt=-Infinity;
     delete p.inventory.c4;
     const spawn = this.pickSpawn(p.team,p),carryBurst=newRound&&p.alive&&p.inventory.pistol?.burstMode;
@@ -548,7 +661,7 @@ export class GameRoom {
     Object.assign(this.match,{status:'ended',winnerTeamId,reason,endedAt:this.clock(),mvp:matchMvp(this,winnerTeamId)});
     Object.assign(this.round,{phase:'matchEnded',phaseEndsAt:0,winner:this.teamSides[winnerTeamId],reason});
     this.pendingTransition=null;this.grenades.clear();this.defuseKits=[];
-    for(const p of this.players.values()){p.respawnAt=0;p.reloadEndsAt=0;p.pendingFire=false;this.cancelGrenade(p,'match');p.input=neutralInput();p.effectiveInput=neutralInput();p.vx=p.vy=p.vz=0;}
+    for(const p of this.players.values()){p.respawnAt=0;p.reloadEndsAt=0;p.pendingFire=false;this.resetRevolverTrigger(p,'match');this.cancelGrenade(p,'match');p.input=neutralInput();p.effectiveInput=neutralInput();p.vx=p.vy=p.vz=0;}
     this.emit('match_end',{winnerTeamId,winner:this.teamSides[winnerTeamId],reason,match:this.matchSnapshot()});
   }
 
@@ -560,6 +673,7 @@ export class GameRoom {
     if(victim.defuseKit){this.defuseKits.push({id:`kit_${++this.kitSerial}`,...copyPoint(victim)});if(this.defuseKits.length>20)this.defuseKits.shift();victim.defuseKit=false;}
     victim.objectiveLocked=false;
     victim.alive = false; victim.health = 0; victim.deaths++; victim.reloadEndsAt = 0;
+    this.resetRevolverTrigger(victim,'death');
     this.cancelGrenade(victim,'death');
     victim.respawnAt = this.mode === 'deathmatch' ? this.clock() + this.rules.respawnSeconds * 1000 : 0;
     if (victim.hasBomb) this.dropBomb(victim);
@@ -715,24 +829,28 @@ export class GameRoom {
     const now=this.clock(),w=getWeapon(p.weapon),ammo=p.inventory[p.weapon];
     if(w.slot===4||this.match.status==='ended')return;
     if(w.id==='knife'){this.swingKnife(p,input,command);return;}
-    const rising=input.fire&&!p.triggerWasDown;
-    if(!burstIndex)p.triggerWasDown=input.fire;
-    if(!p.alive||!input.fire||!ammo||(!burstIndex&&((!w.automatic&&!rising)||now<p.nextShotAt||p.burst)))return;
+    const fireMode=w.id==='revolver'?revolverFireMode(input):'primary',attacking=input.fire||(w.id==='revolver'&&input.fire2);
+    let prepared=true;
+    if(w.id==='revolver')prepared=command?fireMode==='secondary'||(command.revolverReadyAt!==undefined&&now>=command.revolverReadyAt):this.updateRevolverTrigger(p,input,now)!==null;
+    const rising=attacking&&!p.triggerWasDown;
+    if(!burstIndex)p.triggerWasDown=attacking;
+    if(!p.alive||!attacking||!prepared||!ammo||(!burstIndex&&((!w.automatic&&!rising)||now<p.nextShotAt||p.burst)))return;
     // A loaded shell can be fired to interrupt a shell-by-shell reload.
     if(p.reloadEndsAt){if(w.reloadStyle==='shell'&&ammo.ammo>0)p.reloadEndsAt=0;else return;}
     if(now<(ammo.reloadReadyAt||0)||w.magazine&&ammo.ammo<=0)return;
     if(w.magazine){ammo.ammo--;if(p.purchases)delete p.purchases[w.id];}
+    if(w.id==='revolver'&&!command)p.revolverTrigger?.reset();
     p.lastShotTime=now;p.protectionUntil=0;
     if(!burstIndex){
-      const start=command?Math.max(command.receivedAt,p.nextShotAt):now;
+      const start=command?Math.max(command.receivedAt,command.revolverReadyAt||0,p.nextShotAt):now;
       if(w.burstSize&&ammo.burstMode){
         burstIndex=1;
         p.nextShotAt=now+w.burstCycle*1000;
         if(ammo.ammo>0)p.burst={item:ammo,index:2,nextAt:now+w.burstShotInterval*1000};
-      }else p.nextShotAt=start+w.fireInterval*1000;
+      }else p.nextShotAt=start+weaponFireInterval(w,fireMode)*1000;
     }
     const zoomLevel=clamp(command?input.zoomLevel:p.zoomLevel||0,0,w.zoomFovs.length-1),scoped=zoomLevel>0;
-    const accuracy=accuracyForShot(w,p,zoomLevel,ammo.burstMode),targets=this.shotTargets(command?.input.viewTime,command?.receivedAt??now);
+    const accuracy=accuracyForShot(w,p,zoomLevel,ammo.burstMode,fireMode),targets=this.shotTargets(command?.input.viewTime,command?.receivedAt??now);
     const origin=eye(p),pellets=[],hits=new Map();
     for(let pellet=0;pellet<(w.pellets||1);pellet++){
       const dir=sampleShotDirection(input.yaw,input.pitch,accuracy);
@@ -770,7 +888,7 @@ export class GameRoom {
 
     }
     const representative=pellets.find(pellet=>pellet.hitId)||pellets[0];
-    this.emit('shot',{shooterId:p.id,weapon:p.weapon,shotId:input.shotId||0,inputSeq:input.seq,...(burstIndex?{burstIndex}:{}),zoomLevel,accuracy:accuracy.total,rewindMs:targets.rewindMs,aim:{yaw:input.yaw,pitch:input.pitch},origin,...representative,...(pellets.length>1?{pellets}: {})});
+    this.emit('shot',{shooterId:p.id,weapon:p.weapon,shotId:input.shotId||0,inputSeq:input.seq,...(burstIndex?{burstIndex}:{}),...(w.id==='revolver'?{fireMode}:{}),zoomLevel,accuracy:accuracy.total,rewindMs:targets.rewindMs,aim:{yaw:input.yaw,pitch:input.pitch},origin,...representative,...(pellets.length>1?{pellets}: {})});
     if(p.bot&&w.zoomStyle==='scope')p.botAI.lastSniperShotAt=now;
     for(const hit of hits.values()){
       if(this.match.status==='ended')break;
@@ -810,6 +928,7 @@ export class GameRoom {
   reload(p) {
     const w=getWeapon(p.weapon),ammo=p.inventory[p.weapon];
     if(!p.reloadEndsAt&&w.slot<4&&w.magazine&&ammo&&this.clock()>=(ammo.reloadReadyAt||0)&&ammo.ammo<w.magazine&&ammo.reserve>0){
+      this.resetRevolverTrigger(p,'reloading');
       p.burst=null;
       p.reloadStartedAt=this.clock();p.reloadEndsAt=p.reloadStartedAt+w.reloadTime*1000;p.zoomLevel=0;
       p.reloadEmpty=ammo.ammo===0;p.reloadWeapon=p.weapon;p.reloadCommitted=false;
@@ -923,23 +1042,29 @@ export class GameRoom {
   planPath(p, goal) {
     const start = this.nearestNav(p), end = this.nearestNav(goal);
     if (!start || !end) return [copyPoint(goal)];
-    const frontier = [{ id: String(start.id), cost: 0 }], cost = new Map([[String(start.id), 0]]), came = new Map();
+    const startKey = String(start.id), endKey = String(end.id);
+    const frontier = new MinHeap(), cost = new Map([[startKey, 0]]), came = new Map(), closed = new Set();
+    frontier.push({ id: startKey, cost: lengthXZ(start, end) });
     let expansions = 0;
-    while (frontier.length && expansions++ < 3500) {
-      frontier.sort((a, b) => a.cost - b.cost);
-      const current = frontier.shift();
-      if (current.id === String(end.id)) break;
-      const node = this.navMap.get(current.id);
+    while (frontier.size && expansions < 3500) {
+      const current = frontier.pop();
+      if (closed.has(current.id)) continue;
+      closed.add(current.id);
+      expansions++;
+      if (current.id === endKey) break;
+      const node = this.navMap.get(current.id), baseCost = cost.get(current.id);
       for (const nextId of node?.neighbors || []) {
-        const key = String(nextId), next = this.navMap.get(key); if (!next) continue;
+        const key = String(nextId);
+        if (closed.has(key)) continue;
+        const next = this.navMap.get(key); if (!next) continue;
         if((p.botAI?.blockedEdges?.get(navigationEdge(current.id,key))||0)>this.clock())continue;
-        const nextCost = cost.get(current.id) + dist(node, next) + Math.max(0, next.y - node.y - .35) * 30;
+        const nextCost = baseCost + dist(node, next) + Math.max(0, next.y - node.y - .35) * 30;
         if (nextCost < (cost.get(key) ?? Infinity)) { cost.set(key, nextCost); came.set(key, current.id); frontier.push({ id: key, cost: nextCost + lengthXZ(next, end) }); }
       }
     }
-    if (String(start.id) !== String(end.id) && !came.has(String(end.id))) return [];
-    const result = [copyPoint(goal)]; let cursor = String(end.id), guard = 0;
-    while (cursor !== String(start.id) && guard++ < 3500) { result.unshift({...copyPoint(this.navMap.get(cursor)),navId:cursor,fromNavId:came.get(cursor)}); cursor = came.get(cursor); if (!cursor) break; }
+    if (startKey !== endKey && !came.has(endKey)) return [];
+    const result = [copyPoint(goal)]; let cursor = endKey, guard = 0;
+    while (cursor !== startKey && guard++ < 3500) { result.unshift({...copyPoint(this.navMap.get(cursor)),navId:cursor,fromNavId:came.get(cursor)}); cursor = came.get(cursor); if (!cursor) break; }
     return result;
   }
 
@@ -1063,6 +1188,7 @@ export class GameRoom {
       if(!canMove)Object.assign(input,{forward:0,right:0,jump:false});
       if(!canAct)Object.assign(input,{fire:false,fire2:false,interact:false});
       p.objectiveLocked=canAct&&!!this.bombIntent(p,input);
+      if(!this.revolverTriggerEnabled(p,input,now)||(!input.fire&&!input.fire2))this.resetRevolverTrigger(p,'inactive',true,now);
       if(p.objectiveLocked){input.crouch=true;input.forward=input.right=0;input.jump=input.reload=false;p.vx=p.vy=p.vz=0;p.jumpBufferRemaining=0;if(this.bombIntent(p,input)==='plant')input.slot=5;}
       const movementOptions={canMove,speedLimit:weaponSpeedScale(p.weapon,p.zoomLevel)};
       const shotMove=p.fireQueue?.[0]?.input.moveId;
@@ -1094,7 +1220,7 @@ export class GameRoom {
       if(p.reloadEndsAt&&now>=p.reloadEndsAt)this.finishReload(p);
       if (input.reload) this.reload(p);
       const heldAmmo=p.inventory[p.weapon];
-      if(canAct&&!input.fire&&!input.cancelGrenade&&now-p.inputAt<300&&now>=p.nextShotAt&&!p.fireQueue?.length&&getWeapon(p.weapon).magazine&&heldAmmo?.ammo===0)this.reload(p);
+      if(canAct&&!input.fire&&!(p.weapon==='revolver'&&input.fire2)&&!input.cancelGrenade&&now-p.inputAt<300&&now>=p.nextShotAt&&!p.fireQueue?.length&&getWeapon(p.weapon).magazine&&heldAmmo?.ammo===0)this.reload(p);
       if((canAct||this.round.phase==='freeze')&&!automatic&&p.pendingInteract&&now-p.inputAt<300&&!useMapButton(this,p,input,now))this.pickupWeapon(p);
       p.pendingInteract=false;
       if(canMove||this.round.phase==='freeze')this.pickupWeapon(p,true);

@@ -6,23 +6,31 @@ import {initDownloadOrigin} from './download-origin.js';
 import {hydrateHomeImages} from './image-asset-url.js';
 import {privateMapDownloads,privateMapFetcher} from './private-map-download.js';
 import {mountPortalRoom} from './portal-room.js';
-import {mountGameRoomDirectory} from './game-room-directory.js';
 import {consumeDirectoryJoin} from '../scripts/maps/mode-ui/room-directory.js';
 
-// The directory stays usable if the selected map's worker is busy or still loading.
+// Single-lobby flow: /perf/ is the only lobby & armory/settings homepage.
+// /perf/play/<map>/ is strictly the match runtime (direct play / room join / invite link).
 const directoryRoute=/^\/perf\/(quality\/)?play\/(de_[a-z0-9]+)\/$/.exec(location.pathname);
-let gameRuntime;
+const initialParams=new URLSearchParams(location.search);
+const hasDirectMatchIntent=Boolean(initialParams.get('room')||initialParams.get('autostart')==='1');
+let redirectedToLobby=false;
 if(directoryRoute){
- mountPortalRoom(directoryRoute[2],directoryRoute[1]?'quality':'performance');
- const directory=mountGameRoomDirectory({id:directoryRoute[2],graphicsMode:directoryRoute[1]?'quality':'performance'},room=>{
-  if(!gameRuntime)return false;
-  gameRuntime.joinDirectoryRoom(room);
-  return true;
- });
- window.addEventListener('pagehide',event=>{if(!event.persisted)directory.dispose();});
+ if(!hasDirectMatchIntent){
+  redirectedToLobby=true;
+  location.replace('/perf/?map='+encodeURIComponent(directoryRoute[2]));
+ }else{
+  mountPortalRoom(directoryRoute[2],directoryRoute[1]?'quality':'performance');
+  const menuEl=document.getElementById('menu');
+  const loadingEl=document.getElementById('loading-screen');
+  if(menuEl)menuEl.hidden=true;
+  if(loadingEl)loadingEl.hidden=false;
+  const loadLabel=document.getElementById('load-label');
+  if(loadLabel)loadLabel.textContent='正在进入战局并载入地图资源…';
+ }
 }
 
 async function bootstrap(){
+ if(redirectedToLobby)return null;
  const request=async url=>{const r=await fetch(url,{cache:'no-store'});if(!r.ok)throw Error('私有地图配置暂不可用 ('+r.status+')');return r.json();};
  const originalConfig=privateConfig(await request(new URL('private-map.json',location.href)),location.href);
  const delivery=await initDownloadOrigin({configURL:new URL('../../../download-config.json',originalConfig.renderUrl),pageURL:location.href});
@@ -46,7 +54,7 @@ async function bootstrap(){
  map.version='CS2 private '+meta.sourceBuild+' / '+config.mapSignature.slice(0,12);
  map.labels=[...Object.entries(map.sites).map(([text,p])=>({...p,text})),...['CT','T'].map(team=>({...map.spawns[team][0],text:team+' SPAWN'}))];
  globalThis.__DUST2_PRIVATE_MAP__=config;
- document.body.classList.add('private-game');document.title=map.name+(config.publicPool?' · DUSKRAIN 战术对战':' · 私有对战测试');
+ document.body.classList.add('private-game');document.title=map.nameZh+' · 随时随地CS';
  for(const card of document.querySelectorAll('[data-map-id]')){const selected=card.dataset.mapId===map.id;card.classList.toggle('selected',selected);card.setAttribute('aria-pressed',String(selected));}
  for(const label of document.querySelectorAll('.selected-map-name'))label.textContent=map.name.toUpperCase();
  for(const el of document.querySelectorAll('.hero-copy h1,.loading-map-title h1'))el.textContent=map.name.toUpperCase();
@@ -56,7 +64,7 @@ async function bootstrap(){
  const pauseHeading=document.querySelector('#pause-menu .eyebrow');if(pauseHeading)pauseHeading.textContent=map.name.toUpperCase()+' / IN MATCH';
  const boardHeading=document.querySelector('#scoreboard .board-heading h2');if(boardHeading){boardHeading.replaceChildren(document.createTextNode(map.name.toUpperCase()+' '));const label=document.createElement('small');label.textContent='战况';boardHeading.append(label);}
  for(const el of document.querySelectorAll('.map-emblem img,.loading-tactical img')){el.src=map.overview.image;el.alt=map.name+' 战术地图';}
- const banner=document.querySelector('.loading-map-title>p');if(banner)banner.textContent=config.publicPool?'A、B 双爆破点布局，中路连接多个攻防区域。':'私有原始地图联机测试。按图加载，规则仍由服务器计算。';
+ const banner=document.querySelector('.loading-map-title>p');if(banner)banner.textContent=map.nameZh+' · 5v5 联网战术对战';
  const cover=new URL('../../../previews/'+map.id+'.png',config.renderUrl).href;
  if(!directoryRoute&&!config.publicPool)document.documentElement.style.setProperty('--loading-map-cover',`url(${JSON.stringify(cover)})`);
  if(!directoryRoute){const style=document.createElement('style');style.textContent=`body.private-game .loading-image,body.private-game .menu-photo{background-image:url(${JSON.stringify(cover)})}body.private-game .map-showcase{background-image:none}
@@ -68,25 +76,58 @@ async function bootstrap(){
  const modeLibrary=config.flatOnly||config.graphicsMode==='quality';
  if(!directoryRoute)for(const back of document.querySelectorAll('[data-map-library]'))back.href=modeLibrary?'/perf/':new URL('../../',location.href).href;
  if(modeLibrary){
-  const modeName=config.flatOnly?'高帧率':'高画质';
-  document.title=map.nameZh+' · '+modeName+' · DUSKRAIN';
+  document.title=map.nameZh+' · 随时随地CS';
   const cards=document.querySelector('.home-map-grid');
   if(cards){const link=document.createElement('a');link.className='private-map-switch';link.href='/perf/';link.textContent='更换地图';cards.replaceChildren(link);}
-  if(banner)banner.textContent=map.nameZh+(config.flatOnly?' · 低多边形场景':' · 原版地图材质');
-  const promo=document.querySelector('.menu-profile span');if(promo)promo.textContent=modeName;
+  const promo=document.querySelector('.menu-profile span');if(promo)promo.textContent='ONLINE';
  }
  return import('./main.js');
 }
 export const ready=bootstrap().then(module=>{
- gameRuntime=module;
+ if(!module)return null;
  for(const button of document.querySelectorAll('[data-enable-after-map]'))button.disabled=false;
- const status=document.getElementById('menu-status');
- if(status?.textContent==='正在准备对战菜单与装备库…')status.textContent='创建房间并分享邀请链接，或输入房间码加入已有对局。';
  if(directoryRoute){
   const target=consumeDirectoryJoin(new URL(location.href),url=>history.replaceState(null,'',url));
-  if(target)module.joinDirectoryRoom(target,true);
+  if(target){
+   module.joinDirectoryRoom(target,true);
+  }else{
+   const currentUrl=new URL(location.href);
+   const rawRoom=(currentUrl.searchParams.get('room')||'').replace(/[^A-Za-z0-9]/g,'').slice(0,12);
+   if(rawRoom){
+    const requestedMode=currentUrl.searchParams.get('matchMode')==='deathmatch'?'deathmatch':'defuse';
+    module.joinDirectoryRoom({code:rawRoom,mode:requestedMode},true);
+   }else{
+    const requestedMode=currentUrl.searchParams.get('matchMode')||'defuse';
+    const requestedBots=currentUrl.searchParams.get('bots');
+    const requestedTeam=currentUrl.searchParams.get('team')||'auto';
+    currentUrl.searchParams.delete('autostart');
+    currentUrl.searchParams.delete('matchMode');
+    currentUrl.searchParams.delete('bots');
+    currentUrl.searchParams.delete('team');
+    history.replaceState(null,'',currentUrl);
+    module.quickStartRoom({mode:requestedMode,bots:requestedBots,team:requestedTeam});
+   }
+  }
  }
  return module;
-}).catch(error=>{console.error(error);const status=document.getElementById('menu-status');if(status)status.textContent='无法启动地图：'+error.message;for(const id of ['start-button','join-button']){const button=document.getElementById(id);if(button)button.disabled=true;}throw error;});
+}).catch(error=>{
+ console.error(error);
+ if(directoryRoute){
+  const loadingEl=document.getElementById('loading-screen');
+  const errBox=document.getElementById('loading-error');
+  const errText=document.getElementById('loading-error-text');
+  const spinner=document.getElementById('loading-spinner');
+  const backBtn=document.getElementById('back-load');
+  if(loadingEl)loadingEl.hidden=false;
+  if(errBox)errBox.hidden=false;
+  if(errText)errText.textContent='无法进入战局：'+error.message;
+  if(spinner)spinner.hidden=true;
+  if(backBtn){backBtn.textContent='返回大厅';backBtn.onclick=()=>location.assign('/perf/');}
+ }else{
+  const status=document.getElementById('menu-status');if(status)status.textContent='无法启动地图：'+error.message;
+  for(const id of ['start-button','join-button']){const button=document.getElementById(id);if(button)button.disabled=true;}
+ }
+ throw error;
+});
 // Private HTML uses this module directly; keep its rejection handled as well.
 ready.catch(()=>{});

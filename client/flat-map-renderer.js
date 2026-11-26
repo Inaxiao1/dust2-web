@@ -5,6 +5,8 @@ import {applySurfaceDetail} from './flat-surface-detail.js';
 // GLTFLoader has resolved any alpha textures by this point. Use one Lambert
 // material per parsed variant, including variants produced for vertex colours.
 export function applyFlatMaterials(root, detailTexture, mapId) {
+  let hasNormals = false;
+  root.traverse(mesh => { if (mesh.isMesh && mesh.geometry?.attributes?.normal) hasNormals = true; });
   const replacements = new Map();
   const replace = original => {
     if (replacements.has(original)) return replacements.get(original);
@@ -23,6 +25,7 @@ export function applyFlatMaterials(root, detailTexture, mapId) {
       polygonOffset: baked || !!original.userData.flatOverlay, polygonOffsetFactor: baked?1:-1, polygonOffsetUnits: baked?1:-1,
     });
     if(baked)material.toneMapped=false;
+    if(hasNormals)material.userData.hasSmoothNormals=true;
     if(detailTexture && original.userData.surfaceMaterialVersion===1 && baked && !original.map){
       applySurfaceDetail(material,detailTexture,mapId);
     }

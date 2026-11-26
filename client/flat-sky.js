@@ -13,7 +13,7 @@ const vertexShader = `
   varying vec3 direction;
   void main() {
     direction = mat3(cameraWorld) * (projectionInverse * vec4(position.xy, 1., 1.)).xyz;
-    gl_Position = vec4(position.xy, 1., 1.);
+    gl_Position = vec4(position.xy, 0.999995, 1.);
   }
 `;
 const fragmentShader = `

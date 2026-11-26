@@ -1,13 +1,15 @@
 import {preferences} from './persistence.js';
 import {LOADOUT_GROUPS,LOADOUT_LABELS,normalizeWeaponLoadout,loadoutCandidates,replaceLoadoutSlot,canReplaceLoadoutSlot} from '../shared/weapon-loadout.js';
 import {getWeapon} from '../shared/weapons.js';
-import {getSkin,DEFAULT_SKINS} from '../shared/skins.js';
+import {getSkin} from '../shared/skins.js';
+import {STARTER_SKINS} from '../shared/progression.js';
+import {getSharedToyProgress} from './toy-cloud-progress.js';
 import {skinPreviewURL} from './skin-preview.js';
 import {uiIconUrl} from './ui-icons.js';
 import './loadout-menu.css';
 export class LoadoutMenu{
- constructor({getSkins=()=>({}),onApply=async()=>{},onSaved=()=>{},openSkins=()=>{},canEdit=()=>true}={}){
-  Object.assign(this,{getSkins,onApply,onSaved,openSkins,canEdit});this.loadout=normalizeWeaponLoadout(preferences.readJSON('dust2.weapon-loadout.v1'));this.team='CT';this.selection={group:'rifles',index:0};this.busy=false;
+ constructor({getSkins=()=>({}),onApply=async()=>{},onSaved=()=>{},openSkins=()=>{},canEdit=()=>true,progressStore=null}={}){
+  Object.assign(this,{getSkins,onApply,onSaved,openSkins,canEdit});this.store=progressStore||getSharedToyProgress();this.loadout=normalizeWeaponLoadout(preferences.readJSON('dust2.weapon-loadout.v1'));this.team='CT';this.selection={group:'rifles',index:0};this.busy=false;
   const modal=document.createElement('div');modal.id='loadout-menu';modal.className='overlay';modal.hidden=true;
   modal.innerHTML='<section class="loadout-card"><header><div><small>LOADOUT</small><h2>装备配置</h2></div><nav aria-label="装备分类"><button data-armory-view="loadout" class="selected">装备携带</button><button data-armory-view="skins">皮肤库</button></nav><button data-armory-close>返回 ×</button></header><div class="loadout-top"><div role="group" aria-label="配置阵营"><button data-loadout-team="CT">反恐精英</button><button data-loadout-team="T">恐怖分子</button></div><p>全部 34 款枪械 · 每方携带 15 件 · 按阵营筛选</p></div><div class="loadout-body"><div class="loadout-slots"></div><aside><h3>可用装备</h3><p class="loadout-selection"></p><div class="loadout-candidates"></div></aside></div><footer><span class="loadout-result" role="status"></span><button data-loadout-reset>恢复默认</button><button data-loadout-save>保存装备配置</button></footer></section>';
   document.body.append(modal);this.element=modal;
@@ -18,7 +20,7 @@ export class LoadoutMenu{
  }
  open(){this.draft=normalizeWeaponLoadout(this.loadout);this.element.hidden=false;this.render();this.element.querySelector('[data-armory-close]').focus();}
  close(){this.element.hidden=true;}
- art(id){const skin=getSkin(this.getSkins()[id]||DEFAULT_SKINS[id]);return skin?.preview?skinPreviewURL(skin):uiIconUrl(id);}
+ art(id){const skin=getSkin(this.getSkins()[id]||STARTER_SKINS[id]);return skin?.preview?skinPreviewURL(skin):uiIconUrl(id);}
  render(){
   const editable=this.canEdit()&&!this.busy;this.element.dataset.team=this.team;
   for(const b of this.element.querySelectorAll('[data-loadout-team]')){const selected=b.dataset.loadoutTeam===this.team;b.classList.toggle('selected',selected);b.setAttribute('aria-pressed',String(selected));}
@@ -29,9 +31,9 @@ export class LoadoutMenu{
   this.element.querySelector('.loadout-selection').textContent=`${LOADOUT_LABELS[this.selection.group]} · 槽位 ${this.selection.index+1} · 选择替换，已携带枪械将交换位置`;
   const candidates=this.element.querySelector('.loadout-candidates');candidates.replaceChildren();
   const choices=loadoutCandidates(this.team,this.selection.group).filter(id=>this.selection.group!=='pistols'||(this.selection.index===0?canReplaceLoadoutSlot(this.team,'pistols',0,id):canReplaceLoadoutSlot(this.team,'pistols',1,id)));
-  for(const id of choices){const b=document.createElement('button');b.dataset.loadoutWeapon=id;b.disabled=!editable||!canReplaceLoadoutSlot(this.team,this.selection.group,this.selection.index,id);const img=document.createElement('img');img.src=this.art(id);img.alt='';const text=document.createElement('span');text.textContent=getWeapon(id).name;const label=document.createElement('small');const skin=getSkin(this.getSkins()[id]||DEFAULT_SKINS[id]);label.textContent=`${skin?.name||getWeapon(id).skin} · ${skin?.condition==='Factory New'?'崭新出厂':''}`;b.classList.toggle('equipped',this.draft[this.team][this.selection.group].includes(id));b.append(img,text,label);candidates.append(b);}
+  for(const id of choices){const b=document.createElement('button');b.dataset.loadoutWeapon=id;b.disabled=!editable||!canReplaceLoadoutSlot(this.team,this.selection.group,this.selection.index,id);const img=document.createElement('img');img.src=this.art(id);img.alt='';const text=document.createElement('span');text.textContent=getWeapon(id).name;const label=document.createElement('small');const skin=getSkin(this.getSkins()[id]||STARTER_SKINS[id]);label.textContent=`${skin?.name||getWeapon(id).skin} · ${skin?.condition==='Vanilla'?'原厂涂装':skin?.condition==='Factory New'?'崭新出厂':''}`;b.classList.toggle('equipped',this.draft[this.team][this.selection.group].includes(id));b.append(img,text,label);candidates.append(b);}
   this.element.querySelector('[data-loadout-save]').disabled=!editable;this.element.querySelector('[data-loadout-reset]').disabled=!editable;
   this.element.querySelector('.loadout-result').textContent=this.busy?'正在同步装备…':this.canEdit()?'选择槽位后更换装备。起始手枪在下次重生或新回合生效。':'本回合进行中，购买阶段可更改装备配置。';
  }
- async save(){if(!this.canEdit()||this.busy)return;this.busy=true;this.render();let message;try{const next=normalizeWeaponLoadout(this.draft),confirmed=await this.onApply(next);this.loadout=normalizeWeaponLoadout(confirmed||next);this.draft=normalizeWeaponLoadout(this.loadout);preferences.setItem('dust2.weapon-loadout.v1',JSON.stringify(this.loadout));this.onSaved(this.loadout);message='装备配置已保存，下次进入仍然使用。';}catch(e){message='未能保存：'+e.message;}finally{this.busy=false;this.render();this.element.querySelector('.loadout-result').textContent=message;}}
+ async save(){if(!this.canEdit()||this.busy)return;this.busy=true;this.render();let message;try{const next=normalizeWeaponLoadout(this.draft),confirmed=await this.onApply(next);this.loadout=normalizeWeaponLoadout(confirmed||next);this.draft=normalizeWeaponLoadout(this.loadout);preferences.setItem('dust2.weapon-loadout.v1',JSON.stringify(this.loadout));this.store.noteLoadoutChanged();this.onSaved(this.loadout);message='装备配置已保存，下次进入仍然使用。';}catch(e){message='未能保存：'+e.message;}finally{this.busy=false;this.render();this.element.querySelector('.loadout-result').textContent=message;}}
 }

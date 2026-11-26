@@ -19,7 +19,7 @@ export function createWeaponLighting(renderer,weaponScene){
   worldCamera.getWorldQuaternion(inverseView).invert();
   // The map lights are stable. Searching the complete map + every player's
   // skeleton twice per frame consumed measurable CPU as players were added.
-  if(sourceScene!==worldScene||!worldSky||!worldSun){sourceScene=worldScene;worldSky=worldScene.getObjectByName('dust2-web-sky');worldSun=worldScene.getObjectByName('dust2-web-sun');}
+  if(sourceScene!==worldScene||!worldSky?.parent||!worldSun?.parent){sourceScene=worldScene;worldSky=worldScene.getObjectByName('dust2-web-sky');worldSun=worldScene.getObjectByName('dust2-web-sun');}
   if(worldSky?.isHemisphereLight){sky.color.copy(worldSky.color);sky.groundColor.copy(worldSky.groundColor);sky.intensity=worldSky.intensity;}
   if(worldSun?.isDirectionalLight){
    sun.color.copy(worldSun.color);sun.intensity=worldSun.intensity;

@@ -18,7 +18,7 @@ export function mountBotSettings(settingsUI,{getState,onChange}){
   if(state.connected){pending=true;timer=setTimeout(settle,5000);}
   onChange(normalizeBotDifficulty(select.value));refresh();
  };
- tab.onclick=()=>{modal.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('selected',b===tab));modal.querySelectorAll('[data-panel]').forEach(p=>p.hidden=p!==panel);refresh();};
+ tab.onclick=()=>{modal.querySelectorAll('.config-tabs [data-tab]').forEach(b=>b.classList.toggle('selected',b===tab));modal.querySelectorAll('.config-scroll [data-panel]').forEach(p=>p.hidden=p!==panel);refresh();};
  const open=settingsUI.open;settingsUI.open=()=>{refresh();open();};
  return {refresh,settle};
 }

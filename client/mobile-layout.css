@@ -107,14 +107,15 @@
 .touch-device .touch-portrait-note{top:115px;font-size:9px;padding:4px 7px;opacity:.65}
 
 /* Keep the clarity control within reach on short landscape phone screens. */
-.touch-device #settings-menu .config-card{display:flex;flex-direction:column;width:min(760px,100%);max-height:calc(100dvh - 16px);padding:12px;overflow:hidden}
-.touch-device #settings-menu .config-card>header{padding:0;gap:12px;flex-shrink:0}
-.touch-device #settings-menu h2{font-size:20px;margin:3px 0 8px}
+.touch-device #settings-menu .config-card{display:flex;flex-direction:column;width:min(760px,100%);height:calc(100dvh - 16px);max-height:calc(100dvh - 16px);padding:0;overflow:hidden}
+.touch-device #settings-menu .config-card>header{padding:10px 14px;gap:12px;flex-shrink:0}
+.touch-device #settings-menu h2{font-size:18px;margin:2px 0 0}
 .touch-device #settings-menu .eyebrow{font-size:9px}
-.touch-device #settings-menu .config-card>header button{min-height:40px;padding:7px 12px;font-size:12px}
-.touch-device #settings-menu .config-tabs{gap:2px}
-.touch-device #settings-menu .config-tabs button{padding:8px 10px;min-height:40px;font-size:12px}
-.touch-device #settings-menu .config-scroll{height:auto;flex:1;min-height:0;overflow:auto;padding:8px 2px;font-size:12px}
-.touch-device #settings-menu .config-scroll h3{font-size:15px;margin:8px 0}
-.touch-device #settings-menu .config-row{margin:10px 0;gap:10px}
-.touch-device #settings-menu select{padding:7px;min-height:38px}
+.touch-device #settings-menu .config-card>header button{min-height:36px;padding:0 12px;font-size:12px}
+.touch-device #settings-menu .config-body{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}
+.touch-device #settings-menu .config-tabs{flex-direction:row;border-right:0;border-bottom:1px solid rgba(148,174,201,.16);gap:4px;padding:6px 10px;overflow-x:auto}
+.touch-device #settings-menu .config-tabs button{width:auto;flex:none;padding:6px 10px;min-height:36px;font-size:12px;border-left:0;border-bottom:2px solid transparent}
+.touch-device #settings-menu .config-scroll{height:auto;flex:1;min-height:0;overflow:auto;padding:12px 14px;font-size:12px}
+.touch-device #settings-menu .config-scroll h3{font-size:15px;margin:0 0 4px}
+.touch-device #settings-menu .config-row{margin:0;padding:10px 0;gap:10px}
+.touch-device #settings-menu select{padding:6px 10px;min-height:36px}

@@ -186,8 +186,8 @@ test('real multi-primitive character, AWP and arm clones release every independe
     return new GLTFLoader().parseAsync(buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength), '');
   }
   const fixtures = [
-    ['../public/assets/characters/swat.glb', 12],
-    ['../public/assets/characters/hoodie.glb', 10],
+    ['../public/assets/characters-cs2/ct-sas.glb', 5],
+    ['../public/assets/characters-cs2/t-phoenix.glb', 5],
     ['../public/assets/weapons/cs2-skins/awp-gungnir.glb', 2],
     ['../public/assets/viewmodel/arms.glb', 3],
   ];

@@ -64,7 +64,7 @@ test('directory follows real map workers and shared graphics rooms', {skip:!inst
     sockets.delete(socket);
   }
 
-  assert.deepEqual(await directory(), {rooms:[]});
+  assert.deepEqual(await directory(), {rooms:[], totalRooms:0, totalHumans:0, joinableRooms:0});
   assert.deepEqual((await get('/perf/health')).workers, []);
   const {maps} = await get('/perf/graphics.json');
   const mirage = maps.find(map => map.id === 'de_mirage'), dust = maps.find(map => map.id === 'de_dust2');
@@ -112,5 +112,5 @@ test('directory follows real map workers and shared graphics rooms', {skip:!inst
   const stale = await join(mirage.performanceURL, {name:'Late',existing:true}, 'error');
   assert.equal(stale.reply.code,'ROOM_GONE');
   await leave(stale.socket);
-  assert.deepEqual(await directory(), {rooms:[]});
+  assert.deepEqual(await directory(), {rooms:[], totalRooms:0, totalHumans:0, joinableRooms:0});
 });
