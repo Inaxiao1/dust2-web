@@ -116,8 +116,8 @@ function readLocalCareerSummary(uid) {
     const matches = Math.max(0, Math.floor(Number(raw.matches) || 0));
     const wins = Math.max(0, Math.floor(Number(raw.wins) || 0));
     const xp = kills * 25 + headshots * 15 + rounds * 20 + matches * 120 + wins * 80;
-    let level = 1, floorXp = 0, stepXp = 150;
-    while (level < 30 && xp >= floorXp + stepXp) { floorXp += stepXp; level++; stepXp = Math.round(150 + (level - 1) * 95); }
+    let level = 1, floorXp = 0, stepXp = 600;
+    while (level < 30 && xp >= floorXp + stepXp) { floorXp += stepXp; level++; stepXp = Math.round(600 + (level - 1) * 260); }
     return `Lv.${level} · ${kills} 杀 · ${matches} 局`;
   } catch {
     return 'Lv.1 · 0 杀';
@@ -355,7 +355,8 @@ function remember() {
 
 function imageURL(file) {
   if (typeof file !== 'string' || !/^[a-z0-9][a-z0-9_.-]*\.(webp|avif|jpe?g|png)$/i.test(file) || failedFiles.has(file)) return null;
-  return staticUrl('mode-previews/' + file);
+  const base = staticUrl('mode-previews/' + file);
+  return RT ? base : base + '?v=pbr2';
 }
 
 /* 6. Dual-Layer Crossfade Living Map Stage */
