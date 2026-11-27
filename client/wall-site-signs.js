@@ -56,9 +56,12 @@ export function paintSiteWalls(root,map,atlas) {
   const variant=m=>{
     if(variants.has(m))return variants.get(m);
     const v=m.clone(), compile=m.onBeforeCompile, key=m.customProgramCacheKey();
+    v.userData={...m.userData};
+    delete v.userData.surfaceUniforms;
+    delete v.userData.surfaceUniformsList;
     v.customProgramCacheKey=()=>key+'-site-wall-print-v1';
     v.onBeforeCompile=(shader,renderer)=>{
-      compile.call(m,shader,renderer);
+      compile.call(v,shader,renderer);
       shader.uniforms.sitePaintInk={value:atlas};
       shader.uniforms.sitePaintCenter={value:centers};
       shader.uniforms.sitePaintNormal={value:normals};

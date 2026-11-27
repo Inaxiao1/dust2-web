@@ -4,6 +4,7 @@ import {
   RepeatWrapping,
   LinearFilter,
   LinearMipmapLinearFilter,
+  Vector4,
 } from 'three';
 import { mobileDevice } from './device-profile.js';
 import { preferences } from './persistence.js';
@@ -52,6 +53,7 @@ export const ARENA_PBR_PERIODS = [
 ];
 
 let cachedPbrAtlas = null;
+let sharedVisualStyleUniforms = null;
 
 export function normalizeVisualStyle(value) {
   const raw = String(value || '').trim().toLowerCase();
@@ -79,12 +81,32 @@ export function getStoredVisualStyle() {
 export function setStoredVisualStyle(value) {
   const id = normalizeVisualStyle(value);
   globalThis.__CS2_VISUAL_STYLE__ = id;
+  if (sharedVisualStyleUniforms) {
+    applyVisualStyleUniforms(sharedVisualStyleUniforms, id);
+  }
   try {
     preferences.setItem(VISUAL_STYLE_KEY, id);
   } catch {
     // ignore
   }
   return id;
+}
+
+export function getSharedVisualStyleUniforms(styleId) {
+  const id = styleId !== undefined
+    ? normalizeVisualStyle(styleId)
+    : normalizeVisualStyle(globalThis.__CS2_VISUAL_STYLE__ || getStoredVisualStyle());
+  const preset = getVisualStylePreset(id);
+  if (!sharedVisualStyleUniforms) {
+    sharedVisualStyleUniforms = {
+      uLookA: { value: new Vector4(...preset.lookA) },
+      uLookB: { value: new Vector4(...preset.lookB) },
+      uLookC: { value: new Vector4(...preset.lookC) },
+    };
+  } else if (styleId !== undefined) {
+    applyVisualStyleUniforms(sharedVisualStyleUniforms, id);
+  }
+  return sharedVisualStyleUniforms;
 }
 
 export function applyVisualStyleUniforms(uniforms, styleId) {
@@ -99,6 +121,7 @@ export function applyVisualStyleUniforms(uniforms, styleId) {
 export function applyVisualStyleToScene(root, styleId) {
   const id = normalizeVisualStyle(styleId);
   globalThis.__CS2_VISUAL_STYLE__ = id;
+  applyVisualStyleUniforms(getSharedVisualStyleUniforms(id), id);
   if (!root?.traverse) return id;
   root.traverse((obj) => {
     if (!obj.isMesh) return;
@@ -107,6 +130,11 @@ export function applyVisualStyleToScene(root, styleId) {
       mat.userData.visualStyle = id;
       if (mat.userData.surfaceUniforms) {
         applyVisualStyleUniforms(mat.userData.surfaceUniforms, id);
+      }
+      if (Array.isArray(mat.userData.surfaceUniformsList)) {
+        for (const uniforms of mat.userData.surfaceUniformsList) {
+          applyVisualStyleUniforms(uniforms, id);
+        }
       }
     }
   });

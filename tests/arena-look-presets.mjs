@@ -80,3 +80,53 @@ test('all 9 baked maps share one RGBA8 PBR atlas and switch styles via 3 vec4 un
     assert.equal(mat.version, versionBefore, `${mapId}: switching styles must not mark material dirty`);
   }
 });
+
+test('cloned site-wall material variants never clobber original map uniforms when switching visual styles', async () => {
+  const detailTex = await loadFlatSurfaceDetail('de_dust2');
+  const mainMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  mainMat.userData.hasBakedLight = true;
+  applySurfaceDetail(mainMat, detailTex, 'de_dust2');
+
+  // Mirror client/wall-site-signs.js: clone the map material and wrap onBeforeCompile
+  const siteWallMat = mainMat.clone();
+  siteWallMat.userData = { ...mainMat.userData };
+  delete siteWallMat.userData.surfaceUniforms;
+  delete siteWallMat.userData.surfaceUniformsList;
+  const baseCompile = mainMat.onBeforeCompile;
+  siteWallMat.onBeforeCompile = (shader, renderer) => {
+    baseCompile.call(siteWallMat, shader, renderer);
+  };
+
+  const makeShader = () => ({
+    uniforms: {},
+    vertexShader: '#include <common>\n#include <color_vertex>\n#include <worldpos_vertex>',
+    fragmentShader: '#include <common>\n#include <color_fragment>\n#include <opaque_fragment>',
+  });
+
+  const mainShader = makeShader();
+  const siteShader = makeShader();
+  mainMat.onBeforeCompile(mainShader);
+  siteWallMat.onBeforeCompile(siteShader);
+
+  assert.equal(mainMat.userData.surfaceUniforms, mainShader.uniforms, 'cloning site-wall variant must not overwrite main material surfaceUniforms');
+  assert.equal(siteWallMat.userData.surfaceUniforms, siteShader.uniforms, 'cloned site-wall variant must record its own surfaceUniforms');
+  assert.equal(mainShader.uniforms.uLookA, siteShader.uniforms.uLookA, 'both main and cloned materials must share live uLookA uniform');
+
+  const root = new THREE.Group();
+  root.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), mainMat));
+  root.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), siteWallMat));
+
+  const comp = getVisualStylePreset('competitive');
+  const cin = getVisualStylePreset('cinematic');
+  const round2 = (v) => v.toArray().map((n) => Math.round(n * 100) / 100);
+
+  applyVisualStyleToScene(root, 'competitive');
+  assert.deepEqual(round2(mainShader.uniforms.uLookA.value), comp.lookA);
+  assert.deepEqual(round2(mainShader.uniforms.uLookB.value), comp.lookB);
+  assert.deepEqual(round2(mainShader.uniforms.uLookC.value), comp.lookC);
+  assert.deepEqual(round2(siteShader.uniforms.uLookA.value), comp.lookA);
+
+  applyVisualStyleToScene(root, 'cinematic');
+  assert.deepEqual(round2(mainShader.uniforms.uLookA.value), cin.lookA);
+  assert.deepEqual(round2(siteShader.uniforms.uLookA.value), cin.lookA);
+});

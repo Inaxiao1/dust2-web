@@ -5,7 +5,7 @@ import {
   getArenaPbrAtlas,
   ARENA_PBR_PERIODS,
   getStoredVisualStyle,
-  getVisualStylePreset,
+  getSharedVisualStyleUniforms,
 } from './arena-look-presets.js';
 
 import arena from './arena-finishes/palette.json' with {type:'json'};
@@ -746,7 +746,8 @@ export function applySurfaceDetail(material, texture, mapId) {
         ? 'dust2-plane-finishes-v4-arena-pbr-'
         : 'dust2-plane-finishes-v3-'
       : 'dust2-architectural-surfaces-v4-') + finishes.length;
-  material.onBeforeCompile = shader => {
+  material.onBeforeCompile = function onSurfaceDetailCompile(shader) {
+    const target = this?.isMaterial ? this : material;
     Object.assign(shader.uniforms, {
       uSurfaceDetail: {value:texture},
       uFinishScale: {value:finishes.map(([,metres]) => 1 / metres)},
@@ -755,7 +756,7 @@ export function applySurfaceDetail(material, texture, mapId) {
       uFloorSlabs: {value:!!rules.floorSlabs},
       uMapFinish: {value:new Vector4(...profile.slice(0,4))},
       uGrainPigment: {value:new Vector3(...profile[4])},
-      uUseSmoothNormals: {value:material.userData.hasSmoothNormals ? 1.0 : 0.0},
+      uUseSmoothNormals: {value:target.userData.hasSmoothNormals ? 1.0 : 0.0},
     });
     if (local) {
       const atm = getMapAtmosphere(mapId);
@@ -776,17 +777,23 @@ export function applySurfaceDetail(material, texture, mapId) {
       shader.uniforms.uMossColor = {value:new Vector3(...(atm.mossColor || [0.15, 0.22, 0.10]))};
       shader.uniforms.uSandColor = {value:new Vector3(...(atm.sandColor || [0.38, 0.29, 0.17]))};
       shader.uniforms.uFogStrength = {value:atm.fogStrength};
-      shader.uniforms.uHighQuality = {value:material.userData.highQuality ? 1.0 : 0.0};
+      shader.uniforms.uHighQuality = {value:target.userData.highQuality ? 1.0 : 0.0};
       if (arenaPbr) {
-        const styleId = material.userData.visualStyle || globalThis.__CS2_VISUAL_STYLE__ || getStoredVisualStyle();
-        const preset = getVisualStylePreset(styleId);
+        const styleId = target.userData.visualStyle || globalThis.__CS2_VISUAL_STYLE__ || getStoredVisualStyle();
+        const sharedLook = getSharedVisualStyleUniforms(styleId);
         shader.uniforms.uPbrDetail = {value:getArenaPbrAtlas()};
         shader.uniforms.uPbrScale = {value:ARENA_PBR_PERIODS.map(m => 1 / m)};
-        shader.uniforms.uLookA = {value:new Vector4(...preset.lookA)};
-        shader.uniforms.uLookB = {value:new Vector4(...preset.lookB)};
-        shader.uniforms.uLookC = {value:new Vector4(...preset.lookC)};
+        shader.uniforms.uLookA = sharedLook.uLookA;
+        shader.uniforms.uLookB = sharedLook.uLookB;
+        shader.uniforms.uLookC = sharedLook.uLookC;
       }
-      material.userData.surfaceUniforms = shader.uniforms;
+      target.userData.surfaceUniforms = shader.uniforms;
+      if (!Array.isArray(target.userData.surfaceUniformsList)) {
+        target.userData.surfaceUniformsList = [];
+      }
+      if (!target.userData.surfaceUniformsList.includes(shader.uniforms)) {
+        target.userData.surfaceUniformsList.push(shader.uniforms);
+      }
     }
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>

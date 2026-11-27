@@ -817,8 +817,11 @@ async function invite(){if(!room)return;if(connection.offline){hud.toast('当前
 function syncPauseVisualUI(){
   const styleSelect=$('pause-visual-style');
   if(styleSelect&&styleSelect.value!==visualStyle)styleSelect.value=visualStyle;
+  const usingOriginal=isHighQualityTextured();
+  const liveTag=document.querySelector('#pause-menu .pause-live-tag');
+  if(liveTag)liveTag.textContent=usingOriginal?'PBR 模式生效':'实时生效';
   const texMode=$('pause-texture-mode');
-  if(texMode)texMode.textContent=isHighQualityTextured()?'CS2 原版贴图':'性能重制 PBR';
+  if(texMode)texMode.textContent=usingOriginal?'CS2 原版贴图':'性能重制 PBR';
 }
 function setVisualStyle(value,{silent=false}={}){
   const prev=visualStyle;
@@ -828,7 +831,9 @@ function setVisualStyle(value,{silent=false}={}){
   settingsUI.videoRefresh?.();
   if(!silent&&loaded&&prev!==visualStyle){
     const preset=getVisualStylePreset(visualStyle);
-    hud.toast(`视觉风格已实时切换 · ${preset.name}`);
+    hud.toast(isHighQualityTextured()
+      ? `视觉风格已保存 · ${preset.name}（将在性能重制 PBR 地图中生效）`
+      : `视觉风格已实时切换 · ${preset.name}`);
   }
 }
 function setQuality(value){
@@ -861,6 +866,9 @@ function applyQuality(){
     for(const m of [].concat(o.material||[])){
       m.userData.highQuality=quality==='high';
       if(m.userData.surfaceUniforms?.uHighQuality)m.userData.surfaceUniforms.uHighQuality.value=hq;
+      if(Array.isArray(m.userData.surfaceUniformsList)){
+        for(const u of m.userData.surfaceUniformsList)if(u?.uHighQuality)u.uHighQuality.value=hq;
+      }
     }
   });
   applyVisualStyleToScene(scene,visualStyle);
