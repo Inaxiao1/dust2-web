@@ -4,6 +4,7 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
@@ -104,13 +105,25 @@ func (l *ipRateLimiter) Allow(ip string) bool {
 	return true
 }
 
+type serverMetrics struct {
+	roomsCreated  atomic.Int64
+	roomsJoined   atomic.Int64
+	quickJoins    atomic.Int64
+	tokensIssued  atomic.Int64
+	rateLimited   atomic.Int64
+	heartbeats    atomic.Int64
+	drainRequests atomic.Int64
+}
+
 type Server struct {
-	cfg      Config
-	draining atomic.Bool
-	origins  map[string]struct{}
-	wildcard bool
-	limiter  *ipRateLimiter
-	mux      *http.ServeMux
+	cfg       Config
+	startedAt time.Time
+	draining  atomic.Bool
+	origins   map[string]struct{}
+	wildcard  bool
+	limiter   *ipRateLimiter
+	metrics   serverMetrics
+	mux       *http.ServeMux
 }
 
 func NewServer(cfg Config) (*Server, error) {
@@ -127,10 +140,11 @@ func NewServer(cfg Config) (*Server, error) {
 		cfg.Now = time.Now
 	}
 	s := &Server{
-		cfg:     cfg,
-		origins: make(map[string]struct{}),
-		limiter: newIPRateLimiter(cfg.RateLimitPerMin, cfg.RateLimitBurst, cfg.Now),
-		mux:     http.NewServeMux(),
+		cfg:       cfg,
+		startedAt: cfg.Now(),
+		origins:   make(map[string]struct{}),
+		limiter:   newIPRateLimiter(cfg.RateLimitPerMin, cfg.RateLimitBurst, cfg.Now),
+		mux:       http.NewServeMux(),
 	}
 	for _, o := range cfg.AllowedOrigins {
 		trimmed := strings.TrimSpace(o)
@@ -143,8 +157,10 @@ func NewServer(cfg Config) (*Server, error) {
 		}
 	}
 
+	s.mux.HandleFunc("GET /metrics", s.handleMetrics)
 	s.mux.HandleFunc("GET /api/v1/health", s.handleHealth)
 	s.mux.HandleFunc("GET /api/v1/ready", s.handleReady)
+	s.mux.HandleFunc("GET /api/v1/maps", s.handleMapPools)
 	s.mux.HandleFunc("GET /api/v1/rooms", s.handleListRooms)
 	s.mux.HandleFunc("GET /api/v1/rooms/{code}", s.handleGetRoom)
 	s.mux.HandleFunc("GET /api/v1/quick-join", s.handleQuickJoinPreview)
@@ -204,9 +220,26 @@ func clientIP(r *http.Request) string {
 	return strings.TrimSpace(r.RemoteAddr)
 }
 
+func (s *Server) allowRequest(ip string) bool {
+	if s.cfg.RateLimitPerMin < 0 {
+		return true
+	}
+	if drl, ok := s.cfg.Store.(store.DistributedRateLimiter); ok {
+		limit := s.cfg.RateLimitPerMin
+		if limit == 0 {
+			limit = 60
+		}
+		if allowed, err := drl.AllowRate(ip, limit, time.Minute); err == nil {
+			return allowed
+		}
+	}
+	return s.limiter.Allow(ip)
+}
+
 func (s *Server) rateLimit(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !s.limiter.Allow(clientIP(r)) {
+		if !s.allowRequest(clientIP(r)) {
+			s.metrics.rateLimited.Add(1)
 			w.Header().Set("Retry-After", "1")
 			writeError(w, http.StatusTooManyRequests, "RATE_LIMITED", "too many matchmaking requests, please retry shortly")
 			return
@@ -258,6 +291,130 @@ func (s *Server) handleReady(w http.ResponseWriter, _ *http.Request) {
 		"ready":    !draining,
 		"draining": draining,
 	})
+}
+
+type mapPoolSummary struct {
+	MapID           string  `json:"mapId"`
+	Status          string  `json:"status"`
+	ActiveWorkers   int     `json:"activeWorkers"`
+	DrainingWorkers int     `json:"drainingWorkers"`
+	Rooms           int     `json:"rooms"`
+	MaxRooms        int     `json:"maxRooms"`
+	AvailableSlots  int     `json:"availableSlots"`
+	Humans          int     `json:"humans"`
+	BestTickP99Ms   float64 `json:"bestTickP99Ms"`
+}
+
+func buildMapPools(workers []store.WorkerInfo) ([]mapPoolSummary, int) {
+	byMap := make(map[string]*mapPoolSummary)
+	totalHumans := 0
+	for _, w := range workers {
+		totalHumans += w.HumanCount
+		for _, m := range w.Maps {
+			if m == "" {
+				continue
+			}
+			pool, ok := byMap[m]
+			if !ok {
+				pool = &mapPoolSummary{MapID: m, BestTickP99Ms: -1}
+				byMap[m] = pool
+			}
+			if w.Draining {
+				pool.DrainingWorkers++
+			} else {
+				pool.ActiveWorkers++
+				pool.MaxRooms += w.MaxRooms
+				if free := w.MaxRooms - w.ActiveRooms; free > 0 {
+					pool.AvailableSlots += free
+				}
+				if pool.BestTickP99Ms < 0 || w.TickP99Ms < pool.BestTickP99Ms {
+					pool.BestTickP99Ms = w.TickP99Ms
+				}
+			}
+			pool.Rooms += w.ActiveRooms
+			pool.Humans += w.HumanCount
+		}
+	}
+	pools := make([]mapPoolSummary, 0, len(byMap))
+	for _, pool := range byMap {
+		if pool.BestTickP99Ms < 0 {
+			pool.BestTickP99Ms = 0
+		}
+		switch {
+		case pool.ActiveWorkers == 0 && pool.DrainingWorkers > 0:
+			pool.Status = "draining"
+		case pool.ActiveWorkers == 0:
+			pool.Status = "offline"
+		case pool.AvailableSlots == 0:
+			pool.Status = "full"
+		default:
+			pool.Status = "ready"
+		}
+		pools = append(pools, *pool)
+	}
+	sort.Slice(pools, func(i, j int) bool { return pools[i].MapID < pools[j].MapID })
+	return pools, totalHumans
+}
+
+func (s *Server) handleMapPools(w http.ResponseWriter, _ *http.Request) {
+	workers := s.cfg.Store.ListWorkers()
+	pools, totalHumans := buildMapPools(workers)
+	stats := s.cfg.Store.Stats()
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":          true,
+		"maps":        pools,
+		"totalMaps":   len(pools),
+		"totalHumans": totalHumans,
+		"stats":       stats,
+	})
+}
+
+func (s *Server) handleMetrics(w http.ResponseWriter, _ *http.Request) {
+	stats := s.cfg.Store.Stats()
+	workers := s.cfg.Store.ListWorkers()
+	pools, totalHumans := buildMapPools(workers)
+	draining := s.draining.Load()
+	readyVal := 1
+	if draining {
+		readyVal = 0
+	}
+	uptime := s.cfg.Now().Sub(s.startedAt).Seconds()
+	if uptime < 0 {
+		uptime = 0
+	}
+
+	var b strings.Builder
+	b.WriteString("# HELP cs2_cp_up Control plane process availability.\n# TYPE cs2_cp_up gauge\ncs2_cp_up 1\n")
+	fmt.Fprintf(&b, "# HELP cs2_cp_ready Whether control plane is accepting scheduling requests.\n# TYPE cs2_cp_ready gauge\ncs2_cp_ready %d\n", readyVal)
+	fmt.Fprintf(&b, "# HELP cs2_cp_uptime_seconds Control plane uptime in seconds.\n# TYPE cs2_cp_uptime_seconds gauge\ncs2_cp_uptime_seconds %.1f\n", uptime)
+	fmt.Fprintf(&b, "# HELP cs2_cp_workers Registered battle workers by state.\n# TYPE cs2_cp_workers gauge\ncs2_cp_workers{state=\"active\"} %d\ncs2_cp_workers{state=\"draining\"} %d\n", stats.ActiveWorkers, stats.DrainingWorkers)
+	fmt.Fprintf(&b, "# HELP cs2_cp_rooms_total Active rooms tracked across all workers.\n# TYPE cs2_cp_rooms_total gauge\ncs2_cp_rooms_total %d\n", stats.TotalRooms)
+	fmt.Fprintf(&b, "# HELP cs2_cp_public_rooms Public joinable rooms tracked across all workers.\n# TYPE cs2_cp_public_rooms gauge\ncs2_cp_public_rooms %d\n", stats.PublicRooms)
+	fmt.Fprintf(&b, "# HELP cs2_cp_humans_total Active human players reported by live workers.\n# TYPE cs2_cp_humans_total gauge\ncs2_cp_humans_total %d\n", totalHumans)
+	fmt.Fprintf(&b, "# HELP cs2_cp_requests_total Control plane scheduling and worker operations.\n# TYPE cs2_cp_requests_total counter\ncs2_cp_requests_total{action=\"create_room\"} %d\ncs2_cp_requests_total{action=\"join_room\"} %d\ncs2_cp_requests_total{action=\"quick_join\"} %d\ncs2_cp_requests_total{action=\"heartbeat\"} %d\ncs2_cp_requests_total{action=\"drain\"} %d\n",
+		s.metrics.roomsCreated.Load(), s.metrics.roomsJoined.Load(), s.metrics.quickJoins.Load(), s.metrics.heartbeats.Load(), s.metrics.drainRequests.Load())
+	fmt.Fprintf(&b, "# HELP cs2_cp_tokens_issued_total HMAC join tokens issued.\n# TYPE cs2_cp_tokens_issued_total counter\ncs2_cp_tokens_issued_total %d\n", s.metrics.tokensIssued.Load())
+	fmt.Fprintf(&b, "# HELP cs2_cp_rate_limited_total Requests rejected by rate limiting.\n# TYPE cs2_cp_rate_limited_total counter\ncs2_cp_rate_limited_total %d\n", s.metrics.rateLimited.Load())
+
+	if len(pools) > 0 {
+		b.WriteString("# HELP cs2_cp_map_workers Active battle workers per map.\n# TYPE cs2_cp_map_workers gauge\n")
+		for _, p := range pools {
+			fmt.Fprintf(&b, "cs2_cp_map_workers{map_id=%q} %d\n", p.MapID, p.ActiveWorkers)
+		}
+		b.WriteString("# HELP cs2_cp_map_available_slots Available room slots per map.\n# TYPE cs2_cp_map_available_slots gauge\n")
+		for _, p := range pools {
+			fmt.Fprintf(&b, "cs2_cp_map_available_slots{map_id=%q} %d\n", p.MapID, p.AvailableSlots)
+		}
+		b.WriteString("# HELP cs2_cp_map_rooms Active rooms per map.\n# TYPE cs2_cp_map_rooms gauge\n")
+		for _, p := range pools {
+			fmt.Fprintf(&b, "cs2_cp_map_rooms{map_id=%q} %d\n", p.MapID, p.Rooms)
+		}
+	}
+
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(b.String()))
 }
 
 func summarizeRooms(rooms []store.RoomInfo) (totalRooms, totalHumans, joinableRooms int) {
@@ -473,6 +630,8 @@ func (s *Server) handleQuickJoin(w http.ResponseWriter, r *http.Request) {
 				writeError(w, http.StatusInternalServerError, "TOKEN_SIGN_FAILED", "failed to sign join token")
 				return
 			}
+			s.metrics.quickJoins.Add(1)
+			s.metrics.tokensIssued.Add(1)
 			writeJSON(w, http.StatusOK, map[string]any{
 				"action":        "join",
 				"room":          room,
@@ -519,6 +678,8 @@ func (s *Server) handleQuickJoin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "TOKEN_SIGN_FAILED", "failed to sign join token")
 		return
 	}
+	s.metrics.quickJoins.Add(1)
+	s.metrics.tokensIssued.Add(1)
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"action":        "create",
 		"roomCode":      room.Code,
@@ -592,6 +753,8 @@ func (s *Server) handleCreateRoom(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "TOKEN_SIGN_FAILED", "failed to sign join token")
 		return
 	}
+	s.metrics.roomsCreated.Add(1)
+	s.metrics.tokensIssued.Add(1)
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"roomCode":    room.Code,
 		"mapId":       req.MapID,
@@ -652,6 +815,8 @@ func (s *Server) handleJoinRoom(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "TOKEN_SIGN_FAILED", "failed to sign join token")
 		return
 	}
+	s.metrics.roomsJoined.Add(1)
+	s.metrics.tokensIssued.Add(1)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"roomCode":    room.Code,
 		"mapId":       room.MapID,
@@ -754,6 +919,7 @@ func (s *Server) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "HEARTBEAT_FAILED", err.Error())
 		return
 	}
+	s.metrics.heartbeats.Add(1)
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
@@ -772,6 +938,7 @@ func (s *Server) handleDrainWorker(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "DRAIN_FAILED", err.Error())
 		return
 	}
+	s.metrics.drainRequests.Add(1)
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "workerId": info.WorkerID, "draining": info.Draining})
 }
 

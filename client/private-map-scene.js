@@ -1,7 +1,7 @@
 import {flattenMapDocument} from './flat-map-materials.js';
 import {applyFlatMaterials} from './flat-map-renderer.js';
 import {createFlatSiteMarkings,replaceOriginalFloorPaint} from './flat-site-markings.js';
-import {loadFlatSurfaceDetail} from './flat-surface-detail.js';
+import {loadFlatSurfaceDetail,getMapAtmosphere} from './flat-surface-detail.js';
 import {prepareFlatSky} from './flat-sky.js';
 import {decodeCompactMapMesh,decodePackedPhysics} from './compact-map-codec.js';
 import {gameGLTFLoader} from './gltf-loader.js';
@@ -20,10 +20,24 @@ import {PrivateMapBreakables as BreakableCollisionState} from '../shared/private
 import {privateEntities,qualityEntityRenderMatches} from '../shared/private-map-entities.js';
 import {PRIVATE_MOVEMENT_MODEL} from '../shared/ladder-movement.js';
 import {privateMapFetcher} from './private-map-download.js';
+import {assetDownloadURL} from './download-origin.js';
 import {omitInactiveQualityMeshes} from './quality-map-layout.js';
+import {sha256Hex} from '../shared/sha256.js';
+import {applyVisualStyleToScene,getStoredVisualStyle} from './arena-look-presets.js';
 
-async function hashBytes(bytes){
- return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),byte=>byte.toString(16).padStart(2,'0')).join('');
+function hashBytes(bytes){
+ return sha256Hex(bytes);
+}
+
+function buildAtmosphereLights(mapId){
+ const atm=getMapAtmosphere(mapId);
+ const clampColor=rgb=>new THREE.Color(Math.min(1,rgb[0]*0.82),Math.min(1,rgb[1]*0.82),Math.min(1,rgb[2]*0.82));
+ const hemisphere=new THREE.HemisphereLight(clampColor(atm.sky),clampColor(atm.bounce),0.82);
+ const sun=new THREE.DirectionalLight(clampColor(atm.sun),1.38);
+ const dir=new THREE.Vector3(...(atm.sunDir||[-0.48,0.78,0.40])).normalize();
+ sun.position.copy(dir).multiplyScalar(110);
+ sun.castShadow=false;
+ return [hemisphere,sun];
 }
 
 function disposeScene(group){
@@ -41,7 +55,8 @@ async function buildTexturedDust2Package(config,{onProgress=()=>{},signal}){
  onProgress('正在载入 CS2 原版贴图场景…',{phase:'map-manifest'});
  const loader=gameGLTFLoader(manager,{signal}).setMeshoptDecoder(MeshoptDecoder);
  const rawUrl=mobileDevice()?config.texturedRender.mobileUrl:config.texturedRender.desktopUrl;
- const mapURL=new URL(rawUrl,location.href).href;
+ const logicalUrl=new URL(rawUrl.replace(/^\/perf\//,''),document.baseURI).href;
+ const mapURL=assetDownloadURL(logicalUrl,{pageURL:document.baseURI}).href;
  const gltf=await loader.loadAsync(mapURL);
  signal?.throwIfAborted();
  onProgress('对齐原版材质与光照…',{phase:'gpu-compile',count:1,complete:0});
@@ -125,6 +140,7 @@ async function buildStandardCompactPackage(config,{onProgress=()=>{},signal}){
  signal?.throwIfAborted();
  if(finishAtlas)textures.add(finishAtlas);
  applyFlatMaterials(group,finishAtlas,config.id);
+ applyVisualStyleToScene(group,getStoredVisualStyle());
  const markings=await createFlatSiteMarkings(MAP,manager);
  if(markings){
   textures.add(markings.material.map);
@@ -133,10 +149,9 @@ async function buildStandardCompactPackage(config,{onProgress=()=>{},signal}){
  }
  for(const texture of textures)texture.anisotropy=4;
  group.traverse(o=>{o.matrixAutoUpdate=false;o.matrixWorldAutoUpdate=false;});
- const hemisphere=new THREE.HemisphereLight(0xe4edff,0x8f846b,2),sun=new THREE.DirectionalLight(0xffefd6,3);
- sun.position.set(-30,100,30);sun.castShadow=false;
+ const lights=buildAtmosphereLights(config.id);
  group.userData.renderStats={meshCount,triangles,materials:materials.size,textures:textures.size,originalCS2Materials:false,style:'flat',lightingParityValidated:false};
- return {group,lights:[hemisphere,sun],sunTarget:null,fog:null,finishAtlas,highQualityTextured:false};
+ return {group,lights,sunTarget:null,fog:null,finishAtlas,highQualityTextured:false};
 }
 
 /** Hot-swap Standard compact mesh <-> CS2 Full-Textured mesh in-place without disconnecting. */
@@ -326,6 +341,7 @@ export async function createPrivateMapScene(scene,{onProgress=()=>{},signal,flat
     check();
     if(finishAtlas)textures.add(finishAtlas);
     applyFlatMaterials(group,finishAtlas,config.id);
+    applyVisualStyleToScene(group,getStoredVisualStyle());
     if(config.flatOnly){
       const markings=await createFlatSiteMarkings(MAP,manager);
       if(markings){
@@ -339,15 +355,14 @@ export async function createPrivateMapScene(scene,{onProgress=()=>{},signal,flat
   }
   for(const texture of textures)texture.anisotropy=4;
   group.traverse(o=>{o.matrixAutoUpdate=false;o.matrixWorldAutoUpdate=false;});
-  const hemisphere=new THREE.HemisphereLight(0xe4edff,0x8f846b,2),sun=new THREE.DirectionalLight(0xffefd6,3);
-  sun.position.set(-30,100,30);sun.castShadow=false;
+  const lights=buildAtmosphereLights(config.id);
   check();if(config.breakables?.length)breakables=new PrivateMapBreakables({gltf:jobs[0].value,scene,definitions:visualDefinitions,initialHiddenNodeIndices:initialHidden});
-  scene.add(group,hemisphere,sun);
+  scene.add(group,...lights);
   scene.fog=null;
   sky.mount(scene);
   group.userData.renderStats={meshCount,triangles,outlineSegments,inactiveLayoutMeshes,materials:materials.size,textures:textures.size,originalCS2Materials:!flat,style:flat?'flat':'original',lightingParityValidated:false};
   committed=true;onProgress(MAP.name+(flat?' 标准场景已就绪':' 原始场景已就绪'));
-  return {mapData:MAP,positions:collision.sharedPositions,sharedChannelMask:collision.sharedChannelMask,bulletPositions:null,grenadePositions:null,mapPatches:false,group,sunTarget:null,finishAtlas,highQualityTextured:false,breakables,breakableCollision,lights:[hemisphere,sun],spawn:MAP.spawns.T[0],physicsSha256:collision.physicsSha256,loadStats:{...progress.snapshot(),duplicateImages,transport:transport?.stats||null}};
+  return {mapData:MAP,positions:collision.sharedPositions,sharedChannelMask:collision.sharedChannelMask,bulletPositions:null,grenadePositions:null,mapPatches:false,group,sunTarget:null,finishAtlas,highQualityTextured:false,breakables,breakableCollision,lights,spawn:MAP.spawns.T[0],physicsSha256:collision.physicsSha256,loadStats:{...progress.snapshot(),duplicateImages,transport:transport?.stats||null}};
  }finally{
   parentSignal?.removeEventListener('abort',abort);
   if(!committed){controller.abort();manager.abort();loader?.disposePrivateTextures();breakables?.dispose();disposeScene(loadedRoot);sky?.dispose();if(finishAtlas?.userData.mapTiles)finishAtlas.dispose();}

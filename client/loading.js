@@ -5,6 +5,7 @@ import { DefaultLoadingManager } from 'three';
 import {clientAssetManifest} from './private-game-config.js';
 import {fetchAssetDownload,getDownloadOrigin,initDownloadOrigin} from './download-origin.js';
 import {publicPoolAssetCacheBase} from '../shared/public-map-paths.js';
+import {sha256Hex} from '../shared/sha256.js';
 const blobs=new Map(),inflight=new Map();let manifestMemory=null,manifestChecked=false;
 const base=()=>new URL('.',document.baseURI),absolute=value=>new URL(value,document.baseURI);
 const canonical=value=>{const u=absolute(value);return u.origin+u.pathname;};
@@ -15,7 +16,7 @@ const hashKey=hash=>new URL(`__asset_cache__/sha256/${hash}`,cacheBase()).href;
 const indexKey=url=>new URL(`__asset_cache__/url/${encodeURIComponent(absolute(url).href)}`,base()).href;
 const manifestURL=()=>new URL('assets/'+assetManifestName(),base()).href;
 const check=signal=>{if(signal?.aborted)throw signal.reason||new DOMException('已取消','AbortError');};
-const digest=async data=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',data)),b=>b.toString(16).padStart(2,'0')).join('');
+const digest=data=>sha256Hex(data);
 const changed=()=>{if(typeof window!=='undefined'&&typeof CustomEvent!=='undefined')window.dispatchEvent(new CustomEvent('dust2-cache-change'));};
 async function ensureDownloadOrigin(signal){
   check(signal);const configured=getDownloadOrigin();if(configured)return configured;

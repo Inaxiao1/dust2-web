@@ -5,7 +5,7 @@ import {createReadStream} from 'node:fs';
 import {configurePrivateMap} from '../shared/private-map-context.js';
 import {initPhysics,sightBlocked,raycastGrenadeWorld,raycastWorldContact} from '../shared/physics.js';
 import {PRIVATE_MOVEMENT_MODEL,laddersForMap} from '../shared/ladder-movement.js';
-import {loadPrivatePhysicsShared} from '../scripts/maps/load-private-physics.mjs';
+import {loadPrivatePhysicsShared,readFileOrCompressed} from '../scripts/maps/load-private-physics.mjs';
 import {MapTacticalGraph} from './map-tactical-graph.js';
 import {PrivateMapBots} from './private-map-bots.js';
 import {privateEntities} from '../shared/private-map-entities.js';
@@ -13,16 +13,15 @@ import {PrivateMapBreakables} from '../shared/private-map-breakables.js';
 import {MIRAGE_JUMP_IDENTITY,MIRAGE_JUMP_LINKS} from '../shared/private-map-jump-links.js';
 
 const sha=b=>crypto.createHash('sha256').update(b).digest('hex');
-const read=p=>JSON.parse(fs.readFileSync(p,'utf8'));
 export function loadPrivateMapRuntime(directory,{id,libraryUrl=''}={}) {
- const compiled=path.join(directory,'compiled'),metadataBytes=fs.readFileSync(path.join(compiled,'map.json')),meta=JSON.parse(metadataBytes);
+ const compiled=path.join(directory,'compiled'),metadataBytes=readFileOrCompressed(path.join(compiled,'map.json')),meta=JSON.parse(metadataBytes);
  if(id&&meta.id!==id)throw Error('Private map ID mismatch');
- const navBytes=fs.readFileSync(path.join(compiled,'nav.json')),nav=JSON.parse(navBytes),auditBytes=fs.readFileSync(path.join(directory,'navigation-audit.json')),audit=JSON.parse(auditBytes);
+ const navBytes=readFileOrCompressed(path.join(compiled,'nav.json')),nav=JSON.parse(navBytes),auditBytes=readFileOrCompressed(path.join(directory,'navigation-audit.json')),audit=JSON.parse(auditBytes);
  const shared=loadPrivatePhysicsShared(directory);
  const navigationSha256=sha(navBytes),auditSha256=sha(auditBytes);
  if(audit.schemaVersion!==2||audit.sourceSha256!==meta.sourceSha256||audit.physicsSha256!==shared.physicsSha256||audit.maskSha256!==shared.maskSha256||audit.policySha256!==shared.policySha256||audit.navigationSha256!==navigationSha256)throw Error('Private navigation evidence does not match current source, geometry, and collision policy');
  const breakablePolicy=privateEntities(meta.id);
- if(breakablePolicy&&(breakablePolicy.sourceSha256!==meta.sourceSha256||breakablePolicy.physicsSha256!==shared.physicsSha256||breakablePolicy.maskSha256!==shared.maskSha256||breakablePolicy.groupsSha256!==sha(fs.readFileSync(path.join(compiled,'physics-groups.json')))))throw Error('Breakable policy does not match original map');
+ if(breakablePolicy&&(breakablePolicy.sourceSha256!==meta.sourceSha256||breakablePolicy.physicsSha256!==shared.physicsSha256||breakablePolicy.maskSha256!==shared.maskSha256||breakablePolicy.groupsSha256!==sha(readFileOrCompressed(path.join(compiled,'physics-groups.json')))))throw Error('Breakable policy does not match original map');
  const breakables=breakablePolicy?.objects||[],sourceTrianglesByChannel={1:shared.sourceTriangles,2:shared.sourceTriangles,4:shared.sourceTriangles};
  let activeBreakables=new PrivateMapBreakables(breakables,sourceTrianglesByChannel);
  const jumpLinks=meta.id===MIRAGE_JUMP_IDENTITY.mapId&&meta.sourceSha256===MIRAGE_JUMP_IDENTITY.sourceSha256&&shared.physicsSha256===MIRAGE_JUMP_IDENTITY.physicsSha256?MIRAGE_JUMP_LINKS:[];

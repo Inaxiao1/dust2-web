@@ -749,3 +749,29 @@ func (r *RedisStore) Stats() RegistryStats {
 	}
 	return stats
 }
+
+// AllowRate enforces a fixed-window counter shared across all control-plane
+// replicas using atomic Redis INCR + EXPIRE.
+func (r *RedisStore) AllowRate(key string, limit int, window time.Duration) (bool, error) {
+	if limit <= 0 {
+		return true, nil
+	}
+	windowSec := int64(window / time.Second)
+	if windowSec <= 0 {
+		windowSec = 60
+	}
+	bucket := r.now().Unix() / windowSec
+	rKey := fmt.Sprintf("%s:rl:%s:%d", r.prefix, key, bucket)
+	val, err := r.client.Do("INCR", rKey)
+	if err != nil {
+		return false, err
+	}
+	count, ok := val.(int64)
+	if !ok {
+		return false, fmt.Errorf("unexpected INCR reply type %T", val)
+	}
+	if count == 1 {
+		_, _ = r.client.Do("EXPIRE", rKey, strconv.FormatInt(windowSec+5, 10))
+	}
+	return count <= int64(limit), nil
+}

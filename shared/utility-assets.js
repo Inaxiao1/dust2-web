@@ -4,8 +4,8 @@ export const UTILITY_ASSETS=Object.freeze({c4:C4_ASSET,...{
   "hegrenade": {
     "id": "hegrenade",
     "file": "hegrenade.glb",
-    "bytes": 3268776,
-    "sha256": "a4260340bb3f3413907af31b2c86fbbd255121e2204e6f3b214025bbc4c18171",
+    "bytes": 457268,
+    "sha256": "e432fbc533153abc098b4ea06536de67599fc730f22f023e282e044b4e944810",
     "triangles": 10398,
     "sizeMetres": [
       0.0925443209707737,
@@ -26,8 +26,8 @@ export const UTILITY_ASSETS=Object.freeze({c4:C4_ASSET,...{
   "flashbang": {
     "id": "flashbang",
     "file": "flashbang.glb",
-    "bytes": 3464052,
-    "sha256": "222e1a0d9fecb374ce6d3fb57b2730fb9dddff812023c5b13122e3d5b58fc1df",
+    "bytes": 583672,
+    "sha256": "a77712695f60298065d451268179740a3253ed50c13a377b216c39be635deb91",
     "triangles": 11469,
     "sizeMetres": [
       0.06571139767765999,
@@ -48,8 +48,8 @@ export const UTILITY_ASSETS=Object.freeze({c4:C4_ASSET,...{
   "smokegrenade": {
     "id": "smokegrenade",
     "file": "smokegrenade.glb",
-    "bytes": 2846404,
-    "sha256": "ca18dd9052c58dedc05d50690a836e9719568686416b5845ebe0537b591636ee",
+    "bytes": 438400,
+    "sha256": "21c2462b60a81710175a03edb8e45a043bbfb685d29c2e4f41375e8a33ac720a",
     "triangles": 11121,
     "sizeMetres": [
       0.05269782245159149,
@@ -70,8 +70,8 @@ export const UTILITY_ASSETS=Object.freeze({c4:C4_ASSET,...{
   "decoy": {
     "id": "decoy",
     "file": "decoy.glb",
-    "bytes": 3724440,
-    "sha256": "304c08838273c3eeef28bea55bd931b2998fc120997f7dd0a057b7d27fafe1aa",
+    "bytes": 595252,
+    "sha256": "5184e949ed14213e8463252689af314275574279d6fefd0adb24f8af1d596dcf",
     "triangles": 11469,
     "sizeMetres": [
       0.06571139767765999,
@@ -92,8 +92,8 @@ export const UTILITY_ASSETS=Object.freeze({c4:C4_ASSET,...{
   "molotov": {
     "id": "molotov",
     "file": "molotov.glb",
-    "bytes": 6518968,
-    "sha256": "6b1d756daa02378c98d1e8ec995d0803d91526627497be0288a4bc536b2b360f",
+    "bytes": 850844,
+    "sha256": "61e86034119757f534c3c75684aaa931aafbe6847d30195f8840c2f31d0ef25a",
     "triangles": 8913,
     "sizeMetres": [
       0.11926461011171341,
@@ -114,8 +114,8 @@ export const UTILITY_ASSETS=Object.freeze({c4:C4_ASSET,...{
   "incgrenade": {
     "id": "incgrenade",
     "file": "incgrenade.glb",
-    "bytes": 3290116,
-    "sha256": "a599c9bc30fe017a2f12ef3e42873d9bc6e7ff58a5930d7b2ae85f2ef4b03879",
+    "bytes": 538400,
+    "sha256": "2f56f873aba35c4fb3013645d3525b950b3f4e368f0ba95ee138b1dc1c1dfa40",
     "triangles": 11121,
     "sizeMetres": [
       0.05269782431423664,
@@ -136,8 +136,8 @@ export const UTILITY_ASSETS=Object.freeze({c4:C4_ASSET,...{
   "defusekit": {
     "id": "defusekit",
     "file": "defusekit.glb",
-    "bytes": 800884,
-    "sha256": "ebf561d25e72f2e7416aeeef9313d995d1cd09a360ecedd024deca6148cdc14b",
+    "bytes": 129456,
+    "sha256": "e3160b3d81d1d5652790ab275013009c2e985fc5895d4bda601ca15d9f2fc81a",
     "triangles": 1982,
     "sizeMetres": [
       0.41570721566677094,

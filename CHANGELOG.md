@@ -6,7 +6,7 @@
 
 - **Toy SDK 身份、成长解锁与云存档**：读取 B站 Toy `toyOpenId` 作为玩家唯一 ID；新玩家严格从原厂枪械、基础 CT/T 匕首及默认探员开局；为全部 216 款武器/匕首皮肤与 10 名探员建立击杀/局数/胜场成长解锁体系，并划分关注 UP 主与一键三连专属奖励；接入合规 Toy 云存档（`cs_prog_v1` / `cs_loadout_v1`、无逐杀写云、`307044` 指数退避、多端单调合并），并在 `/perf/` 大厅、成长福利中心、皮肤库、探员仓库、局内暂停菜单与 `client-next` 轻壳同步落地。
 - **标准/高画质双档与九图深度优化**：设置与暂停菜单支持标准/高画质切换；为全部九张标准画质地图消除共面重叠闪烁（Z-fighting）、重新标定建筑/地面/箱体色彩与金属/木料/砖石粗糙度材质区分度、优化纹理与显存占用；修复高画质贴图闪烁并完善紧凑地图解码支持；同步 R8 左轮、Glock 三连发、移动端辅助瞄准并扩展鼠标灵敏度范围至 `0.05–100`。
-- **高可用架构与新客户端轻壳**：新增纯逻辑服务端模式、Go 控制面（`control-plane/`）、Binary Protocol v2 增量协议、`client-next/`（TypeScript + SolidJS + Three.js WebGPU/WebGL2）与 `physics-core/` Rust 物理核骨架。
+- **高可用架构与新客户端轻壳**：新增纯逻辑服务端模式、Go 控制面（`control-plane/`，支持 `/metrics` Prometheus 指标、`/api/v1/maps` 多图池视图及基于 Redis `INCR+EXPIRE` 的跨副本分布式限流）、Battle Worker `/metrics` + 真 `tickP99Ms` 采集、Binary Protocol v2 增量协议、`HA_MAPS` 多图本地集群启动、`client-next/`（TypeScript + SolidJS + Three.js WebGPU/WebGL2）与 `physics-core/` Rust 物理核骨架。
 - **验证**：主项目构建成功，`npm test` 760 项测试全部通过，`npm run logic:check` 通过；`client-next` `tsc --noEmit`、12 项单测与生产构建通过；Go 控制面 `go test -race ./...` 全部通过；浏览器实机验证 `/perf/` 全新账号开局与全部面板无控制台报错。
 
 ## 本地开发环境 · 2026-11-22

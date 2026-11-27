@@ -75,6 +75,12 @@ type RegistryStore interface {
 	Stats() RegistryStats
 }
 
+// DistributedRateLimiter is optionally implemented by shared stores (such as
+// RedisStore) so multi-replica control planes enforce one consistent rate limit.
+type DistributedRateLimiter interface {
+	AllowRate(key string, limit int, window time.Duration) (bool, error)
+}
+
 type MemoryStore struct {
 	mu        sync.RWMutex
 	workerTTL time.Duration

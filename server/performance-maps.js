@@ -3,6 +3,7 @@ import http from 'node:http';
 import net from 'node:net';
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {PERFORMANCE_MAPS, isPerformanceMap} from '../shared/performance-map-pool.js';
@@ -15,7 +16,8 @@ import {validateDownloadConfig} from '../shared/download-config.js';
 
 const repo=path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const root=path.resolve(process.env.PERF_MAP_ROOT || path.join(repo,'artifacts/performance-maps/maps-v1'));
-const dist=path.resolve(process.env.PERF_GAME_DIST || path.join(repo,'artifacts/performance-maps/client-dist'));
+const legacyDist=path.join(repo,'artifacts/performance-maps/client-dist');
+const dist=path.resolve(process.env.PERF_GAME_DIST || (fs.existsSync(legacyDist)?legacyDist:path.join(repo,'dist')));
 const publicDir=path.resolve(process.env.PERF_PUBLIC_DIR || path.join(repo,'public'));
 const port=Number(process.env.PORT || (process.platform === 'win32' ? 33440 : 3240));
 const host=process.env.PERF_HOST || '127.0.0.1';
@@ -50,21 +52,28 @@ const strictHeavyLock=process.env.PERF_STRICT_HEAVY_LOCK==='1'||maxWorkers<=2;
 const heavy=new Set(['de_inferno','de_cache','de_ancient','de_train']);
 const warmMaps=(process.env.PERF_WARM_MAPS||'').split(',').map(v=>v.trim()).filter(id=>maps.has(id)).slice(0,maxWorkers);
 let draining=false;
-const types={'.js':'text/javascript','.mjs':'text/javascript','.css':'text/css','.html':'text/html; charset=utf-8','.json':'application/json','.gltf':'model/gltf+json','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.avif':'image/avif','.webp':'image/webp','.svg':'image/svg+xml','.hdr':'application/octet-stream','.ogg':'audio/ogg','.mp3':'audio/mpeg','.woff2':'font/woff2','.ttf':'font/ttf'};
+const types={'.js':'text/javascript','.mjs':'text/javascript','.css':'text/css','.html':'text/html; charset=utf-8','.json':'application/json','.gltf':'model/gltf+json','.glb':'model/gltf-binary','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.avif':'image/avif','.webp':'image/webp','.svg':'image/svg+xml','.hdr':'application/octet-stream','.ogg':'audio/ogg','.mp3':'audio/mpeg','.woff2':'font/woff2','.ttf':'font/ttf'};
 const json=(res,code,data)=>res.writeHead(code,{'Content-Type':'application/json','Cache-Control':'no-store'}).end(JSON.stringify(data));
 function file(req,res,location,immutable=false){
-  if(!fs.existsSync(location)||!fs.statSync(location).isFile()){res.writeHead(404).end();return;}
+  const hasRaw=fs.existsSync(location)&&fs.statSync(location).isFile();
+  const hasBr=fs.existsSync(location+'.br')&&fs.statSync(location+'.br').isFile();
+  const hasGz=fs.existsSync(location+'.gz')&&fs.statSync(location+'.gz').isFile();
+  if(!hasRaw&&!hasBr&&!hasGz){res.writeHead(404).end();return;}
   const acceptEncoding=req.headers['accept-encoding']||'';
   const accepts=name=>acceptEncoding.split(',').some(value=>{
     const [coding,weight]=value.trim().toLowerCase().split(/\s*;\s*/);
     return coding===name && (weight===undefined || /^q=(?:1(?:\.0{0,3})?|0\.\d{1,3})$/.test(weight) && Number(weight.slice(2))>0);
   });
-  const useBr=accepts('br')&&fs.existsSync(location+'.br');
-  const useGzip=!useBr&&accepts('gzip')&&fs.existsSync(location+'.gz');
-  const encoding=useBr?'br':useGzip?'gzip':null;
-  const physical=useBr?location+'.br':useGzip?location+'.gz':location;
+  const useBr=accepts('br')&&hasBr;
+  const useGzip=!useBr&&accepts('gzip')&&hasGz;
+  const transcodeBrToGzip=!useBr&&!useGzip&&accepts('gzip')&&hasBr&&!hasRaw;
+  const encoding=useBr?'br':(useGzip||transcodeBrToGzip)?'gzip':null;
+  // Support slim deployments where only .br/.gz is stored on disk:
+  // serve .br/.gz directly when accepted, transcode .br->gzip for plain-HTTP clients, or decompress for raw clients.
+  const decompressOnFly=!useBr&&!useGzip&&!hasRaw;
+  const physical=useBr?location+'.br':useGzip?location+'.gz':hasRaw?location:hasBr?location+'.br':location+'.gz';
   const stat=fs.statSync(physical);
-  const tag='W/"'+[stat.ino,stat.size,stat.mtimeMs,useBr?'br':useGzip?'gz':'raw'].join('-')+'"';
+  const tag='W/"'+[stat.ino,stat.size,stat.mtimeMs,encoding||'raw'].join('-')+'"';
   const headers={'Content-Type':types[path.extname(location)]||'application/octet-stream','ETag':tag,
     'Cache-Control':immutable?'public, max-age=31536000, immutable':'no-cache','Vary':'Accept-Encoding'};
   if(encoding)headers['Content-Encoding']=encoding;
@@ -72,10 +81,23 @@ function file(req,res,location,immutable=false){
   if(validators.includes('*')||validators.some(value=>value.replace(/^W\//,'')===tag.slice(2))){
     res.writeHead(304,headers).end();return;
   }
-  headers['Content-Length']=stat.size;
+  if(!decompressOnFly)headers['Content-Length']=stat.size;
   res.writeHead(200,headers);
   if(req.method==='HEAD'){res.end();return;}
-  const stream=fs.createReadStream(physical);stream.on('error',()=>res.destroy());res.on('close',()=>stream.destroy());stream.pipe(res);
+  const stream=fs.createReadStream(physical);
+  if(transcodeBrToGzip){
+    const dec=zlib.createBrotliDecompress();
+    const enc=zlib.createGzip({level:4});
+    stream.on('error',()=>res.destroy());dec.on('error',()=>res.destroy());enc.on('error',()=>res.destroy());
+    res.on('close',()=>{stream.destroy();dec.destroy();enc.destroy();});
+    stream.pipe(dec).pipe(enc).pipe(res);
+  }else if(decompressOnFly){
+    const dec=physical.endsWith('.br')?zlib.createBrotliDecompress():zlib.createGunzip();
+    stream.on('error',()=>res.destroy());dec.on('error',()=>res.destroy());res.on('close',()=>{stream.destroy();dec.destroy();});
+    stream.pipe(dec).pipe(res);
+  }else{
+    stream.on('error',()=>res.destroy());res.on('close',()=>stream.destroy());stream.pipe(res);
+  }
 }
 function retire(worker){
   if(worker.connections || worker.retiring)return;
@@ -354,7 +376,7 @@ function applyCors(req,res){
     }
   }
   res.setHeader('Access-Control-Allow-Methods','GET, HEAD, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers','Content-Type');
+  res.setHeader('Access-Control-Allow-Headers','Content-Type, Authorization');
 }
 async function remoteWorkerOriginForMap(mapId) {
   if (!controlPlaneUrl || !controlPlaneWorkerAuth) return null;
@@ -389,8 +411,9 @@ function mapConfig(id,originOrWorker,quality){
       compactRender:compact.mesh?{url:'/perf/maps/'+id+'/'+compact.mesh.path+'?v='+compact.mesh.sha256,bytes:compact.mesh.bytes,sha256:compact.mesh.sha256}:null,
       compactPhysics:compact.physics?{url:'/perf/maps/'+id+'/physics.vidx?v='+compact.physics.sha256,bytes:compact.physics.bytes,sha256:compact.physics.sha256}:null,
     }:{};
-    const hasDesktopDust2=!disableLocalAssets&&id==='de_dust2'&&fs.existsSync(path.join(publicDir,'assets/map-cs2/dust2-web.gltf'))&&fs.existsSync(path.join(publicDir,'assets/map-cs2/dust2-6016e2c1497d.bin'));
-    const hasMobileDust2=hasDesktopDust2&&fs.existsSync(path.join(publicDir,'assets/map-mobile/dust2-clear.gltf'));
+    const hasLocalDust2=!disableLocalAssets&&fs.existsSync(path.join(publicDir,'assets/map-cs2/dust2-web.gltf'))&&fs.existsSync(path.join(publicDir,'assets/map-cs2/dust2-6016e2c1497d.bin'));
+    const hasDesktopDust2=id==='de_dust2'&&(hasLocalDust2||Boolean(deliveryConfig.assetBaseURL));
+    const hasMobileDust2=hasDesktopDust2&&(Boolean(deliveryConfig.assetBaseURL)||fs.existsSync(path.join(publicDir,'assets/map-mobile/dust2-clear.gltf')));
     const texturedMeta=hasDesktopDust2?{
       texturedRender:{
         desktopUrl:'/perf/assets/map-cs2/dust2-web.gltf?v=e4f2b2d3903c',
@@ -508,6 +531,40 @@ const server=http.createServer(async(req,res)=>{
   }
   if(p==='/perf/ready'){json(res,draining?503:200,{ok:true,ready:!draining,draining,maps:maps.size,maxWorkers,workerMaxRooms:Number(workerMaxRooms),controlPlane:!!controlPlaneUrl,disableLocalAssets,logicGatewayOnly});return;}
   if(p==='/perf/health'){json(res,200,{ok:true,ready:!draining,draining,disableLocalAssets,logicGatewayOnly,maxWorkers,workerMaxRooms:Number(workerMaxRooms),controlPlane:!!controlPlaneUrl,maps:maps.size,workers:[...workers].map(([id,w])=>({id,active:w.connections>0,connections:w.connections}))});return;}
+  if(p==='/perf/api/maps'){
+    if(controlPlaneUrl){
+      const {status,data}=await fetchControlPlane('/api/v1/maps');
+      json(res,status,data);return;
+    }
+    const localPools=PERFORMANCE_MAPS.filter(({id})=>maps.has(id)).map(({id})=>{
+      const w=workers.get(id);
+      return {mapId:id,status:w?'ready':'warm',activeWorkers:w?1:0,drainingWorkers:0,rooms:w?1:0,maxRooms:Number(workerMaxRooms),availableSlots:Number(workerMaxRooms),humans:w?.connections||0,bestTickP99Ms:0};
+    });
+    json(res,200,{ok:true,maps:localPools,totalMaps:localPools.length,federated:false});return;
+  }
+  if(p==='/perf/metrics'){
+    res.writeHead(200,{'Content-Type':'text/plain; version=0.0.4; charset=utf-8','Cache-Control':'no-store'});
+    if(req.method==='HEAD'){res.end();return;}
+    let localConns=0;for(const w of workers.values())localConns+=w.connections||0;
+    res.end([
+      '# HELP cs2_gateway_up Lobby gateway availability.',
+      '# TYPE cs2_gateway_up gauge',
+      'cs2_gateway_up 1',
+      '# HELP cs2_gateway_ready Whether lobby gateway is ready.',
+      '# TYPE cs2_gateway_ready gauge',
+      `cs2_gateway_ready ${draining?0:1}`,
+      '# HELP cs2_gateway_maps Loaded map entries in lobby gateway.',
+      '# TYPE cs2_gateway_maps gauge',
+      `cs2_gateway_maps ${maps.size}`,
+      '# HELP cs2_gateway_local_workers Running local map worker child processes.',
+      '# TYPE cs2_gateway_local_workers gauge',
+      `cs2_gateway_local_workers ${workers.size}`,
+      '# HELP cs2_gateway_local_ws_connections Active proxied WebSocket connections in local mode.',
+      '# TYPE cs2_gateway_local_ws_connections gauge',
+      `cs2_gateway_local_ws_connections ${localConns}`,
+      '',
+    ].join('\n'));return;
+  }
   if(/^\/perf\/download-config(?:-1\.3\.0)?\.json$/.test(p)){
     json(res,200,deliveryConfig);return;
   }
@@ -515,7 +572,7 @@ const server=http.createServer(async(req,res)=>{
   if(asset){
     if(disableLocalAssets){json(res,404,{ok:false,error:'LOCAL_ASSETS_DISABLED'});return;}
     const tail=asset[1]+'/'+decodeURIComponent(asset[2]);
-    for(const base of [dist,publicDir]){const location=safePath(base,tail);if(location&&fs.existsSync(location)){file(req,res,location);return;}}
+    for(const base of [dist,publicDir]){const location=safePath(base,tail);if(location&&(fs.existsSync(location)||fs.existsSync(location+'.br')||fs.existsSync(location+'.gz'))){file(req,res,location);return;}}
   }
   const radar=/^\/perf\/(radars|previews)\/(transforms\.json|de_[a-z0-9]+\.png)$/.exec(p);
   if(radar&&(radar[2]==='transforms.json'||maps.has(radar[2].slice(0,-4)))){

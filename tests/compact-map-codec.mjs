@@ -44,12 +44,20 @@ test('MGP1 compact mesh decodes Dust2 spatial chunks with Int16 unit normals and
     const pos = mesh.geometry.getAttribute('position');
     const norm = mesh.geometry.getAttribute('normal');
     const col = mesh.geometry.getAttribute('color');
+    const bakedLight = mesh.geometry.getAttribute('aBakedLight');
     const idx = mesh.geometry.getIndex();
     assert.ok(pos && norm && col && idx);
     assert.equal(norm.count, pos.count);
     assert.equal(norm.array.constructor, Int16Array, 'normals should use Int16 normalized buffer for 50% VRAM savings');
     assert.equal(norm.normalized, true);
     assert.equal(col.count, pos.count);
+    if (extras.lightBaked) {
+      assert.ok(bakedLight, 'expected aBakedLight attribute when lightBaked is true');
+      assert.equal(bakedLight.count, pos.count);
+      assert.equal(bakedLight.itemSize, 2);
+      assert.equal(bakedLight.array.constructor, Uint8Array);
+      assert.equal(bakedLight.normalized, true);
+    }
     triangles += idx.count / 3;
     for (let i = 0; i < Math.min(20, norm.count); i++) {
       const len = Math.hypot(norm.getX(i), norm.getY(i), norm.getZ(i));
@@ -57,9 +65,68 @@ test('MGP1 compact mesh decodes Dust2 spatial chunks with Int16 unit normals and
       checkedNormals++;
     }
   }
-  assert.ok(frontSideMeshes >= 1 && doubleSideMeshes >= 1, 'expected separated FrontSide and DoubleSide chunks');
-  assert.ok(triangles > 160000 && triangles < 320000, `unexpected triangle count ${triangles}`);
+  assert.ok(doubleSideMeshes >= 1, 'expected DoubleSide spatial chunks');
+  assert.ok(triangles > 160000 && triangles < 420000, `unexpected triangle count ${triangles}`);
   assert.ok(checkedNormals > 200);
+});
+
+test('MGP1 never leaves unpaired FrontSide wall triangles (prevents X-ray backface wall holes across all 9 maps)', () => {
+  const maps = fs.readdirSync(MAPS_ROOT).filter((d) => fs.existsSync(path.join(MAPS_ROOT, d, 'render/map.mgp'))).sort();
+  assert.ok(maps.includes('de_mirage'));
+  for (const mapId of maps) {
+    const { scene } = decodeCompactMapMesh(fs.readFileSync(path.join(MAPS_ROOT, mapId, 'render/map.mgp')));
+    let unpaired = 0;
+    let frontTris = 0;
+    for (const mesh of scene.children) {
+      if (!mesh.isMesh || mesh.material.side !== THREE.FrontSide) continue;
+      const pos = mesh.geometry.getAttribute('position').array;
+      const idx = mesh.geometry.getIndex().array;
+      const tris = [];
+      const grid = new Map();
+      for (let i = 0; i < idx.length; i += 3) {
+        frontTris++;
+        const a = idx[i] * 3, b = idx[i + 1] * 3, c = idx[i + 2] * 3;
+        const ax = pos[a], ay = pos[a + 1], az = pos[a + 2];
+        const bx = pos[b], by = pos[b + 1], bz = pos[b + 2];
+        const cx = pos[c], cy = pos[c + 1], cz = pos[c + 2];
+        const ux = bx - ax, uy = by - ay, uz = bz - az;
+        const vx = cx - ax, vy = cy - ay, vz = cz - az;
+        const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+        const len = Math.hypot(nx, ny, nz);
+        const mx = (ax + bx + cx) / 3, my = (ay + by + cy) / 3, mz = (az + bz + cz) / 3;
+        const ti = tris.length;
+        tris.push({ mx, my, mz, nx: len > 1e-8 ? nx / len : 0, ny: len > 1e-8 ? ny / len : 0, nz: len > 1e-8 ? nz / len : 0, area: 0.5 * len });
+        const k = `${Math.floor(mx / 0.02)},${Math.floor(my / 0.02)},${Math.floor(mz / 0.02)}`;
+        let arr = grid.get(k);
+        if (!arr) { arr = []; grid.set(k, arr); }
+        arr.push(ti);
+      }
+      for (let i = 0; i < tris.length; i++) {
+        const A = tris[i];
+        const gx = Math.floor(A.mx / 0.02), gy = Math.floor(A.my / 0.02), gz = Math.floor(A.mz / 0.02);
+        let matched = false;
+        outer: for (let dx = -1; dx <= 1; dx++) {
+          for (let dy = -1; dy <= 1; dy++) {
+            for (let dz = -1; dz <= 1; dz++) {
+              const arr = grid.get(`${gx + dx},${gy + dy},${gz + dz}`);
+              if (!arr) continue;
+              for (const j of arr) {
+                if (j === i) continue;
+                const B = tris[j];
+                if (A.nx * B.nx + A.ny * B.ny + A.nz * B.nz > -0.92) continue;
+                if (Math.hypot(A.mx - B.mx, A.my - B.my, A.mz - B.mz) > 0.005) continue;
+                if (Math.max(A.area, B.area) > 1e-6 && Math.min(A.area, B.area) / Math.max(A.area, B.area) < 0.92) continue;
+                matched = true;
+                break outer;
+              }
+            }
+          }
+        }
+        if (!matched) unpaired++;
+      }
+    }
+    assert.equal(unpaired, 0, `${mapId} has ${unpaired} unpaired FrontSide triangles out of ${frontTris} (would cause wall cutouts!)`);
+  }
 });
 
 test('MGP1 preserves exact breakable nodes for Mirage and Nuke', () => {

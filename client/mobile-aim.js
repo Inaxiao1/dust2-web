@@ -50,9 +50,24 @@ export class MobileAim{
 }
 
 export function mountMobileAimSettings(settingsUI,aim){
- const panel=settingsUI.element.querySelector('[data-panel=touch]'),section=document.createElement('section');section.className='motion-settings';
- section.innerHTML='<h3>陀螺仪与辅助瞄准</h3><label class="config-row">陀螺仪<select data-motion="mode"><option value="always">对局中始终启用</option><option value="scope">仅开镜</option><option value="off">关闭</option></select></label>'+[['horizontal','水平灵敏度',4],['vertical','垂直灵敏度',4],['scope','开镜倍率',2]].map(([id,label,max])=>`<label class="config-row">${label}<output data-value="${id}"></output><input data-motion="${id}" type="range" min="0.1" max="${max}" step="0.1"></label>`).join('')+'<label class="config-row">反转水平<input data-motion="invertX" type="checkbox"></label><label class="config-row">反转垂直<input data-motion="invertY" type="checkbox"></label><button type="button" data-motion-calibrate>校准陀螺仪</button><p data-motion-status role="status"></p><label class="config-row">辅助瞄准<select data-motion="assist"><option value="standard">标准 · 轻度跟随</option><option value="low">低</option><option value="off">关闭</option></select></label><p>所有房间均可使用触屏辅助。先把准星移近可见敌人，辅助轻微跟随躯干；开火与压枪仍需手动。狙击枪开镜后辅助减半。</p><small data-engine-info></small>';
- panel.append(section);const sync=()=>{for(const e of section.querySelectorAll('[data-motion]')){const v=aim.settings[e.dataset.motion];if(e.type==='checkbox')e.checked=v;else e.value=v;const out=section.querySelector(`[data-value="${e.dataset.motion}"]`);if(out)out.textContent=Number(v).toFixed(1);}section.querySelector('[data-motion-status]').textContent=aim.diagnostics().status;section.querySelector('[data-engine-info]').textContent=aim.engine?`内核：${aim.engine.name} ${aim.engine.version||''}`:'网页版 · 使用当前浏览器内核';};
+ const panel=settingsUI.element.querySelector('[data-panel=touch]'),section=document.createElement('div');section.className='motion-settings';
+ section.innerHTML=`
+  <div class="settings-group">
+   <h4>陀螺仪体感瞄准</h4>
+   <label class="config-row"><span><strong>陀螺仪模式</strong><small>利用手机陀螺仪辅助微调压枪与拉枪</small></span><select data-motion="mode"><option value="always">对局中始终启用</option><option value="scope">仅开镜启用</option><option value="off">关闭</option></select></label>
+   ${[['horizontal','水平灵敏度',4],['vertical','垂直灵敏度',4],['scope','开镜倍率',2]].map(([id,label,max])=>`<div class="slider-control-head" style="margin-top:12px"><div><span class="control-title">${label}</span></div><output data-value="${id}" class="value-pill"></output></div><input data-motion="${id}" class="cs-range" type="range" min="0.1" max="${max}" step="0.1">`).join('')}
+   <label class="config-row" style="margin-top:10px"><span><strong>反转水平</strong></span><input data-motion="invertX" type="checkbox"></label>
+   <label class="config-row"><span><strong>反转垂直</strong></span><input data-motion="invertY" type="checkbox"></label>
+   <div class="audio-actions-row"><button type="button" data-motion-calibrate>校准陀螺仪</button><span data-motion-status role="status" style="align-self:center;font-size:12px;color:#aabac0"></span></div>
+  </div>
+  <div class="settings-group">
+   <h4>触屏辅助瞄准</h4>
+   <label class="config-row"><span><strong>辅助强度</strong><small>准星贴近可见敌人时轻微跟随躯干，狙击开镜减半</small></span><select data-motion="assist"><option value="standard">标准 · 轻度跟随</option><option value="low">低</option><option value="off">关闭</option></select></label>
+   <small data-engine-info class="settings-footnote"></small>
+  </div>`;
+ panel.append(section);
+ const setFill=el=>{if(!el)return;const min=Number(el.min||0),max=Number(el.max||1),v=Number(el.value||0);el.style.setProperty('--range-pct',((v-min)/(max-min)*100).toFixed(1)+'%');};
+ const sync=()=>{for(const e of section.querySelectorAll('[data-motion]')){const v=aim.settings[e.dataset.motion];if(e.type==='checkbox')e.checked=v;else e.value=v;if(e.type==='range')setFill(e);const out=section.querySelector(`[data-value="${e.dataset.motion}"]`);if(out)out.textContent=Number(v).toFixed(1);}section.querySelector('[data-motion-status]').textContent=aim.diagnostics().status;section.querySelector('[data-engine-info]').textContent=aim.engine?`内核：${aim.engine.name} ${aim.engine.version||''}`:'网页版 · 使用当前浏览器内核';};
  for(const e of section.querySelectorAll('[data-motion]'))e.addEventListener('input',()=>{aim.configure({[e.dataset.motion]:e.type==='checkbox'?e.checked:e.type==='range'?Number(e.value):e.value});sync();});
  section.querySelector('[data-motion-calibrate]').onclick=async()=>{await aim.authorize();aim.calibrate();sync();};sync();setInterval(()=>{if(!settingsUI.element.hidden&&!panel.hidden)sync();},500);
 }

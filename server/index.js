@@ -161,8 +161,10 @@ export async function startGameServer({
   const usedJTIs = new Map();
   const privateMaxRooms = Math.max(1, Math.min(24, Number(process.env.DUST2_PRIVATE_MAX_ROOMS) || 1));
   const maxRooms = privateMap ? privateMaxRooms : Math.max(1, Math.min(100, Number(process.env.MAX_ROOMS) || 12));
+  const maxWsConnections = Math.max(20, Number(process.env.DUST2_MAX_WS_CONNECTIONS) || (maxRooms * 10 + 20));
   const startedAt = Date.now();
   const performanceMetrics=new ServerPerformance();
+  const workerMetrics = { joinTokenRejected: 0, wsRateLimited: 0, wsConnectionsRejected: 0, slowClientDrops: 0 };
   const publicDir = path.join(ROOT, 'public');
   const downloadConfig=serverDownloadConfig();
   let draining = false;
@@ -207,6 +209,83 @@ export async function startGameServer({
       const memory = process.memoryUsage();
       res.end(req.method === 'HEAD' ? undefined : JSON.stringify({ ok: true, ready: !draining, draining, logicOnly, serveMapFiles, service: privateMap?'dust2-private-game':'dust2-web',...(privateMap?{mapId:privateMap.mapId,mapSignature:privateMap.mapSignature,physicsSha256:privateMap.config.physicsSha256}:{}), release: process.env.DUST2_RELEASE || 'local', protocol: 1, tickRate: TICK_RATE, uptime: Math.round((Date.now() - startedAt) / 1000), rooms: rooms.size, humans: [...rooms.values()].reduce((n, r) => n + r.humanCount, 0), players: [...rooms.values()].reduce((n, r) => n + r.players.size, 0), memory: { rssMiB: Math.round(memory.rss / 1048576), heapMiB: Math.round(memory.heapUsed / 1048576) },performance:performanceMetrics.snapshot() })); return;
     }
+    if (requestPath === '/metrics') {
+      res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4; charset=utf-8', 'Cache-Control': 'no-store' });
+      if (req.method === 'HEAD') { res.end(); return; }
+      const mem = process.memoryUsage();
+      const perf = performanceMetrics.snapshot();
+      let humans = 0, players = 0;
+      for (const r of rooms.values()) { humans += r.humanCount; players += r.players.size; }
+      let binClients = 0, deltaClients = 0, fullClients = 0;
+      for (const s of wss.clients) {
+        if (!s.playerId) continue;
+        if (s.binaryProtocol === 2) binClients++;
+        else if (s.snapshotDelta === 1) deltaClients++;
+        else fullClients++;
+      }
+      const mapLabel = (privateMap?.mapId || MAP.id || 'de_dust2').replace(/[^a-zA-Z0-9_]/g, '');
+      const uptimeSec = ((Date.now() - startedAt) / 1000).toFixed(1);
+      res.end([
+        '# HELP cs2_worker_up Battle worker process availability.',
+        '# TYPE cs2_worker_up gauge',
+        `cs2_worker_up{map_id="${mapLabel}"} 1`,
+        '# HELP cs2_worker_ready Whether worker accepts new rooms and joins.',
+        '# TYPE cs2_worker_ready gauge',
+        `cs2_worker_ready{map_id="${mapLabel}"} ${draining ? 0 : 1}`,
+        '# HELP cs2_worker_draining Whether worker is draining.',
+        '# TYPE cs2_worker_draining gauge',
+        `cs2_worker_draining{map_id="${mapLabel}"} ${draining ? 1 : 0}`,
+        '# HELP cs2_worker_uptime_seconds Worker uptime in seconds.',
+        '# TYPE cs2_worker_uptime_seconds gauge',
+        `cs2_worker_uptime_seconds{map_id="${mapLabel}"} ${uptimeSec}`,
+        '# HELP cs2_worker_rooms Active rooms on this worker.',
+        '# TYPE cs2_worker_rooms gauge',
+        `cs2_worker_rooms{map_id="${mapLabel}"} ${rooms.size}`,
+        '# HELP cs2_worker_humans Active human players on this worker.',
+        '# TYPE cs2_worker_humans gauge',
+        `cs2_worker_humans{map_id="${mapLabel}"} ${humans}`,
+        '# HELP cs2_worker_players Active total players (humans + bots) on this worker.',
+        '# TYPE cs2_worker_players gauge',
+        `cs2_worker_players{map_id="${mapLabel}"} ${players}`,
+        '# HELP cs2_worker_ws_connections Open WebSocket connections on this worker.',
+        '# TYPE cs2_worker_ws_connections gauge',
+        `cs2_worker_ws_connections{map_id="${mapLabel}"} ${wss.clients.size}`,
+        '# HELP cs2_worker_clients_by_protocol Joined clients grouped by wire protocol.',
+        '# TYPE cs2_worker_clients_by_protocol gauge',
+        `cs2_worker_clients_by_protocol{map_id="${mapLabel}",protocol="binary_v2"} ${binClients}`,
+        `cs2_worker_clients_by_protocol{map_id="${mapLabel}",protocol="json_delta"} ${deltaClients}`,
+        `cs2_worker_clients_by_protocol{map_id="${mapLabel}",protocol="json_full"} ${fullClients}`,
+        '# HELP cs2_worker_tick_ms Server simulation tick duration percentiles in ms.',
+        '# TYPE cs2_worker_tick_ms gauge',
+        `cs2_worker_tick_ms{map_id="${mapLabel}",quantile="0.5"} ${perf.tickP50Ms}`,
+        `cs2_worker_tick_ms{map_id="${mapLabel}",quantile="0.95"} ${perf.tickP95Ms}`,
+        `cs2_worker_tick_ms{map_id="${mapLabel}",quantile="0.99"} ${perf.tickP99Ms}`,
+        `cs2_worker_tick_ms{map_id="${mapLabel}",quantile="max"} ${perf.tickMaxMs}`,
+        '# HELP cs2_worker_late_ticks_total Simulation ticks exceeding 33.33ms budget.',
+        '# TYPE cs2_worker_late_ticks_total counter',
+        `cs2_worker_late_ticks_total{map_id="${mapLabel}"} ${perf.lateTicks}`,
+        '# HELP cs2_worker_join_token_rejected_total Join attempts rejected due to missing, invalid, or replayed token.',
+        '# TYPE cs2_worker_join_token_rejected_total counter',
+        `cs2_worker_join_token_rejected_total{map_id="${mapLabel}"} ${workerMetrics.joinTokenRejected}`,
+        '# HELP cs2_worker_ws_rate_limited_total Connections closed for message flood.',
+        '# TYPE cs2_worker_ws_rate_limited_total counter',
+        `cs2_worker_ws_rate_limited_total{map_id="${mapLabel}"} ${workerMetrics.wsRateLimited}`,
+        '# HELP cs2_worker_ws_rejected_total Connections rejected at capacity.',
+        '# TYPE cs2_worker_ws_rejected_total counter',
+        `cs2_worker_ws_rejected_total{map_id="${mapLabel}"} ${workerMetrics.wsConnectionsRejected}`,
+        '# HELP cs2_worker_slow_client_drops_total Clients disconnected for excessive send backpressure.',
+        '# TYPE cs2_worker_slow_client_drops_total counter',
+        `cs2_worker_slow_client_drops_total{map_id="${mapLabel}"} ${workerMetrics.slowClientDrops}`,
+        '# HELP cs2_worker_process_rss_bytes Worker resident set size in bytes.',
+        '# TYPE cs2_worker_process_rss_bytes gauge',
+        `cs2_worker_process_rss_bytes{map_id="${mapLabel}"} ${mem.rss}`,
+        '# HELP cs2_worker_process_heap_used_bytes Worker V8 heap used in bytes.',
+        '# TYPE cs2_worker_process_heap_used_bytes gauge',
+        `cs2_worker_process_heap_used_bytes{map_id="${mapLabel}"} ${mem.heapUsed}`,
+        '',
+      ].join('\n'));
+      return;
+    }
     if (logicOnly) {
       res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
       res.end(req.method === 'HEAD' ? undefined : JSON.stringify({ ok: false, error: 'STATIC_DISABLED_LOGIC_ONLY', message: 'Static assets and client files are disabled in logic-only mode.' }));
@@ -224,10 +303,28 @@ export async function startGameServer({
       try { const candidateInfo = await stat(index); if (candidateInfo.isFile()) { found = index; info = candidateInfo; } } catch { /* The frontend has not been built yet. */ }
     }
     if (!found) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); res.end('文件不存在。请先运行 npm run build，然后打开游戏首页。'); return; }
-    // Reuse the lookup's metadata. A second awaited stat could reject outside
-    // the lookup's catch if an asset is replaced/deleted during deployment.
-    res.writeHead(200, { 'Content-Type': TYPES[path.extname(found).toLowerCase()] || 'application/octet-stream', 'Content-Length': info.size, 'Cache-Control': path.extname(found) === '.html' ? 'no-cache' : 'public, max-age=3600' });
-    if (req.method === 'HEAD') res.end(); else { const stream = createReadStream(found); stream.on('error', () => res.destroy()); stream.pipe(res); }
+    // Reuse the lookup's metadata and serve precompressed .br/.gz sidecars when accepted (zero runtime CPU cost).
+    const acceptEncoding = String(req.headers['accept-encoding'] || '');
+    const accepts = name => acceptEncoding.split(',').some(v => {
+      const [coding, weight] = v.trim().toLowerCase().split(/\s*;\s*/);
+      return coding === name && (weight === undefined || (/^q=(?:1(?:\.0{0,3})?|0\.\d{1,3})$/.test(weight) && Number(weight.slice(2)) > 0));
+    });
+    let servePath = found, serveInfo = info, encoding = null;
+    if (accepts('br')) {
+      try { const s = await stat(found + '.br'); if (s.isFile()) { servePath = found + '.br'; serveInfo = s; encoding = 'br'; } } catch {}
+    }
+    if (!encoding && accepts('gzip')) {
+      try { const s = await stat(found + '.gz'); if (s.isFile()) { servePath = found + '.gz'; serveInfo = s; encoding = 'gzip'; } } catch {}
+    }
+    const headers = {
+      'Content-Type': TYPES[path.extname(found).toLowerCase()] || 'application/octet-stream',
+      'Content-Length': serveInfo.size,
+      'Cache-Control': path.extname(found) === '.html' ? 'no-cache' : 'public, max-age=3600',
+      'Vary': 'Accept-Encoding',
+    };
+    if (encoding) headers['Content-Encoding'] = encoding;
+    res.writeHead(200, headers);
+    if (req.method === 'HEAD') res.end(); else { const stream = createReadStream(servePath); stream.on('error', () => res.destroy()); stream.pipe(res); }
   });
   const wss = new WebSocketServer({
     server,
@@ -241,7 +338,7 @@ export async function startGameServer({
   wss.on('connection', (socket, req) => {
     // Rejected connections can still receive invalid frames while closing.
     socket.on('error', () => {});
-    if (wss.clients.size > maxRooms * 10 + 20) { socket.close(1013, 'Server busy'); return; }
+    if (wss.clients.size > maxWsConnections) { workerMetrics.wsConnectionsRejected++; socket.close(1013, 'Server busy'); return; }
     socket.isAlive = true; socket.playerId = null; socket.roomCode = null; socket.binaryProtocol = 0; socket.lastBinaryPlayers = null;
     socket.snapshotDelta = 0; socket.lastDeltaSnap = null; socket.reconnectOptIn = false; socket.resumeToken = null;
     try { socket.handshakeToken = req?.url ? new URL(req.url, 'http://localhost').searchParams.get('token') : null; }
@@ -251,7 +348,7 @@ export async function startGameServer({
     socket.on('message', (data, binary) => {
       const now = Date.now();
       socket.tokens = Math.min(150, socket.tokens + (now - socket.tokensAt) * 0.09); socket.tokensAt = now;
-      if (socket.tokens < 1) { error(socket, 'RATE_LIMIT', '请求过于频繁。'); socket.close(1008, 'Rate limit'); return; }
+      if (socket.tokens < 1) { workerMetrics.wsRateLimited++; error(socket, 'RATE_LIMIT', '请求过于频繁。'); socket.close(1008, 'Rate limit'); return; }
       socket.tokens--;
       let msg;
       try {
@@ -290,6 +387,7 @@ export async function startGameServer({
         const suppliedToken = typeof msg.joinToken === 'string' && msg.joinToken ? msg.joinToken : socket.handshakeToken;
         let tokenClaims = null;
         if (requireJoinToken && !suppliedToken) {
+          workerMetrics.joinTokenRejected++;
           error(socket, 'JOIN_TOKEN_REQUIRED', '请先通过大厅获取有效加入凭证。');
           return;
         }
@@ -298,14 +396,16 @@ export async function startGameServer({
             expectedWorkerId: workerId,
             expectedMapId: privateMap?.mapId || null,
           });
-          if (!verified.ok) { error(socket, verified.code, verified.message); return; }
+          if (!verified.ok) { workerMetrics.joinTokenRejected++; error(socket, verified.code, verified.message); return; }
           tokenClaims = verified.claims;
           if (tokenClaims.jti && usedJTIs.has(tokenClaims.jti)) {
+            workerMetrics.joinTokenRejected++;
             error(socket, 'JOIN_TOKEN_REPLAYED', '加入凭证已使用，请重新获取。');
             return;
           }
           const requestedRoom = typeof msg.room === 'string' ? msg.room.trim().toUpperCase() : '';
           if (requestedRoom && tokenClaims.roomCode && requestedRoom !== tokenClaims.roomCode) {
+            workerMetrics.joinTokenRejected++;
             error(socket, 'TOKEN_ROOM_MISMATCH', '加入凭证与请求的房间不匹配。');
             return;
           }
@@ -455,7 +555,7 @@ export async function startGameServer({
           const snapshot = room.snapshot(), sideSnaps = new Map(), jsonViews = new Map(), deltaViews = new Map();
           for (const socket of room.clients.values()) {
             if (socket.readyState === WebSocket.OPEN) {
-              if (socket.bufferedAmount > 1024 * 1024) { socket.close(1008, 'Client too slow'); continue; }
+              if (socket.bufferedAmount > 1024 * 1024) { workerMetrics.slowClientDrops++; socket.close(1008, 'Client too slow'); continue; }
               const side = room.players.get(socket.playerId)?.team;
               if (!sideSnaps.has(side)) sideSnaps.set(side, snapshotForSide(snapshot, side));
               const sideSnap = sideSnaps.get(side);
@@ -519,7 +619,7 @@ export async function startGameServer({
       intervalMs: heartbeatIntervalMs,
       getState: () => ({
         draining,
-        tickP99Ms: performanceMetrics.snapshot().tickP95Ms || 0,
+        tickP99Ms: performanceMetrics.snapshot().tickP99Ms || performanceMetrics.snapshot().tickP95Ms || 0,
         rooms: [...rooms.values()].map(r => {
           const playerNames = [];
           for (const [pid, sock] of r.clients) {

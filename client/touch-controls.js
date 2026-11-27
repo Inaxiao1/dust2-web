@@ -3,7 +3,7 @@ import {TouchInput,normalizeTouch,touchLookDelta,touchModeEnabled,touchActionKin
 import './touch-controls.css';
 export class TouchControls {
  constructor({controls,storage,onLook,onCancel,onMode,onRoom,onFullscreen,getFov}){
-  Object.assign(this,{controls,storage,onCancel,onMode});this.settings=normalizeTouch(storage.readJSON('dust2.touch.v1'));this.active=false;this.throwMode='full';
+  Object.assign(this,{controls,storage,onCancel,onMode});this.settings=normalizeTouch(storage.readJSON('dust2.touch.v1'));if(typeof location!=='undefined'&&new URLSearchParams(location.search).get('touch')==='1')this.settings.mode='on';this.active=false;this.throwMode='full';
   this.media=matchMedia('(pointer: coarse)');this.enabled=false;
   this.element=document.createElement('div');this.element.id='touch-controls';this.element.hidden=true;this.element.setAttribute('aria-label','触屏游戏控制');
   this.element.innerHTML=`<div class="touch-look" data-touch-kind="look" aria-label="滑动瞄准区域"></div>
@@ -61,11 +61,33 @@ export class TouchControls {
  get axes(){return this.input.axes;}
 }
 export function mountTouchSettings(settingsUI,touch){
- const modal=settingsUI.element,tab=document.createElement('button'),panel=document.createElement('section');tab.dataset.tab='touch';tab.textContent='触屏';panel.dataset.panel='touch';panel.hidden=true;
- panel.innerHTML='<h3>手机与平板控制</h3><p>左侧摇杆移动；右侧空白处滑动瞄准，开火按钮也可拖动瞄准。蹲下、静步点按切换；拾取、下包、拆包按住「用」。选择道具后，选远 / 中 / 近投，按住投掷准备，松手释放。支持同时移动、瞄准与跳投。R8 按住「开火」预备，松手取消；「扳锤射击」直接发射，也可拖动瞄准。</p><label class="config-row">触屏控制<select id="touch-mode"><option value="auto">自动检测</option><option value="on">开启</option><option value="off">关闭</option></select></label><label class="config-row">触屏灵敏度 <output id="touch-sens-value"></output><input id="touch-sensitivity" type="range" min="0.4" max="2.5" step="0.05"></label><label class="config-row">开镜触屏倍率 <output id="touch-zoom-value"></output><input id="touch-zoom-sensitivity" type="range" min="0.2" max="2.5" step="0.05"></label><label class="config-row">按钮大小<input id="touch-size" type="range" min="0.85" max="1.15" step="0.05"></label><p>建议横屏、标准画质。全屏和横屏锁定取决于浏览器支持；不支持时仍可直接操作。切到后台或打开菜单会停止移动、开火，并取消准备中的投掷。</p>';
- modal.querySelector('.config-tabs').append(tab);modal.querySelector('.config-scroll').append(panel);
- tab.onclick=()=>{modal.querySelectorAll('.config-tabs [data-tab]').forEach(b=>b.classList.toggle('selected',b===tab));modal.querySelectorAll('.config-scroll [data-panel]').forEach(p=>p.hidden=p!==panel);};
- const sync=()=>{panel.querySelector('#touch-mode').value=touch.settings.mode;panel.querySelector('#touch-sensitivity').value=touch.settings.sensitivity;panel.querySelector('#touch-zoom-sensitivity').value=touch.settings.zoomSensitivity;panel.querySelector('#touch-size').value=touch.settings.size;panel.querySelector('#touch-sens-value').textContent=touch.settings.sensitivity.toFixed(2);panel.querySelector('#touch-zoom-value').textContent=touch.settings.zoomSensitivity.toFixed(2);};sync();
+ const modal=settingsUI.element,panel=document.createElement('section');
+ panel.innerHTML=`
+  <div class="settings-panel-head">
+   <div><h3>触屏与移动端控制</h3><p>左侧摇杆移动，右侧空白处或开火键拖动瞄准，支持移动、瞄准与跳投同时操作。</p></div>
+  </div>
+  <div class="settings-group">
+   <h4>触屏基础控制</h4>
+   <label class="config-row"><span><strong>触屏控制</strong><small>在手机或平板上启用虚拟摇杆与战斗按钮</small></span><select id="touch-mode"><option value="auto">自动检测</option><option value="on">始终开启</option><option value="off">关闭</option></select></label>
+   <div class="slider-control-head" style="margin-top:12px"><div><label class="control-title" for="touch-sensitivity">触屏滑动灵敏度</label><span class="control-sub">控制右侧滑屏转向速度</span></div><output id="touch-sens-value" class="value-pill"></output></div>
+   <input id="touch-sensitivity" class="cs-range" type="range" min="0.4" max="2.5" step="0.05">
+   <div class="slider-control-head" style="margin-top:12px"><div><label class="control-title" for="touch-zoom-sensitivity">开镜触屏倍率</label><span class="control-sub">狙击镜缩放时的滑屏微调比例</span></div><output id="touch-zoom-value" class="value-pill"></output></div>
+   <input id="touch-zoom-sensitivity" class="cs-range" type="range" min="0.2" max="2.5" step="0.05">
+   <div class="slider-control-head" style="margin-top:12px"><div><label class="control-title" for="touch-size">按钮缩放尺寸</label><span class="control-sub">适配不同屏幕宽度与手掌习惯</span></div><output id="touch-size-value" class="value-pill"></output></div>
+   <input id="touch-size" class="cs-range" type="range" min="0.85" max="1.15" step="0.05">
+  </div>`;
+ settingsUI.registerTab({ group: 'match', id: 'touch', label: '触屏与陀螺仪', panel });
+ const setFill=el=>{if(!el)return;const min=Number(el.min||0),max=Number(el.max||1),v=Number(el.value||0);el.style.setProperty('--range-pct',((v-min)/(max-min)*100).toFixed(1)+'%');};
+ const sync=()=>{
+  panel.querySelector('#touch-mode').value=touch.settings.mode;
+  const s1=panel.querySelector('#touch-sensitivity'),s2=panel.querySelector('#touch-zoom-sensitivity'),s3=panel.querySelector('#touch-size');
+  s1.value=touch.settings.sensitivity;s2.value=touch.settings.zoomSensitivity;s3.value=touch.settings.size;
+  setFill(s1);setFill(s2);setFill(s3);
+  panel.querySelector('#touch-sens-value').textContent=touch.settings.sensitivity.toFixed(2);
+  panel.querySelector('#touch-zoom-value').textContent=touch.settings.zoomSensitivity.toFixed(2);
+  panel.querySelector('#touch-size-value').textContent=Math.round(touch.settings.size*100)+'%';
+ };
+ sync();
  mountTouchLayout(panel,modal,touch);
  for(const [id,key] of [['touch-mode','mode'],['touch-sensitivity','sensitivity'],['touch-zoom-sensitivity','zoomSensitivity'],['touch-size','size']])panel.querySelector('#'+id).addEventListener('input',e=>{touch.configure({[key]:key==='mode'?e.target.value:Number(e.target.value)});sync();});
 }

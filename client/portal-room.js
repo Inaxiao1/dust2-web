@@ -1,13 +1,16 @@
 import {PERFORMANCE_MAPS} from '../shared/performance-map-pool.js';
 import {ToyIdentity} from '../scripts/maps/mode-ui/toy-identity.js';
 import {upgradeSelect} from './tactical-select.js';
+import {getStaticRuntime,lobbyHref} from '../shared/static-runtime.js';
 import '../scripts/maps/mode-ui/portal-theme.css';
 import './portal-room.css';
 
 export function mountPortalRoom(id, graphicsMode) {
   const map = PERFORMANCE_MAPS.find(item => item.id === id);
   if (!map) return;
-  const library = '/perf/';
+  const rt = getStaticRuntime();
+  const staticBase = rel => rt ? new URL('./' + rel.replace(/^\/+/, ''), document.baseURI).href : ('/perf/' + rel.replace(/^\/+/, ''));
+  const library = lobbyHref();
   const menu = document.querySelector('#menu');
   document.body.classList.add('portal-room');
   document.documentElement.style.background = '#10191e';
@@ -21,6 +24,22 @@ export function mountPortalRoom(id, graphicsMode) {
   const loadingBrand = document.querySelector('#loading-screen .loading-header .wordmark');
   loadingBrand.replaceWith(brand.cloneNode(true));
   document.querySelector('#loading-screen .loading-map-title .eyebrow').textContent = 'DEPLOYMENT // 加载战局';
+  const loadHeading = document.querySelector('#loading-screen .loading-map-title h1');
+  if (loadHeading) loadHeading.textContent = map.name.toUpperCase();
+  const loadLocation = document.querySelector('#loading-screen .loading-location');
+  if (loadLocation) loadLocation.textContent = map.nameZh;
+  const loadDesc = document.querySelector('#loading-screen .loading-map-title > p');
+  if (loadDesc) loadDesc.textContent = map.nameZh + ' · 5v5 联网战术对战';
+  const loadRadar = document.querySelector('#loading-screen .loading-tactical img');
+  if (loadRadar) {
+    loadRadar.src = staticBase('radars/' + map.id + '.png');
+    loadRadar.alt = map.name + ' 战术地图';
+  }
+  const loadMode = document.getElementById('loading-mode');
+  if (loadMode) {
+    const modeParam = new URLSearchParams(location.search).get('matchMode');
+    loadMode.textContent = modeParam === 'deathmatch' ? '团队死斗' : '竞技爆破';
+  }
   header.querySelector('#menu-play-tab').textContent = '房间设置';
 
   const main = menu.querySelector('.menu-content');
@@ -47,11 +66,11 @@ export function mountPortalRoom(id, graphicsMode) {
   hero.querySelector('h2').textContent = map.name;
   hero.append(rules);
 
-  const cover = '/perf/mode-previews/' + map.id + '-performance.webp';
+  const cover = staticBase('mode-previews/' + map.id + '-performance.webp');
   const picture = hero.querySelector('img');
   picture.addEventListener('error', () => {
     picture.classList.add('portal-radar');
-    picture.src = '/perf/radars/' + map.id + '.png';
+    picture.src = staticBase('radars/' + map.id + '.png');
   }, {once: true});
   picture.src = cover;
   document.documentElement.style.setProperty('--loading-map-cover', 'url("' + cover + '")');

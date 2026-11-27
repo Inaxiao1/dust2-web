@@ -1,7 +1,8 @@
 import {readPrivateResource} from './private-map-loader.js';
 import {validateMapTransport,transportBytes,transportObjectName} from '../scripts/maps/transport-schema.mjs';
+import {sha256Hex} from '../shared/sha256.js';
 
-const digest=async bytes=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),n=>n.toString(16).padStart(2,'0')).join('');
+const digest=bytes=>sha256Hex(bytes);
 const check=signal=>signal?.throwIfAborted();
 export async function inflateMapBlock(bytes,chunk,{signal}={}){
  check(signal);const stream=new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));

@@ -1,3 +1,5 @@
+import {getStaticRuntime,resolveStaticMapFile,maybeGunzipResponse} from '../shared/static-runtime.js';
+
 /** Keep game URLs and cache identities stable while moving map transfers.
  * The delivery configuration comes only from the game's same-origin endpoint.
  * Metadata and transport hashes remain checked by the existing loaders.
@@ -7,17 +9,35 @@ export function privateMapDownloads(config, delivery) {
   downloadFallbackToGameServer:delivery.fallbackToGameServer===true});
 }
 
-export function privateMapDownloadURL(value, config) {
+function extractMapRelative(value, config) {
  const url=new URL(value),page=new URL(config.socketURL);
  page.protocol=page.protocol==='wss:'?'https:':'http:';
- if(!config.mapDownloadBaseURL||url.origin!==page.origin)return url;
+ if(url.origin!==page.origin)return null;
  const render=new URL(config.renderUrl),prefixes=[new URL('../',render).pathname,
   new URL('.',page).pathname+'maps/'+config.id+'/'];
  const prefix=prefixes.find(path=>url.pathname.startsWith(path));
- if(!prefix||url.username||url.password||url.hash)return url;
+ if(!prefix||url.username||url.password||url.hash)return null;
  const relative=url.pathname.slice(prefix.length);
  if(!relative||relative.split('/').some(part=>!part||part==='.'||part==='..')||/%(?:2e|2f|5c)/i.test(relative)||relative.includes('\\'))
   throw Error('地图下载地址越过当前地图');
+ return {url,relative};
+}
+
+export function privateMapDownloadURL(value, config) {
+ const extracted=extractMapRelative(value,config);
+ if(!extracted)return new URL(value);
+ const {url,relative}=extracted;
+ const rt=getStaticRuntime();
+ if(rt){
+  const pageBase=globalThis.document?.baseURI||globalThis.location?.href||url.href;
+  const hit=resolveStaticMapFile(config.id,relative,pageBase);
+  if(hit){
+   const remote=new URL(hit.url.href);
+   if(hit.source==='cdn')remote.search=url.search;
+   return remote;
+  }
+ }
+ if(!config.mapDownloadBaseURL)return url;
  const remote=new URL(config.id+'/'+relative,config.mapDownloadBaseURL);
  remote.search=url.search;
  return remote;
@@ -26,6 +46,7 @@ export function privateMapDownloadURL(value, config) {
 export function privateMapFetcher(config,{fetcher=fetch}={}) {
  return async(value,options={})=>{
   const original=new URL(value),remote=privateMapDownloadURL(original,config);
+  const rt=getStaticRuntime();
   // The performance gateway verifies these URLs against its sealed, per-file manifest.
   // Leave the live room configuration and unversioned asset paths fresh.
   if(config.flatOnly && options.cache==='no-store' && /^[a-f0-9]{64}$/.test(original.searchParams.get('v') || '')){
@@ -33,6 +54,12 @@ export function privateMapFetcher(config,{fetcher=fetch}={}) {
   }
   if(remote.href===original.href)return fetcher(original,options);
   options.signal?.throwIfAborted();
+  const isLocalStatic=Boolean(rt&&globalThis.location&&remote.origin===globalThis.location.origin);
+  if(isLocalStatic){
+   const response=await fetcher(remote,options);
+   options.signal?.throwIfAborted();
+   return remote.pathname.endsWith('.gz')&&!original.pathname.endsWith('.gz')?maybeGunzipResponse(response):response;
+  }
   let response;
   try{response=await fetcher(remote,{...options,mode:'cors',credentials:'omit'});}
   catch(error){

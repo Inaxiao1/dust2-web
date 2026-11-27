@@ -1,5 +1,7 @@
+import {sha256Hex} from './sha256.js';
+
 const asBytes=value=>value instanceof ArrayBuffer?new Uint8Array(value):ArrayBuffer.isView(value)?new Uint8Array(value.buffer,value.byteOffset,value.byteLength):null;
-const digest=async value=>Array.from(new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256',value)),v=>v.toString(16).padStart(2,'0')).join('');
+const digest=value=>sha256Hex(value);
 const encode=value=>new TextEncoder().encode(value);
 
 export function applyPrivateCollisionExclusions(mask,groups,policy){

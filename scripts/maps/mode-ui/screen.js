@@ -2,22 +2,56 @@ import {mountRoomDirectory} from './room-directory.js';
 import {ToyIdentity} from './toy-identity.js';
 
 const $ = (id) => document.getElementById(id);
+const RT = globalThis.__CS2_STATIC_RUNTIME__ && typeof globalThis.__CS2_STATIC_RUNTIME__ === 'object'
+  ? globalThis.__CS2_STATIC_RUNTIME__
+  : null;
+const RT_BUNDLED_ASSETS = new Set(Array.isArray(RT?.bundledAssets) ? RT.bundledAssets : []);
+const apiUrl = (p) => (RT?.gameServerOrigin ? new URL(p, RT.gameServerOrigin).href : p);
+const staticUrl = (rel) => {
+  const clean = String(rel || '').replace(/^\/+/, '');
+  return RT ? './' + clean : '/perf/' + clean;
+};
+const assetUrl = (assetRel) => {
+  const clean = String(assetRel || '').replace(/^\/+/, '');
+  if (!RT) return '/perf/' + clean;
+  if (RT_BUNDLED_ASSETS.has(clean)) return './' + clean;
+  if (RT.assetBaseURL && clean.startsWith('assets/')) return new URL(clean.slice('assets/'.length), RT.assetBaseURL).href;
+  return './' + clean;
+};
+const toLocalMatchUrl = (rawUrl) => {
+  if (!RT || typeof rawUrl !== 'string') return rawUrl;
+  const u = new URL(rawUrl, location.href);
+  const m = /^\/perf\/(quality\/)?play\/(de_[a-z0-9_]+)\/$/.exec(u.pathname);
+  if (!m) return rawUrl;
+  const q = new URLSearchParams(u.search);
+  q.set('map', m[2]);
+  if (m[1]) q.set('quality', '1');
+  return (RT.staticPlayPath || './play.html') + '?' + q.toString();
+};
+const matchRouteUrl = (mapId, params) => {
+  const qs = params instanceof URLSearchParams ? params.toString() : String(params || '');
+  if (!RT) return '/perf/play/' + mapId + '/' + (qs ? '?' + qs : '');
+  const q = new URLSearchParams(qs);
+  q.set('map', mapId);
+  return (RT.staticPlayPath || './play.html') + '?' + q.toString();
+};
+
 const storageKey = 'duskrain.map-graphics.v1';
 const modeLabels = { defuse: '竞技爆破', deathmatch: '团队死斗' };
 const teamLabels = { auto: '自动平衡', T: 'T · 恐怖分子', CT: 'CT · 反恐精英' };
 const query = new URLSearchParams(location.search);
 
 const AGENT_SHOWCASE = {
-  'ct-sas': { team: 'CT', name: '默认反恐精英 · SAS', en: 'SAS', img: '/perf/assets/characters-cs2/previews/ct-sas.webp' },
-  't-phoenix': { team: 'T', name: '默认恐怖分子 · 凤凰战士', en: 'Phoenix', img: '/perf/assets/characters-cs2/previews/t-phoenix.webp' },
-  'ct-ava': { team: 'CT', name: '特别探员艾娃 · 联邦调查局', en: 'Special Agent Ava | FBI', img: '/perf/assets/characters-cs2/previews/ct-ava.webp' },
-  't-miami': { team: 'T', name: '迈阿密达里尔爵士 · 专业人士', en: 'Sir Bloody Miami Darryl', img: '/perf/assets/characters-cs2/previews/t-miami.webp' },
-  'ct-syfers': { team: 'CT', name: '迈克·赛弗斯 | FBI 狙击手', en: 'Michael Syfers | FBI Sniper', img: '/perf/assets/characters-cs2/popular/ct-syfers/portrait-d31a4bb10887.webp' },
-  'ct-ricksaw': { team: 'CT', name: '海军上尉里克索尔 | 海豹部队', en: 'Lt. Commander Ricksaw | SEAL', img: '/perf/assets/characters-cs2/popular/ct-ricksaw/portrait-31b70d1a6dbf.webp' },
-  'ct-operator': { team: 'CT', name: '特种兵 | FBI 特警', en: 'Operator | FBI SWAT', img: '/perf/assets/characters-cs2/popular/ct-operator/portrait-c96d669698b2.webp' },
-  't-number-k': { team: 'T', name: '老K | 专业人士', en: 'Number K | The Professionals', img: '/perf/assets/characters-cs2/popular/t-number-k/portrait-2189df87326f.webp' },
-  't-silent-darryl': { team: 'T', name: '残酷的达里尔爵士（沉默）', en: 'Sir Bloody Silent Darryl', img: '/perf/assets/characters-cs2/popular/t-silent-darryl/portrait-a4685d65236d.webp' },
-  't-enforcer': { team: 'T', name: '执行者 | 凤凰战士', en: 'Enforcer | Phoenix', img: '/perf/assets/characters-cs2/popular/t-enforcer/portrait-909fe8d4460e.webp' },
+  'ct-sas': { team: 'CT', name: '默认反恐精英 · SAS', en: 'SAS', img: assetUrl('assets/characters-cs2/previews/ct-sas.webp') },
+  't-phoenix': { team: 'T', name: '默认恐怖分子 · 凤凰战士', en: 'Phoenix', img: assetUrl('assets/characters-cs2/previews/t-phoenix.webp') },
+  'ct-ava': { team: 'CT', name: '特别探员艾娃 · 联邦调查局', en: 'Special Agent Ava | FBI', img: assetUrl('assets/characters-cs2/previews/ct-ava.webp') },
+  't-miami': { team: 'T', name: '迈阿密达里尔爵士 · 专业人士', en: 'Sir Bloody Miami Darryl', img: assetUrl('assets/characters-cs2/previews/t-miami.webp') },
+  'ct-syfers': { team: 'CT', name: '迈克·赛弗斯 | FBI 狙击手', en: 'Michael Syfers | FBI Sniper', img: assetUrl('assets/characters-cs2/popular/ct-syfers/portrait-d31a4bb10887.webp') },
+  'ct-ricksaw': { team: 'CT', name: '海军上尉里克索尔 | 海豹部队', en: 'Lt. Commander Ricksaw | SEAL', img: assetUrl('assets/characters-cs2/popular/ct-ricksaw/portrait-31b70d1a6dbf.webp') },
+  'ct-operator': { team: 'CT', name: '特种兵 | FBI 特警', en: 'Operator | FBI SWAT', img: assetUrl('assets/characters-cs2/popular/ct-operator/portrait-c96d669698b2.webp') },
+  't-number-k': { team: 'T', name: '老K | 专业人士', en: 'Number K | The Professionals', img: assetUrl('assets/characters-cs2/popular/t-number-k/portrait-2189df87326f.webp') },
+  't-silent-darryl': { team: 'T', name: '残酷的达里尔爵士（沉默）', en: 'Sir Bloody Silent Darryl', img: assetUrl('assets/characters-cs2/popular/t-silent-darryl/portrait-a4685d65236d.webp') },
+  't-enforcer': { team: 'T', name: '执行者 | 凤凰战士', en: 'Enforcer | Phoenix', img: assetUrl('assets/characters-cs2/popular/t-enforcer/portrait-909fe8d4460e.webp') },
 };
 
 let saved = {};
@@ -144,7 +178,7 @@ toyIdentity.init().then((s) => {
 
 async function syncLobbyCloudProgression() {
   try {
-    if (!hubLoader) hubLoader = import('/perf/assets/lobby-hub.js');
+    if (!hubLoader) hubLoader = import(staticUrl('assets/lobby-hub.js'));
     const mod = await hubLoader;
     const initProg = mod?.initHubProgression || globalThis.__CS2_LOBBY_HUB__?.initHubProgression;
     if (typeof initProg === 'function') {
@@ -222,14 +256,14 @@ const directory = mountRoomDirectory($('onlineRooms'), {
     if (!controlPlaneEnabled) return;
     event.preventDefault();
     try {
-      const ticket = await postJson('/perf/api/rooms/' + encodeURIComponent(room.code) + '/join', {
+      const ticket = await postJson(apiUrl('/perf/api/rooms/' + encodeURIComponent(room.code) + '/join'), {
         playerName: toyIdentity.playerName,
         playerUid: toyIdentity.uid || '',
       });
       stageJoinTicket({ ...ticket, action: 'join' });
-      location.assign(ticket.joinUrl || ('/perf/play/' + room.mapId + '/?room=' + encodeURIComponent(room.code) + '&join=1&matchMode=' + room.mode));
+      location.assign(toLocalMatchUrl(ticket.joinUrl) || matchRouteUrl(room.mapId, new URLSearchParams({ room: room.code, join: '1', matchMode: room.mode })));
     } catch {
-      location.assign('/perf/play/' + room.mapId + '/?room=' + encodeURIComponent(room.code) + '&join=1&matchMode=' + room.mode);
+      location.assign(matchRouteUrl(room.mapId, new URLSearchParams({ room: room.code, join: '1', matchMode: room.mode })));
     }
   },
   onCount: (rooms, humans) => {
@@ -281,7 +315,7 @@ async function openHub(panel, triggerBtn) {
   try {
     closeCustomModal();
     if (!hubLoader) {
-      hubLoader = import('/perf/assets/lobby-hub.js');
+      hubLoader = import(staticUrl('assets/lobby-hub.js'));
     }
     const mod = await hubLoader;
     const opener = mod?.openHubPanel || globalThis.__CS2_LOBBY_HUB__?.openHubPanel;
@@ -321,7 +355,7 @@ function remember() {
 
 function imageURL(file) {
   if (typeof file !== 'string' || !/^[a-z0-9][a-z0-9_.-]*\.(webp|avif|jpe?g|png)$/i.test(file) || failedFiles.has(file)) return null;
-  return '/perf/mode-previews/' + file;
+  return staticUrl('mode-previews/' + file);
 }
 
 /* 6. Dual-Layer Crossfade Living Map Stage */
@@ -335,7 +369,7 @@ function setStageMapVisual(map) {
       : '5v5 经典地图';
   }
   const file = images[map.id]?.performance;
-  const url = imageURL(file) || ('/perf/radars/' + map.id + '.png');
+  const url = imageURL(file) || staticUrl('radars/' + map.id + '.png');
   if (url === currentBackdropSrc) return;
   currentBackdropSrc = url;
   const incoming = activeBackdropLayer === 'A' ? $('backdropB') : $('backdropA');
@@ -378,21 +412,23 @@ async function refreshQuickJoin() {
   const preferredMap = selected?.id || 'de_dust2';
   const params = new URLSearchParams({ mode: quickMode, preferredMap });
   try {
-    renderQuickJoinUI(await json('/perf/quick-join.json?' + params));
+    const rec = await json(apiUrl('/perf/quick-join.json?' + params));
+    if (rec?.joinUrl) rec.joinUrl = toLocalMatchUrl(rec.joinUrl);
+    renderQuickJoinUI(rec);
   } catch {
     const fallbackMode = quickMode === 'deathmatch' ? 'deathmatch' : 'defuse';
     renderQuickJoinUI({
       action: 'create',
       mapId: preferredMap,
       mode: fallbackMode,
-      joinUrl: '/perf/play/' + preferredMap + '/?' + new URLSearchParams({ autostart: '1', matchMode: fallbackMode }),
+      joinUrl: matchRouteUrl(preferredMap, new URLSearchParams({ autostart: '1', matchMode: fallbackMode })),
     });
   }
 }
 
 async function refreshMapActivity() {
   try {
-    const data = await json('/perf/rooms.json');
+    const data = await json(apiUrl('/perf/rooms.json'));
     const counts = new Map();
     for (const room of data.rooms || []) {
       const prev = counts.get(room.mapId) || { rooms: 0, humans: 0 };
@@ -493,7 +529,7 @@ function buildMapUI() {
     img.decoding = 'async';
     img.loading = 'lazy';
     const thumb = imageURL(images[map.id]?.thumbnail);
-    const useRadar = () => { img.onerror = null; img.src = '/perf/radars/' + map.id + '.png'; };
+    const useRadar = () => { img.onerror = null; img.src = staticUrl('radars/' + map.id + '.png'); };
     if (thumb) { img.onerror = useRadar; img.src = thumb; } else useRadar();
     const live = document.createElement('span');
     live.className = 'tile-live';
@@ -520,7 +556,7 @@ function buildMapUI() {
     img.decoding = 'async';
     img.loading = 'lazy';
     const thumb = imageURL(images[map.id]?.thumbnail);
-    const useRadar = () => { img.onerror = null; img.className = 'is-radar'; img.src = '/perf/radars/' + map.id + '.png'; };
+    const useRadar = () => { img.onerror = null; img.className = 'is-radar'; img.src = staticUrl('radars/' + map.id + '.png'); };
     if (thumb) { img.onerror = useRadar; img.src = thumb; } else useRadar();
     const live = document.createElement('span');
     live.className = 'cs-map-live';
@@ -581,7 +617,7 @@ $('customLaunchBtn')?.addEventListener('click', async () => {
   if (controlPlaneEnabled) {
     if (btn) btn.disabled = true;
     try {
-      const ticket = await postJson('/perf/api/rooms', {
+      const ticket = await postJson(apiUrl('/perf/api/rooms'), {
         mapId: selected.id,
         mode: customMode,
         visibility: 'public',
@@ -590,7 +626,7 @@ $('customLaunchBtn')?.addEventListener('click', async () => {
       });
       stageJoinTicket({ ...ticket, action: 'create' });
       params.set('room', ticket.roomCode);
-      location.assign(selected.performanceURL + '?' + params);
+      location.assign(matchRouteUrl(selected.id, params));
       return;
     } catch {
       // Fall through to local/gateway route if control plane rejected.
@@ -598,7 +634,7 @@ $('customLaunchBtn')?.addEventListener('click', async () => {
       if (btn) btn.disabled = false;
     }
   }
-  location.assign(selected.performanceURL + '?' + params);
+  location.assign(matchRouteUrl(selected.id, params));
 });
 
 $('quickJoinBtn')?.addEventListener('click', async () => {
@@ -607,7 +643,7 @@ $('quickJoinBtn')?.addEventListener('click', async () => {
   try {
     const preferredMap = selected?.id || 'de_dust2';
     if (controlPlaneEnabled) {
-      const ticket = await postJson('/perf/api/quick-join', {
+      const ticket = await postJson(apiUrl('/perf/api/quick-join'), {
         mode: quickMode,
         preferredMap,
         playerName: toyIdentity.playerName,
@@ -615,14 +651,14 @@ $('quickJoinBtn')?.addEventListener('click', async () => {
       }).catch(() => null);
       if (ticket?.joinUrl) {
         stageJoinTicket(ticket);
-        location.assign(ticket.joinUrl);
+        location.assign(toLocalMatchUrl(ticket.joinUrl));
         return;
       }
     }
     const params = new URLSearchParams({ mode: quickMode, preferredMap });
-    const fresh = await json('/perf/quick-join.json?' + params).catch(() => latestRecommendation);
+    const fresh = await json(apiUrl('/perf/quick-join.json?' + params)).catch(() => latestRecommendation);
     if (fresh?.joinUrl) {
-      location.assign(fresh.joinUrl);
+      location.assign(toLocalMatchUrl(fresh.joinUrl));
       return;
     }
   } finally {
@@ -635,17 +671,21 @@ async function load() {
   $('problem').hidden = true;
   try {
     const [catalog, entries, previews, health] = await Promise.all([
-      json('/perf/catalog.json'),
-      json('/perf/graphics.json'),
-      json('/perf/mode-previews/previews.json').catch(() => ({ maps: {} })),
-      json('/perf/health').catch(() => ({})),
+      json(staticUrl('catalog.json')),
+      json(apiUrl('/perf/graphics.json')).catch(() => null),
+      json(staticUrl('mode-previews/previews.json')).catch(() => ({ maps: {} })),
+      json(apiUrl('/perf/health')).catch(() => ({})),
     ]);
     controlPlaneEnabled = health?.controlPlane === true;
-    const routes = new Map(entries.maps.map(route => [route.id, route]));
+    const routes = new Map((entries?.maps || []).map(route => [route.id, route]));
     images = previews.maps || {};
     maps = catalog.maps
-      .filter(map => /^de_[a-z0-9_]+$/.test(map.id) && routes.get(map.id)?.performanceURL)
-      .map(map => ({ ...map, ...routes.get(map.id) }));
+      .filter(map => /^de_[a-z0-9_]+$/.test(map.id) && (RT || routes.get(map.id)?.performanceURL))
+      .map(map => ({
+        ...map,
+        performanceURL: matchRouteUrl(map.id, ''),
+        ...(routes.get(map.id) || {}),
+      }));
     if (!maps.length) throw new Error('empty');
     selected = [query.get('map'), saved.map, 'de_dust2'].map(id => maps.find(map => map.id === id)).find(Boolean) || maps[0];
     buildMapUI();

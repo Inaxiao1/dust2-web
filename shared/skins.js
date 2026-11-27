@@ -7,8 +7,8 @@ const baseSkins = [
     "englishName": "AK-47 | Vulcan",
     "model": "assets/weapons/cs2-loadout/ak47-vulcan.glb",
     "preview": "assets/weapons/cs2-loadout/previews/ak47-vulcan.webp",
-    "bytes": 2807216,
-    "sha256": "46c540e3869bb2737d633a67c578ce9e2665eae63f1c07544793ecf8de4f558c",
+    "bytes": 680988,
+    "sha256": "f5bdcbb5cb4cf96864899765bebd519c06cb04414c2c52a694882ef4af141ac3",
     "isDefault": true,
     "condition": "Factory New",
     "wear": 0,
@@ -24,8 +24,8 @@ const baseSkins = [
     "englishName": "M4A4 | Howl",
     "model": "assets/weapons/cs2-loadout/m4a4-howl.glb",
     "preview": "assets/weapons/cs2-loadout/previews/m4a4-howl.webp",
-    "bytes": 3878444,
-    "sha256": "e5a7d5f0ae0987f6e7c63100bc82ab1d6bfbc60f4ff2949599fc537607352843",
+    "bytes": 917852,
+    "sha256": "e2a0aa31921732aac210399f7f6b003b3b0c2f8a35439a722b564f2ee6889773",
     "isDefault": true,
     "condition": "Factory New",
     "wear": 0,
@@ -41,8 +41,8 @@ const baseSkins = [
     "englishName": "M4A1-S | Printstream",
     "model": "assets/weapons/cs2-loadout/m4a1-printstream.glb",
     "preview": "assets/weapons/cs2-loadout/previews/m4a1-printstream.webp",
-    "bytes": 3592668,
-    "sha256": "6321cb8e979aaebf7f70ba77a36f2e0e84a40324d791b6b851088c2dc7af2a0e",
+    "bytes": 1312372,
+    "sha256": "70e3fc72bb515b932039032c1f39494f9f6f5bde8b44d13849c7a963bdc1545c",
     "isDefault": true,
     "condition": "Factory New",
     "wear": 0,
@@ -58,8 +58,8 @@ const baseSkins = [
     "englishName": "AWP | Dragon Lore",
     "model": "assets/weapons/cs2-loadout/awp-dragon-lore.glb",
     "preview": "assets/weapons/cs2-loadout/previews/awp-dragon-lore.webp",
-    "bytes": 4490124,
-    "sha256": "1ac23c5e6886527fadd17b41a841f248e3d26b9af9d8e23ce3d1916afa0351c7",
+    "bytes": 1173812,
+    "sha256": "2d5a00da04298d1f79e971b629c2b0e9af828183ceb3bd03dd9a27bf737cb4b8",
     "isDefault": true,
     "condition": "Factory New",
     "wear": 0,
@@ -75,8 +75,8 @@ const baseSkins = [
     "englishName": "Glock-18 | Fade",
     "model": "assets/weapons/cs2-loadout/pistol-fade.glb",
     "preview": "assets/weapons/cs2-loadout/previews/pistol-fade.webp",
-    "bytes": 2919120,
-    "sha256": "50915dc3c0ca29df1aed18044b255c2f74a3c11bbe06033082aba43d31f6a439",
+    "bytes": 656356,
+    "sha256": "f52ed345c865cf92cf0a2db96eaa46bd4fcd39e73f10a8bd65e3b4ddcbd1bf6f",
     "isDefault": true,
     "condition": "Factory New",
     "wear": 0,
@@ -92,8 +92,8 @@ const baseSkins = [
     "englishName": "USP-S | Kill Confirmed",
     "model": "assets/weapons/cs2-loadout/usp-kill-confirmed.glb",
     "preview": "assets/weapons/cs2-loadout/previews/usp-kill-confirmed.webp",
-    "bytes": 3266132,
-    "sha256": "56e56702c589f2fe173b62ae729778ab6cfad29ba5a2f24a8bb4d610bbb519cc",
+    "bytes": 700148,
+    "sha256": "09e3912eac2728f220bfc756fb4af5a1ddb25d10e329ee66139fc05b14c1d397",
     "isDefault": true,
     "condition": "Factory New",
     "wear": 0,
@@ -109,8 +109,8 @@ const baseSkins = [
     "englishName": "Dual Berettas | Cobra Strike",
     "model": "assets/weapons/cs2-loadout/elite-cobra-strike.glb",
     "preview": "assets/weapons/cs2-loadout/previews/elite-cobra-strike.webp",
-    "bytes": 3752240,
-    "sha256": "07f8617d40d6da932c4ae12d98e555d9f3b9d70e011a7942831d79d94484852a",
+    "bytes": 860548,
+    "sha256": "7ba626589c2f524721c38a002f399453ad6d666c9802bc87cc552a8a86085702",
     "isDefault": true,
     "condition": "Factory New",
     "wear": 0,
@@ -126,8 +126,8 @@ const baseSkins = [
     "englishName": "P250 | Undertow",
     "model": "assets/weapons/cs2-loadout/p250-undertow.glb",
     "preview": "assets/weapons/cs2-loadout/previews/p250-undertow.webp",
-    "bytes": 2910408,
-    "sha256": "59779cac596b827872d5ef96d4fc947a7681d558d79f11d7cf2d05fb835724df",
+    "bytes": 639448,
+    "sha256": "27f84b3ccfb3131cac3d718a5c02ff5e014c5a77668235233af81b5c76707c23",
     "isDefault": true,
     "condition": "Factory New",
     "wear": 0,
@@ -143,8 +143,8 @@ const baseSkins = [
     "englishName": "Five-SeveN | Hyper Beast",
     "model": "assets/weapons/cs2-loadout/fiveseven-hyper-beast.glb",
     "preview": "assets/weapons/cs2-loadout/previews/fiveseven-hyper-beast.webp",
-    "bytes": 3847564,
-    "sha256": "e754a0bef2d29d85e97333211f9bf3e4d16f263731661b8f7c95b02882029b6d",
+    "bytes": 742168,
+    "sha256": "b34b3137595ccfd9d9c2a6d7d5c7f82f4743b91b296822c71db9500a6717b0ad",
     "isDefault": true,
     "condition": "Factory New",
     "wear": 0,
@@ -160,8 +160,8 @@ const baseSkins = [
     "englishName": "Desert Eagle | Printstream",
     "model": "assets/weapons/cs2-loadout/deagle-printstream.glb",
     "preview": "assets/weapons/cs2-loadout/previews/deagle-printstream.webp",
-    "bytes": 2023160,
-    "sha256": "68ecf39917c72ddb87f1a9704eadd1401c149a56123166dba6020493efefbe02",
+    "bytes": 601028,
+    "sha256": "ee6014f6ccfe7503f8ab7c2baf9ca3eb6bf9c5add2ce7edccea471cf7998637d",
     "isDefault": true,
     "condition": "Factory New",
     "wear": 0,
@@ -177,8 +177,8 @@ const baseSkins = [
     "englishName": "Nova | Hyper Beast",
     "model": "assets/weapons/cs2-loadout/nova-hyper-beast.glb",
     "preview": "assets/weapons/cs2-loadout/previews/nova-hyper-beast.webp",
-    "bytes": 4188444,
-    "sha256": "399276b1455bbf19a6e1a0edd9979d6a0121bd0e8c6ffc34e7c1fef0ebf39bd1",
+    "bytes": 1027704,
+    "sha256": "e309e89334c1c705f8714896afa6adee07dca5c3d71a1d85e022c8696f0e0ae9",
     "isDefault": true,
     "condition": "Factory New",
     "wear": 0,
@@ -194,8 +194,8 @@ const baseSkins = [
     "englishName": "MAG-7 | Justice",
     "model": "assets/weapons/cs2-loadout/mag7-justice.glb",
     "preview": "assets/weapons/cs2-loadout/previews/mag7-justice.webp",
-    "bytes": 3758032,
-    "sha256": "7f18b58281c0839257f8f36afd9e8562ffbadabc9941ce6e398ab8537d42c201",
+    "bytes": 716140,
+    "sha256": "5f95364aad93e7089d053f919df8dc1bd3d64639c03ceea2d58d4064b328bc3e",
     "isDefault": true,
     "condition": "Factory New",
     "wear": 0,
@@ -211,8 +211,8 @@ const baseSkins = [
     "englishName": "MP9 | Wild Lily",
     "model": "assets/weapons/cs2-loadout/mp9-wild-lily.glb",
     "preview": "assets/weapons/cs2-loadout/previews/mp9-wild-lily.webp",
-    "bytes": 3496372,
-    "sha256": "3d6ae1994edf369fda608140e06e94fdf4f81f354d13ba4a515847bf5d3d5558",
+    "bytes": 880988,
+    "sha256": "d234f7ab7d8ba26adaed6586e59cbdcb5d7f3b60b50cf9c442e9f68f75e97ef8",
     "isDefault": true,
     "condition": "Factory New",
     "wear": 0,
@@ -228,8 +228,8 @@ const baseSkins = [
     "englishName": "MP7 | Bloodsport",
     "model": "assets/weapons/cs2-loadout/mp7-bloodsport.glb",
     "preview": "assets/weapons/cs2-loadout/previews/mp7-bloodsport.webp",
-    "bytes": 4650728,
-    "sha256": "d280a11fddef3bf554ac8bc2000e871f82b5eded3b3e6ee6dece16e9931710fe",
+    "bytes": 1178628,
+    "sha256": "22ed9237a577a7fb9d0abf015b9c4d66b2c8290f47de94aadfb437c682c1b498",
     "isDefault": true,
     "condition": "Factory New",
     "wear": 0,
@@ -245,8 +245,8 @@ const baseSkins = [
     "englishName": "PP-Bizon | Judgement of Anubis",
     "model": "assets/weapons/cs2-loadout/bizon-judgement-of-anubis.glb",
     "preview": "assets/weapons/cs2-loadout/previews/bizon-judgement-of-anubis.webp",
-    "bytes": 3229276,
-    "sha256": "a87102a89fc402118960427cea0d027e64c8e69dcefd114596a442a770c74da7",
+    "bytes": 851792,
+    "sha256": "f04059875594fe75aec6a48766bf88406aabd8fc7e8dec605ee5abd132b33f7c",
     "isDefault": true,
     "condition": "Factory New",
     "wear": 0,
@@ -262,8 +262,8 @@ const baseSkins = [
     "englishName": "SCAR-20 | Cyrex",
     "model": "assets/weapons/cs2-loadout/scar20-cyrex.glb",
     "preview": "assets/weapons/cs2-loadout/previews/scar20-cyrex.webp",
-    "bytes": 2977164,
-    "sha256": "d97ce0bc67a7ae3b5052c45bfbd43faf1c595a433167fc1c23e57a8521b82f1e",
+    "bytes": 769084,
+    "sha256": "dc71001a4270842687e85b03da865cb7f203bed7a3a3f91e1527ab6ad6f6a556",
     "isDefault": true,
     "condition": "Factory New",
     "wear": 0,
@@ -279,8 +279,8 @@ const baseSkins = [
     "englishName": "SSG 08 | Dragonfire",
     "model": "assets/weapons/cs2-loadout/ssg08-dragonfire.glb",
     "preview": "assets/weapons/cs2-loadout/previews/ssg08-dragonfire.webp",
-    "bytes": 5431768,
-    "sha256": "651d4431f66883a174e88f679716d4a5156c7c4f49212eca5a8d336138ebc7d5",
+    "bytes": 1882272,
+    "sha256": "95f9b58e157b5df0bc4482e835a38493277290efc49ca3b14c51c9e6c975b200",
     "isDefault": true,
     "condition": "Factory New",
     "wear": 0,
@@ -296,8 +296,8 @@ const baseSkins = [
     "englishName": "Tec-9 | Fuel Injector",
     "model": "assets/weapons/cs2-loadout/tec9-fuel-injector.glb",
     "preview": "assets/weapons/cs2-loadout/previews/tec9-fuel-injector.webp",
-    "bytes": 3600660,
-    "sha256": "4ed5e6c4e44951bbe1257120818e2f5d2ef94e24428c178253990f06efec649c",
+    "bytes": 755180,
+    "sha256": "b132801d6e93d259cc6b28db5d6832043dcc836acd9a13100b3fe3de4c8a52c4",
     "isDefault": true,
     "condition": "Factory New",
     "wear": 0,
@@ -313,8 +313,8 @@ const baseSkins = [
     "englishName": "XM1014 | Tranquility",
     "model": "assets/weapons/cs2-loadout/xm1014-tranquility.glb",
     "preview": "assets/weapons/cs2-loadout/previews/xm1014-tranquility.webp",
-    "bytes": 4326188,
-    "sha256": "33a2821a31da4edbd33c7644a05682d4fada1b2fb089a01ceb6de97fa4876a34",
+    "bytes": 1204544,
+    "sha256": "8c1c1fad6ce0a6df8b34acfc88a696dd6579163a73e0be9690683e8f09308dec",
     "isDefault": true,
     "condition": "Factory New",
     "wear": 0,
@@ -330,8 +330,8 @@ const baseSkins = [
     "englishName": "Sawed-Off | The Kraken",
     "model": "assets/weapons/cs2-loadout/sawedoff-the-kraken.glb",
     "preview": "assets/weapons/cs2-loadout/previews/sawedoff-the-kraken.webp",
-    "bytes": 3164672,
-    "sha256": "b2c55536c86cda12f5db19dc1c0a10b574d05a85fe096ba3a87fa1281e29b766",
+    "bytes": 398376,
+    "sha256": "af712f5636d13247d0c5aac489af91608e18035dcdcb029ca28d0176567612a8",
     "isDefault": true,
     "condition": "Factory New",
     "wear": 0,
@@ -347,8 +347,8 @@ const baseSkins = [
     "englishName": "MAC-10 | Neon Rider",
     "model": "assets/weapons/cs2-loadout/mac10-neon-rider.glb",
     "preview": "assets/weapons/cs2-loadout/previews/mac10-neon-rider.webp",
-    "bytes": 2150340,
-    "sha256": "54a46904e8df58474c5a1796a32685ef8773f4fb173b58d402e197a89509ceea",
+    "bytes": 466996,
+    "sha256": "5136b067975a01baf108ac9937d9b4b09cf6ae36281a15904297b9db385554ca",
     "isDefault": true,
     "condition": "Factory New",
     "wear": 0,
@@ -364,8 +364,8 @@ const baseSkins = [
     "englishName": "Galil AR | Sugar Rush",
     "model": "assets/weapons/cs2-loadout/galilar-sugar-rush.glb",
     "preview": "assets/weapons/cs2-loadout/previews/galilar-sugar-rush.webp",
-    "bytes": 3240860,
-    "sha256": "2d45539d51788201c5085f0f98a1d61bf0018886f21180bac01738e879e8faf9",
+    "bytes": 522144,
+    "sha256": "ffd253a84dfb457737060d17b17e6949d5d84aa35747288f53a3c1c36e7bceb9",
     "isDefault": true,
     "condition": "Factory New",
     "wear": 0,
@@ -381,8 +381,8 @@ const baseSkins = [
     "englishName": "SG 553 | Integrale",
     "model": "assets/weapons/cs2-loadout/sg553-integrale.glb",
     "preview": "assets/weapons/cs2-loadout/previews/sg553-integrale.webp",
-    "bytes": 2901868,
-    "sha256": "9b9665f45a812c492928be9030b1be4010e2016994f98d57bedc1e59cddc5266",
+    "bytes": 820072,
+    "sha256": "7e52b7eb8554f799d0997d3d26ee30c60d7f52c9b61d7b3d89c6ec434afac915",
     "isDefault": true,
     "condition": "Factory New",
     "wear": 0,
@@ -398,8 +398,8 @@ const baseSkins = [
     "englishName": "Karambit | Doppler Sapphire",
     "model": "assets/weapons/cs2-loadout/karambit-sapphire.glb",
     "preview": "assets/weapons/cs2-loadout/previews/karambit-sapphire.webp",
-    "bytes": 2877116,
-    "sha256": "a07db7b66f7bfda4174f44b95cfb32281db8102cd9bbb488fb6165728dc5cb1a",
+    "bytes": 715384,
+    "sha256": "2fd68ad8c0ee0077a9d3504cde8f2e309e20a5aebe19c495f1708903ce8eb8f8",
     "isDefault": true,
     "condition": "Factory New",
     "wear": 0,
@@ -415,8 +415,8 @@ const baseSkins = [
     "englishName": "P2000 | Fire Elemental",
     "model": "assets/weapons/cs2-loadout/hkp2000-fire-elemental.glb",
     "preview": "assets/weapons/cs2-loadout/previews/hkp2000-fire-elemental.webp",
-    "bytes": 2737140,
-    "sha256": "4e92bf726029c3abe3f875a9239f5c10b7013672ea94e4b6a2fcc3bf9d9f0397",
+    "bytes": 700132,
+    "sha256": "91ed41d6e0ad14d9f8a633f8ff18c0e2561911cb7e752fe1a32624e173f4f18a",
     "isDefault": true,
     "condition": "Factory New",
     "wear": 0,
@@ -426,8 +426,8 @@ const baseSkins = [
     "previewSha256": "4288a0c9779e6d228e6daa125853f2284d569859a0cab3d1da1ea631bc5a290f",
     "animation": {
       "model": "assets/viewmodel/optional/hkp2000.glb",
-      "bytes": 910008,
-      "sha256": "d6e5632695296d283cc24d4b45c6949cbfb8fc3abc880b5c6ecb9638a44821f7"
+      "bytes": 377540,
+      "sha256": "6c88bba62d9a61185d06143f07843ff56d81e11f7c2ddf0627f81d0c0f33993b"
     }
   },
   {
@@ -437,8 +437,8 @@ const baseSkins = [
     "englishName": "CZ75-Auto | Xiangliu",
     "model": "assets/weapons/cs2-loadout/cz75a-xiangliu.glb",
     "preview": "assets/weapons/cs2-loadout/previews/cz75a-xiangliu.webp",
-    "bytes": 4345120,
-    "sha256": "886058b5633cc97b0fa90e063f1df2150a275f91dc521327ca7f49d48ceb0fc5",
+    "bytes": 1106752,
+    "sha256": "b89c92f541de2450662dfad21931595bdd0e6fc149128d630f1b45fe9b66680e",
     "isDefault": true,
     "condition": "Factory New",
     "wear": 0,
@@ -448,8 +448,8 @@ const baseSkins = [
     "previewSha256": "5795a99f2c86379f8b80ae20983ec7fd5fba9961faa3d747cdb1ff06aa2235c2",
     "animation": {
       "model": "assets/viewmodel/optional/cz75a.glb",
-      "bytes": 987188,
-      "sha256": "53f8a6b3bc96ddd3e9bf84d9460a90e9115465e9cb5f8ad1d1d3939eed16b0d1"
+      "bytes": 421744,
+      "sha256": "5b0e9a4a1b131bd72292f5e1b6777884d7d83a24ac05206295afe24f0cb7aacf"
     }
   },
   {
@@ -459,8 +459,8 @@ const baseSkins = [
     "englishName": "R8 左轮手枪 | Reboot",
     "model": "assets/weapons/cs2-loadout/revolver-reboot.glb",
     "preview": "assets/weapons/cs2-loadout/previews/revolver-reboot.webp",
-    "bytes": 3439728,
-    "sha256": "c7c95fd9428bbae541d93b2ed17a1b86a7462476b2bfd5263422bad717fc252a",
+    "bytes": 982848,
+    "sha256": "bff86ed0ba4ae5f3c182b720d0a6be4dc21b6646142ba5bb2cf074311394af95",
     "isDefault": true,
     "condition": "Factory New",
     "wear": 0,
@@ -470,8 +470,8 @@ const baseSkins = [
     "previewSha256": "f4fd2cc4e02db5dc8e9fd657f9ded584c73d24fd24a529b21e37ff6a65efd49f",
     "animation": {
       "model": "assets/viewmodel/optional/revolver.glb",
-      "bytes": 1082788,
-      "sha256": "12077abaa414434abb75461b5e2943393aa8c1830fa48757a2a5cb694b69984a"
+      "bytes": 415168,
+      "sha256": "01305a95814411a103810f0d04f4aa28c351309e3734f517218e1022c87a0a7e"
     }
   },
   {
@@ -481,8 +481,8 @@ const baseSkins = [
     "englishName": "AUG | Akihabara Accept",
     "model": "assets/weapons/cs2-loadout/aug-akihabara-accept.glb",
     "preview": "assets/weapons/cs2-loadout/previews/aug-akihabara-accept.webp",
-    "bytes": 3454856,
-    "sha256": "f909aa30b2e718c9b5d142bb50098072c21a8698cef9811231afae93874b4f08",
+    "bytes": 1001160,
+    "sha256": "ca258e918aa9e3f4cd34c386147f98d57a1466d67905a4766df3894f3ea7af65",
     "isDefault": true,
     "condition": "Factory New",
     "wear": 0,
@@ -492,8 +492,8 @@ const baseSkins = [
     "previewSha256": "347b2e8be0ce4d2ca7e5ebba6848e0886bff27f7ac8befb743bb6f055394b708",
     "animation": {
       "model": "assets/viewmodel/optional/aug.glb",
-      "bytes": 761164,
-      "sha256": "dda70bc54fd3271fd7b4034b00f8d63b75cdf0c50eca54f2980ed580f6797522"
+      "bytes": 288004,
+      "sha256": "e47dfd120e708f2bf68c90e093f12c5d6389892c49083023db322a6a9e56461d"
     }
   },
   {
@@ -503,8 +503,8 @@ const baseSkins = [
     "englishName": "FAMAS | Roll Cage",
     "model": "assets/weapons/cs2-loadout/famas-roll-cage.glb",
     "preview": "assets/weapons/cs2-loadout/previews/famas-roll-cage.webp",
-    "bytes": 3048440,
-    "sha256": "8694df5b3820d85fc760983dfc76b90b25b1f5641cac3bc474b102bad4d6cf1c",
+    "bytes": 669780,
+    "sha256": "ec7fc3013ae38cf4879fb5faf81bf6dede97fcf20508d95f87049187a9c2fc38",
     "isDefault": true,
     "condition": "Factory New",
     "wear": 0,
@@ -514,8 +514,8 @@ const baseSkins = [
     "previewSha256": "f1f358578d8c0ac0f754ee5a826257e6bf1d6cfad5878d2d475a28976979b6bb",
     "animation": {
       "model": "assets/viewmodel/optional/famas.glb",
-      "bytes": 634092,
-      "sha256": "747e6d07d46e85e56d7eedb6b20267ea2836407045010b68b1d00d58faf7ac24"
+      "bytes": 240816,
+      "sha256": "3708323d350e2b877f976d8161dd580090d2c4304dd146e19c74e6a40f904897"
     }
   },
   {
@@ -525,8 +525,8 @@ const baseSkins = [
     "englishName": "G3SG1 | Flux",
     "model": "assets/weapons/cs2-loadout/g3sg1-flux.glb",
     "preview": "assets/weapons/cs2-loadout/previews/g3sg1-flux.webp",
-    "bytes": 3646084,
-    "sha256": "a249971907395469445702ccbcbe0ceeb49fa6a8e86bbdf6904d8bc1e1637484",
+    "bytes": 852188,
+    "sha256": "5812cf87a844450a0de0b2e7ed1ab50eff20db6497914b8d3cd6185382661656",
     "isDefault": true,
     "condition": "Factory New",
     "wear": 0,
@@ -536,8 +536,8 @@ const baseSkins = [
     "previewSha256": "5b0d30a47426fa9b1691c5e7b0a73d3547c5f8a80f2ac1907345fc23292d8e4f",
     "animation": {
       "model": "assets/viewmodel/optional/g3sg1.glb",
-      "bytes": 743152,
-      "sha256": "a9819021fb4af42adef66fc7191b2da28ca4d85d9cb284836e1d9f2bef9cbf59"
+      "bytes": 286368,
+      "sha256": "ea6d790b4ee2276451140ba0740e06c3c39319aadc5eca882a37f932bc997cef"
     }
   },
   {
@@ -547,8 +547,8 @@ const baseSkins = [
     "englishName": "MP5-SD | Phosphor",
     "model": "assets/weapons/cs2-loadout/mp5sd-phosphor.glb",
     "preview": "assets/weapons/cs2-loadout/previews/mp5sd-phosphor.webp",
-    "bytes": 3993640,
-    "sha256": "8003c6df5ea9462663f05f39bd91b3cb28d8095fd89b49dc5677347c5d02dc3d",
+    "bytes": 929324,
+    "sha256": "0f4b602622f91b015ba6ceac715de26c47ec19bcfdae0db150dd12a465f01cf2",
     "isDefault": true,
     "condition": "Factory New",
     "wear": 0,
@@ -558,8 +558,8 @@ const baseSkins = [
     "previewSha256": "f6c31161a30574a793fdefad9d2076456dfa38516053ae0d4d2b6e7de90e2c6d",
     "animation": {
       "model": "assets/viewmodel/optional/mp5sd.glb",
-      "bytes": 647824,
-      "sha256": "b265a89ee325597b692d78379ea1e85eb5d0c8a28d588d5b68a1e299b0744aa8"
+      "bytes": 250752,
+      "sha256": "8b99f7824ae6be38005ae2c94183729ac1e29b45c6ab4697f7de0abed8b4dca9"
     }
   },
   {
@@ -569,8 +569,8 @@ const baseSkins = [
     "englishName": "P90 | Asiimov",
     "model": "assets/weapons/cs2-loadout/p90-asiimov.glb",
     "preview": "assets/weapons/cs2-loadout/previews/p90-asiimov.webp",
-    "bytes": 2826880,
-    "sha256": "b8403a04bc2e0c12d21f8cc20fe4d015167e70e04d77bad537c2e847016134ce",
+    "bytes": 725276,
+    "sha256": "2895d90ca21cf42a30d5dbaf5aecec0a0e5e39fb3f68ab5673158803b8c3c02c",
     "isDefault": true,
     "condition": "Factory New",
     "wear": 0,
@@ -580,8 +580,8 @@ const baseSkins = [
     "previewSha256": "784ed16a4907bd9409853e5c96f02fd5249c92a97a4ef4d59d84c7f10627259a",
     "animation": {
       "model": "assets/viewmodel/optional/p90.glb",
-      "bytes": 742360,
-      "sha256": "54fe07690ccd4395caa551e59756660d97d7d889133679d0201b12790dfcffb5"
+      "bytes": 279700,
+      "sha256": "c7b4289c21f1ad78f34a4453d3590f5577f237e082489260c33efe259cf382ab"
     }
   },
   {
@@ -591,8 +591,8 @@ const baseSkins = [
     "englishName": "UMP-45 | Primal Saber",
     "model": "assets/weapons/cs2-loadout/ump45-primal-saber.glb",
     "preview": "assets/weapons/cs2-loadout/previews/ump45-primal-saber.webp",
-    "bytes": 2876592,
-    "sha256": "4904fabb4df486162a7a21caeff7b128919c8fd259bc7ffb3b35049a5cd294e3",
+    "bytes": 637936,
+    "sha256": "9cc62edc687541f78938637e454fe15064c7c9151f9b6f14895a8083a0cabbca",
     "isDefault": true,
     "condition": "Factory New",
     "wear": 0,
@@ -602,8 +602,8 @@ const baseSkins = [
     "previewSha256": "bb5c3faf4f3f442f3f536e12b699d786561bceabb87d91c2769965d700c18f07",
     "animation": {
       "model": "assets/viewmodel/optional/ump45.glb",
-      "bytes": 782176,
-      "sha256": "277b59af3a2c4e44c5111772eb752436c9244df623f589bf1c0c1e013a36b2ff"
+      "bytes": 316048,
+      "sha256": "7f5140d265128a5a56195730b064416fe1e94302e6aa0a82468357b7aecac10c"
     }
   },
   {
@@ -613,8 +613,8 @@ const baseSkins = [
     "englishName": "M249 | Nebula Crusader",
     "model": "assets/weapons/cs2-loadout/m249-nebula-crusader.glb",
     "preview": "assets/weapons/cs2-loadout/previews/m249-nebula-crusader.webp",
-    "bytes": 4996296,
-    "sha256": "23386da18f9dddd1ad221f5b132232abb707f8ed5dcae3ed62a13af748ec3ce0",
+    "bytes": 1332424,
+    "sha256": "5e8a9e69efbdde82df1c7aa79161795b66056c2c5f526c58c2bfe60af880d92a",
     "isDefault": true,
     "condition": "Factory New",
     "wear": 0,
@@ -624,8 +624,8 @@ const baseSkins = [
     "previewSha256": "1c854f8eecdf072e0feb3d80e13a3b1e16929c1fb1aef60c22789cddb263298e",
     "animation": {
       "model": "assets/viewmodel/optional/m249.glb",
-      "bytes": 1588908,
-      "sha256": "fa12544e8ff4414eeae4cad3c1ff0e4327171373ae5bdde599b4322c2ae4541c"
+      "bytes": 777196,
+      "sha256": "ae8e9be00cfaabb638d6ca2571813f4c2b476563f79c7e83b8a439ae0bc7a2e9"
     }
   },
   {
@@ -635,8 +635,8 @@ const baseSkins = [
     "englishName": "Negev | Power Loader",
     "model": "assets/weapons/cs2-loadout/negev-power-loader.glb",
     "preview": "assets/weapons/cs2-loadout/previews/negev-power-loader.webp",
-    "bytes": 5603552,
-    "sha256": "a67429a78c612053bd8a7590f1a516bd9bbeb8abc6edd03d28d1f4346a1db066",
+    "bytes": 1587980,
+    "sha256": "3badbe9d231f8c32f28e816ef6b9275ca9087bcb611ee2cc1854c296b07cb237",
     "isDefault": true,
     "condition": "Factory New",
     "wear": 0,
@@ -646,8 +646,8 @@ const baseSkins = [
     "previewSha256": "cc429414560b834f75ca50e08fca3dbe0af661edde01b88f0637c15488768071",
     "animation": {
       "model": "assets/viewmodel/optional/negev.glb",
-      "bytes": 1620004,
-      "sha256": "1a3ac49e6dffe327eabec43251510e4ebf11e3b94ff8c6254b41d2859c236393"
+      "bytes": 634776,
+      "sha256": "8861b9c04847abad0d9eede7500b806da2558c2c75be3b446cbe38fb2d1a759e"
     }
   },
   {
@@ -657,8 +657,8 @@ const baseSkins = [
     "englishName": "AK-47 | Wild Lotus",
     "model": "assets/weapons/cs2-skins/ak47-wild-lotus.glb",
     "preview": "assets/weapons/cs2-skins/previews/ak47.webp",
-    "bytes": 3487536,
-    "sha256": "791e22286576eeee8981f4ccf977f41b23ebdba156dfa850ff595a76027389db",
+    "bytes": 778448,
+    "sha256": "d83f0be9b5620ba6913e5cf6287ebe5d4e5f30eb20b5ce0a77730fd9599fa9b9",
     "isDefault": false,
     "paintkit": 724,
     "previewBytes": 20232,
@@ -674,8 +674,8 @@ const baseSkins = [
     "englishName": "M4A1-S | Blue Phosphor",
     "model": "assets/weapons/cs2-skins/m4a1-blue-phosphor.glb",
     "preview": "assets/weapons/cs2-skins/previews/m4a1.webp",
-    "bytes": 5170224,
-    "sha256": "ba2be6967166137a3c0ff20ba41325ff2c9f45eaf79a71ed5404860bf878ec5a",
+    "bytes": 1671232,
+    "sha256": "aadcd05af016a1adafeb9821ee82d0f574eb9663f97569f69bceab7aa60eddd0",
     "isDefault": false,
     "paintkit": 1017,
     "previewBytes": 13918,
@@ -691,8 +691,8 @@ const baseSkins = [
     "englishName": "AWP | Gungnir",
     "model": "assets/weapons/cs2-skins/awp-gungnir.glb",
     "preview": "assets/weapons/cs2-skins/previews/awp.webp",
-    "bytes": 4830704,
-    "sha256": "d2e18693c90e406632b8f064332f410bfd3cbd8af2682c6a0b1ac12ec8e9db72",
+    "bytes": 1317280,
+    "sha256": "ee647052e1ef6c2c9577e3cc4737fcb93e6e0d7f14fe7d65ce64d4fcbed1166a",
     "isDefault": false,
     "paintkit": 756,
     "previewBytes": 18258,
@@ -708,8 +708,8 @@ const baseSkins = [
     "englishName": "Glock-18 | Gamma Doppler Emerald",
     "model": "assets/weapons/cs2-skins/glock-emerald.glb",
     "preview": "assets/weapons/cs2-skins/previews/glock.webp",
-    "bytes": 2039336,
-    "sha256": "ca0dcb282b2e878055122df329061b0770caccf0b5aeac0bc652c38620e06971",
+    "bytes": 350604,
+    "sha256": "e93937198d31f54a0fd8d1b8a2ac171ea08db9e5483b74c2b482702b8a69f4ff",
     "isDefault": false,
     "paintkit": 1119,
     "previewBytes": 14682,
@@ -725,8 +725,8 @@ const baseSkins = [
     "englishName": "USP-S | Printstream",
     "model": "assets/weapons/cs2-skins/usp-printstream.glb",
     "preview": "assets/weapons/cs2-skins/previews/usp.webp",
-    "bytes": 2526060,
-    "sha256": "f88537ed25f95b822937ffab5e04c8b90e095266ccb92bb1e8634adca84f767e",
+    "bytes": 683324,
+    "sha256": "4ec5436a3848087135e8c3a51b333fe05be16293c76c1d0f30c98e4b55e665ce",
     "isDefault": false,
     "paintkit": 1142,
     "previewBytes": 14578,
@@ -742,8 +742,8 @@ const baseSkins = [
     "englishName": "AK-47 | Fire Serpent",
     "model": "assets/weapons/cs2-skins/official-wear/ak47-fire-serpent.glb",
     "preview": "assets/weapons/cs2-skins/optional/previews/ak47-fire-serpent.webp",
-    "bytes": 3780936,
-    "sha256": "f7ba726434c8937fb489e6401fd8a5ef9e371f35c0b5c488f271323c7b8bc993",
+    "bytes": 838176,
+    "sha256": "dcc20686245f84a10ae8ef944cd7c8479ce326d55b8996a7306b16f549f3b4a0",
     "isDefault": false,
     "paintkit": 180,
     "previewBytes": 17268,
@@ -759,8 +759,8 @@ const baseSkins = [
     "englishName": "M4A1-S | Golden Coil",
     "model": "assets/weapons/cs2-skins/optional/m4a1-golden-coil.glb",
     "preview": "assets/weapons/cs2-skins/optional/previews/m4a1-golden-coil.webp",
-    "bytes": 4516992,
-    "sha256": "f74ff219e5cc3087ed36e0935637c6bdade5772d28ed1cfb8f1376f9fde38ef3",
+    "bytes": 1349456,
+    "sha256": "47c79e1881a8501ffc2f7548cbaa56b30738577fbd4df909d8256a6ba3995539",
     "isDefault": false,
     "paintkit": 497,
     "previewBytes": 18220,
@@ -776,8 +776,8 @@ const baseSkins = [
     "englishName": "AWP | Asiimov",
     "model": "assets/weapons/cs2-skins/official-wear/awp-asiimov.glb",
     "preview": "assets/weapons/cs2-skins/optional/previews/awp-asiimov.webp",
-    "bytes": 4408612,
-    "sha256": "dbafcc30cd6c12f204c94d02a3de6bef0b827bdc756c22c8266c476920473468",
+    "bytes": 1182976,
+    "sha256": "4590808068fa6a0fcb1b1a5858b3ca75dbeb0920f83b2e94b920d93642569b99",
     "isDefault": false,
     "paintkit": 279,
     "previewBytes": 15690,
@@ -793,8 +793,8 @@ const baseSkins = [
     "englishName": "Glock-18 | Bullet Queen",
     "model": "assets/weapons/cs2-skins/optional/glock-bullet-queen.glb",
     "preview": "assets/weapons/cs2-skins/optional/previews/glock-bullet-queen.webp",
-    "bytes": 2686168,
-    "sha256": "06c6caa1132726b288845c7495d15c6f06527863c0fda30411e45f9fe9906717",
+    "bytes": 385040,
+    "sha256": "c0469c1c5dac1d793a536826c8c23acd84ab13013606883bccfe56fb4f642e29",
     "isDefault": false,
     "paintkit": 957,
     "previewBytes": 24694,
@@ -810,8 +810,8 @@ const baseSkins = [
     "englishName": "Glock-18 | Neo-Noir",
     "model": "assets/weapons/cs2-skins/optional/glock-neo-noir.glb",
     "preview": "assets/weapons/cs2-skins/optional/previews/glock-neo-noir.webp",
-    "bytes": 2439208,
-    "sha256": "0d194852ccb02b3271bced95e2e84b81e1f03ec11f7f72e71292340a7ec81d1a",
+    "bytes": 444792,
+    "sha256": "0f4c1278d93e3bdf5b1d7b758ebafbe04ceacaebbf8fdbc15653638915102a75",
     "isDefault": false,
     "paintkit": 988,
     "previewBytes": 24198,
@@ -827,8 +827,8 @@ const baseSkins = [
     "englishName": "USP-S | Neo-Noir",
     "model": "assets/weapons/cs2-skins/optional/usp-neo-noir.glb",
     "preview": "assets/weapons/cs2-skins/optional/previews/usp-neo-noir.webp",
-    "bytes": 2885832,
-    "sha256": "9fa397bc35c0f1ba8f03404edaa242217df9e34c32c393788afde7bfa641d58b",
+    "bytes": 644604,
+    "sha256": "1c257a3f9f28b1f26006fe7dfbfc567e4ae51e85acdc4224bc268d5c2e693d23",
     "isDefault": false,
     "paintkit": 653,
     "previewBytes": 19214,
@@ -844,8 +844,8 @@ const baseSkins = [
     "englishName": "Karambit | Doppler Ruby",
     "model": "assets/weapons/cs2-skins/optional/karambit-ruby.glb",
     "preview": "assets/weapons/cs2-skins/optional/previews/karambit-ruby.webp",
-    "bytes": 2877084,
-    "sha256": "26b05eabd4835f6c3251b27625fcb39d47961cc249ff3ff73512430cf4f89010",
+    "bytes": 715732,
+    "sha256": "8b0ea4dc71120a87626f855a1a094ed20cf460c5fffa76bd160c81888c582058",
     "isDefault": false,
     "paintkit": 415,
     "previewBytes": 17504,
@@ -861,8 +861,8 @@ const baseSkins = [
     "englishName": "Karambit | Doppler Black Pearl",
     "model": "assets/weapons/cs2-skins/optional/karambit-black-pearl.glb",
     "preview": "assets/weapons/cs2-skins/optional/previews/karambit-black-pearl.webp",
-    "bytes": 2813124,
-    "sha256": "dc1542dfcf12b549158332f9d6397d8406420f099300864fd42e9457a42d5a65",
+    "bytes": 708924,
+    "sha256": "1bf4fc6c0058473245c1efce9f29715f957d20c4c3b47592842329b962450d94",
     "isDefault": false,
     "paintkit": 417,
     "previewBytes": 16596,
@@ -878,12 +878,12 @@ const baseSkins = [
     "englishName": "M9 刺刀",
     "model": "assets/weapons/optional/m9.glb",
     "preview": "assets/weapons/optional/m9.webp",
-    "bytes": 3092496,
-    "sha256": "8bdf0f2ced6301b63bfb011cdd3c824c4fa59cf8e7d93b4408b0bf88b00b5910",
+    "bytes": 605356,
+    "sha256": "422999a8d0a2afbe4df465768b733707db56bc7bdab4721c5bff37dfc76acd64",
     "isDefault": false,
     "animation": {
-      "bytes": 835924,
-      "sha256": "0c0441f79e040d29e12690f0c0f812a1c98c922649d9fd0dde57bdf66169b3fe",
+      "bytes": 318844,
+      "sha256": "9c3d2e4328865da6b555e8fe65387f7a75719d020423a631ddce3697c7787960",
       "model": "assets/weapons/optional/m9-animations.glb"
     },
     "animationFamily": "m9",
@@ -900,12 +900,12 @@ const baseSkins = [
     "englishName": "蝴蝶刀",
     "model": "assets/weapons/optional/butterfly.glb",
     "preview": "assets/weapons/optional/butterfly.webp",
-    "bytes": 2464360,
-    "sha256": "2bf611f75fbfa18a5054e8cfa5a2829f32c1a75351beeff3852b6ba93da4d776",
+    "bytes": 509412,
+    "sha256": "74ea2380084952b835a02ec5814e39846640e5ca9d3b1ddbef81600e1392e002",
     "isDefault": false,
     "animation": {
-      "bytes": 770760,
-      "sha256": "bcf083fb9405ec2ae8bf4d371752c39d59a7649b53041c93479730b62561a82c",
+      "bytes": 283816,
+      "sha256": "d612af7f9d4d12381d4ec6f0aa6bfd689170574cf62fda8f96f4870d67a695c1",
       "model": "assets/weapons/optional/butterfly-animations.glb"
     },
     "animationFamily": "butterfly",
@@ -922,8 +922,8 @@ const baseSkins = [
     "englishName": "AK-47 | Neon Rider",
     "model": "assets/weapons/cs2-skins/expansion/ak47-neon-rider.glb",
     "preview": "assets/weapons/cs2-skins/expansion/previews/ak47-neon-rider.webp",
-    "bytes": 3567940,
-    "sha256": "aabc604b500edb0042db5d29cb312cb86fc2cbfd61a8d7f2586068d2bf584d69",
+    "bytes": 851192,
+    "sha256": "99938797dc922ee1a5b102cf327ba789eef3b5045e94efc01b221c050bed9e46",
     "isDefault": false,
     "paintkit": 707,
     "previewBytes": 22720,
@@ -939,8 +939,8 @@ const baseSkins = [
     "englishName": "AWP | Oni Taiji",
     "model": "assets/weapons/cs2-skins/expansion/awp-oni-taiji.glb",
     "preview": "assets/weapons/cs2-skins/expansion/previews/awp-oni-taiji.webp",
-    "bytes": 4383656,
-    "sha256": "981dcfa93d29fcd09c819a446e2a1043b925e310cbbf2ae3c0af3b4f7a3ab739",
+    "bytes": 1152496,
+    "sha256": "a37433b808803c8e3f09e4ec6743be4be610c8b3893738eaf71ad2e29b799f3d",
     "isDefault": false,
     "paintkit": 662,
     "previewBytes": 15160,
@@ -956,8 +956,8 @@ const baseSkins = [
     "englishName": "M4A1-S | Nightmare",
     "model": "assets/weapons/cs2-skins/expansion/m4a1-nightmare.glb",
     "preview": "assets/weapons/cs2-skins/expansion/previews/m4a1-nightmare.webp",
-    "bytes": 4345052,
-    "sha256": "9c98fc49d66b61c9d2fdf0a6efb95e3a20afc0b0fb2cf6dffbd1a69609c73a34",
+    "bytes": 1319540,
+    "sha256": "6623f96cb8236ef13f40980c352094290be2bf8e8403581b35c349ea208d6e4e",
     "isDefault": false,
     "paintkit": 714,
     "previewBytes": 15540,
@@ -973,8 +973,8 @@ const baseSkins = [
     "englishName": "M4A4 | Poseidon",
     "model": "assets/weapons/cs2-skins/expansion/m4a4-poseidon.glb",
     "preview": "assets/weapons/cs2-skins/expansion/previews/m4a4-poseidon.webp",
-    "bytes": 3868580,
-    "sha256": "a05a327d6f409297bf186a5c81ed17d777070f35180182aba727314dba9748c8",
+    "bytes": 925288,
+    "sha256": "e50675f32bbce460618418bf2ff771940a4ebea3857089fc3edf9bef169a301b",
     "isDefault": false,
     "paintkit": 449,
     "previewBytes": 21970,
@@ -990,8 +990,8 @@ const baseSkins = [
     "englishName": "Desert Eagle | Conspiracy",
     "model": "assets/weapons/cs2-skins/expansion/deagle-conspiracy.glb",
     "preview": "assets/weapons/cs2-skins/expansion/previews/deagle-conspiracy.webp",
-    "bytes": 2544396,
-    "sha256": "d96cd2fc65d6f4d8522cf15f89c3964a471083071ae9b00932ca102f9266a70f",
+    "bytes": 554140,
+    "sha256": "d0802f6b6218f1858fde70b239ef1fcf8da37de50a56cd00f1ff8aea99ba5134",
     "isDefault": false,
     "paintkit": 351,
     "previewBytes": 12602,
@@ -1007,8 +1007,8 @@ const baseSkins = [
     "englishName": "USP-S | Orion",
     "model": "assets/weapons/cs2-skins/expansion/usp-orion.glb",
     "preview": "assets/weapons/cs2-skins/expansion/previews/usp-orion.webp",
-    "bytes": 2521796,
-    "sha256": "064ef6d865b1b48fd3d67dd090a3237274172a284c1498804615b44fe44cd7da",
+    "bytes": 589652,
+    "sha256": "3375753170e1d6d46644524431f1a091692f3ae00ce1b30485938bd32e2a04e7",
     "isDefault": false,
     "paintkit": 313,
     "previewBytes": 16746,
@@ -1024,8 +1024,8 @@ const baseSkins = [
     "englishName": "MP9 | Airlock",
     "model": "assets/weapons/cs2-skins/expansion/mp9-airlock.glb",
     "preview": "assets/weapons/cs2-skins/expansion/previews/mp9-airlock.webp",
-    "bytes": 3005916,
-    "sha256": "c535f5d72d4e3620f1d98e2a413d685f47da5497dc4c5d0dc0fcdaf68fbc1325",
+    "bytes": 823148,
+    "sha256": "d36ef2db0d19fbc8189a004b98c64fa8c83a36e6edd52cece5b6ddd0db348825",
     "isDefault": false,
     "paintkit": 609,
     "previewBytes": 24306,
@@ -1041,8 +1041,8 @@ const baseSkins = [
     "englishName": "P90 | Emerald Dragon",
     "model": "assets/weapons/cs2-skins/expansion/p90-emerald-dragon.glb",
     "preview": "assets/weapons/cs2-skins/expansion/previews/p90-emerald-dragon.webp",
-    "bytes": 3565224,
-    "sha256": "9709f08fc14ab94c6a3a7da3dfac428de81f49c74b53010b19e213db0180e734",
+    "bytes": 814212,
+    "sha256": "3c8797ce96647f0049ec866358e0f29281081afc00b35e9f476a2ed3bd496c30",
     "isDefault": false,
     "paintkit": 182,
     "previewBytes": 27484,
@@ -1052,8 +1052,8 @@ const baseSkins = [
     "wearMin": 0.06,
     "animation": {
       "model": "assets/viewmodel/optional/p90.glb",
-      "bytes": 742360,
-      "sha256": "54fe07690ccd4395caa551e59756660d97d7d889133679d0201b12790dfcffb5"
+      "bytes": 279700,
+      "sha256": "c7b4289c21f1ad78f34a4453d3590f5577f237e082489260c33efe259cf382ab"
     }
   },
   {
@@ -1063,8 +1063,8 @@ const baseSkins = [
     "englishName": "P250 | See Ya Later",
     "model": "assets/weapons/cs2-skins/expansion/p250-see-ya-later.glb",
     "preview": "assets/weapons/cs2-skins/expansion/previews/p250-see-ya-later.webp",
-    "bytes": 3000860,
-    "sha256": "694be802d306833cf4d58adb57b53f6f3fba034e63ca8defe1f8547aa62d6197",
+    "bytes": 642016,
+    "sha256": "0d4a50f2d26a4a57b4f701e21abe9ffbd199b8739c0bb58a3e60cc5a87d6855e",
     "isDefault": false,
     "paintkit": 678,
     "previewBytes": 24820,
@@ -1080,8 +1080,8 @@ const baseSkins = [
     "englishName": "SSG 08 | Blood in the Water",
     "model": "assets/weapons/cs2-skins/expansion/ssg08-blood-in-the-water.glb",
     "preview": "assets/weapons/cs2-skins/expansion/previews/ssg08-blood-in-the-water.webp",
-    "bytes": 5566048,
-    "sha256": "c8998844fd2fbb95822027c0af9b6a3bd12e90d51fca04544ffaf7c414035313",
+    "bytes": 1936992,
+    "sha256": "3119263a27280ca95f441c64990d3244b71aa678de31394deb8e3c0e788cb7cf",
     "isDefault": false,
     "paintkit": 222,
     "previewBytes": 14862,
@@ -1101,8 +1101,8 @@ const baseSkins = [
     "isDefault": false,
     "wear": null,
     "model": "assets/weapons/cs2-skins/stock-guns/ak47-vanilla.glb",
-    "bytes": 4172088,
-    "sha256": "57d976c4df449b3b8cf6a07d405de8c87b8e4bdc59b9a708a999e5f5c0a54b17",
+    "bytes": 1322324,
+    "sha256": "f102b5ed9586c20627e5b127ac1016b9c1c1168f76aad58c76811027013b4726",
     "preview": "assets/weapons/cs2-skins/stock-guns/previews/ak47-vanilla.webp",
     "previewBytes": 14148,
     "previewSha256": "e0b27fa70833061e6ad56357eb15645abc762b3185e624fd55ee9f688e5c4c15"
@@ -1118,8 +1118,8 @@ const baseSkins = [
     "isDefault": false,
     "wear": null,
     "model": "assets/weapons/cs2-skins/stock-guns/m4a4-vanilla.glb",
-    "bytes": 5668280,
-    "sha256": "3aa062e389323017841eacf5b63646655b7a092a1ab60511aa055b375bca80bb",
+    "bytes": 1979800,
+    "sha256": "2c3a9cd97f9ee80b02674a53ee38bc1cdf48f95dbf9455f6d8ee6085f7c9ab2e",
     "preview": "assets/weapons/cs2-skins/stock-guns/previews/m4a4-vanilla.webp",
     "previewBytes": 19116,
     "previewSha256": "93adf5839ef7eff281abd7fdfd291ea374a27189df1512c13e5ca7b440a85cad"
@@ -1135,8 +1135,8 @@ const baseSkins = [
     "isDefault": false,
     "wear": null,
     "model": "assets/weapons/cs2-skins/stock-guns/m4a1-vanilla.glb",
-    "bytes": 5420252,
-    "sha256": "bf4d2c3f652bcc0ce3c4a9c482dd17d3ce907ff9069729b4d474286ece43df58",
+    "bytes": 1877284,
+    "sha256": "8be9e79ce7460bbd0f9aab581348a01d1b2e77b3a0b9b2f5163ee7e67ef33551",
     "preview": "assets/weapons/cs2-skins/stock-guns/previews/m4a1-vanilla.webp",
     "previewBytes": 11150,
     "previewSha256": "102fe09402855da9ad7c2946af3fdcbe7dea94d8db9beb42d60bfcb94258b082"
@@ -1152,8 +1152,8 @@ const baseSkins = [
     "isDefault": false,
     "wear": null,
     "model": "assets/weapons/cs2-skins/stock-guns/awp-vanilla.glb",
-    "bytes": 5062648,
-    "sha256": "1c20f447e6a6db082da319c67752cd6f9d739816ff39a28d72b10ef37710a8cc",
+    "bytes": 1729788,
+    "sha256": "96fdc143464c3a04400884d50ba9d8bcdb5b4c0ebd8c138890e4d5feffc8e9ae",
     "preview": "assets/weapons/cs2-skins/stock-guns/previews/awp-vanilla.webp",
     "previewBytes": 12420,
     "previewSha256": "e9b9514fb81dbdd1329e99476b89aa42faf841bd3ca3d42aa91183ea86b8e163"
@@ -1169,8 +1169,8 @@ const baseSkins = [
     "isDefault": false,
     "wear": null,
     "model": "assets/weapons/cs2-skins/stock-guns/pistol-vanilla.glb",
-    "bytes": 2858476,
-    "sha256": "e571a1c673425aa8a0dc87bebf53e57d904c2113ef73281db07d25f2e17102fc",
+    "bytes": 813268,
+    "sha256": "c94652d076af5289f6284df0159a41618002cfbc85befee8f983ff8d4b5f048a",
     "preview": "assets/weapons/cs2-skins/stock-guns/previews/pistol-vanilla.webp",
     "previewBytes": 17036,
     "previewSha256": "9ca82c23b6b3b3e7ff8fe92c4c570699b57f2a1d1c33772560de160387c18025"
@@ -1186,8 +1186,8 @@ const baseSkins = [
     "isDefault": false,
     "wear": null,
     "model": "assets/weapons/cs2-skins/stock-guns/usp-vanilla.glb",
-    "bytes": 3061552,
-    "sha256": "351c299e850eebcdb142fc97787085eeda39690e59956f62d3170f5ca7be453e",
+    "bytes": 945924,
+    "sha256": "1622ad7c6f9eba58171fae2f4e2e98cbbe74421d1f0ce485c021aa1b0c2ae81d",
     "preview": "assets/weapons/cs2-skins/stock-guns/previews/usp-vanilla.webp",
     "previewBytes": 10728,
     "previewSha256": "e1473ecea9b23e340058a16667a3862404f842af68c921fbcb6980b7f1e176c4"
@@ -1203,8 +1203,8 @@ const baseSkins = [
     "isDefault": false,
     "wear": null,
     "model": "assets/weapons/cs2-skins/stock-guns/elite-vanilla.glb",
-    "bytes": 5052896,
-    "sha256": "85f75673b27929c0d38e844769619365c0c15c8bfd9bc2e566b4c04981ece0ed",
+    "bytes": 1729420,
+    "sha256": "b004b118edbdebac423bbe4614f90d37e44769e9669c1c3b1e57624283be96f7",
     "preview": "assets/weapons/cs2-skins/stock-guns/previews/elite-vanilla.webp",
     "previewBytes": 23536,
     "previewSha256": "335e40cd49da46c0644fee88b33156840314fda61e5638af733b4cb7fba6cc2e"
@@ -1220,8 +1220,8 @@ const baseSkins = [
     "isDefault": false,
     "wear": null,
     "model": "assets/weapons/cs2-skins/stock-guns/p250-vanilla.glb",
-    "bytes": 2954488,
-    "sha256": "669f3c69acfdff5661f7e436d9f5688aaf20a76473d8b5cfabcba6a6a1e17c54",
+    "bytes": 879768,
+    "sha256": "125c14b01c7bed286167336f2304ef4205fba695fae1e6d2fab490ebdfddfaea",
     "preview": "assets/weapons/cs2-skins/stock-guns/previews/p250-vanilla.webp",
     "previewBytes": 13648,
     "previewSha256": "ebff1b1a2e5928c39a8d3b2f467d00f4af3fab8b00f0891123735289c9263f2d"
@@ -1237,8 +1237,8 @@ const baseSkins = [
     "isDefault": false,
     "wear": null,
     "model": "assets/weapons/cs2-skins/stock-guns/fiveseven-vanilla.glb",
-    "bytes": 3673608,
-    "sha256": "e5ea4bcb0ffe40e391a7ae03d5a6a3427fa78b53824fce31d0e19541ae622793",
+    "bytes": 1136092,
+    "sha256": "8ca8f2b83ed2ffcc7af7f555b5a1e0ec0af66e1cca3c5bbebd63a4c4abf0dd10",
     "preview": "assets/weapons/cs2-skins/stock-guns/previews/fiveseven-vanilla.webp",
     "previewBytes": 12008,
     "previewSha256": "02a419058bbedbc27fad8c5926f9eb36a9c367b082feb9db761fe55136379973"
@@ -1254,8 +1254,8 @@ const baseSkins = [
     "isDefault": false,
     "wear": null,
     "model": "assets/weapons/cs2-skins/stock-guns/deagle-vanilla.glb",
-    "bytes": 3273320,
-    "sha256": "8b36ddc7e7da5f8be2018b3250f59b59403044bcc42ab4e7c06aed36ff23a949",
+    "bytes": 971464,
+    "sha256": "113f35f226817b9f427215b16741b6e7896a9506ea2fe0be5ff7070865bd0139",
     "preview": "assets/weapons/cs2-skins/stock-guns/previews/deagle-vanilla.webp",
     "previewBytes": 16016,
     "previewSha256": "ff3d95dcdbd196573f9af4474fc8de8aab732f9048a4b2f2bb859c32623f5fdd"
@@ -1271,8 +1271,8 @@ const baseSkins = [
     "isDefault": false,
     "wear": null,
     "model": "assets/weapons/cs2-skins/stock-guns/nova-vanilla.glb",
-    "bytes": 3489552,
-    "sha256": "e252a9ec1f224cee2c2d7c4f99be97ea9f42cf7614702811527f8a37c1aaf195",
+    "bytes": 1062568,
+    "sha256": "89e57a2bf3f90213b6d90d1367cd13c8994383d5ba108ade58a66485428d5c0d",
     "preview": "assets/weapons/cs2-skins/stock-guns/previews/nova-vanilla.webp",
     "previewBytes": 10828,
     "previewSha256": "c0219fb919a4032253ee3d9a5fcabb5be99cd2d85bb7361d9ec8e51d2ea37574"
@@ -1288,8 +1288,8 @@ const baseSkins = [
     "isDefault": false,
     "wear": null,
     "model": "assets/weapons/cs2-skins/stock-guns/mag7-vanilla.glb",
-    "bytes": 3235600,
-    "sha256": "c7bf42b310cc6f7ebcd878166c604ee6a076c2045ae8052b72c63b1664b082d6",
+    "bytes": 976632,
+    "sha256": "9102ea71d0478a5f563b1e592f2b19ad0d455209a740eab94ff9440eb3d96d95",
     "preview": "assets/weapons/cs2-skins/stock-guns/previews/mag7-vanilla.webp",
     "previewBytes": 16014,
     "previewSha256": "56ccc70065bca83159956d3ef7ec24f964be1d39844d80951ff8e054ed6b1b91"
@@ -1305,8 +1305,8 @@ const baseSkins = [
     "isDefault": false,
     "wear": null,
     "model": "assets/weapons/cs2-skins/stock-guns/mp9-vanilla.glb",
-    "bytes": 3952880,
-    "sha256": "99fa428754cb3472bf270178a872d7cdf848017b9594bf9cf3db4a513d43e3ed",
+    "bytes": 1288668,
+    "sha256": "7c9d18475d729a923f87822fc5e1c371dd69c62b3de02cb064f768a944d9827f",
     "preview": "assets/weapons/cs2-skins/stock-guns/previews/mp9-vanilla.webp",
     "previewBytes": 15908,
     "previewSha256": "c87b4395d281fc280a49ab8adfdc328b93b87ad9fbb93befeeadeaa6e4cadfa3"
@@ -1322,8 +1322,8 @@ const baseSkins = [
     "isDefault": false,
     "wear": null,
     "model": "assets/weapons/cs2-skins/stock-guns/mp7-vanilla.glb",
-    "bytes": 4494448,
-    "sha256": "aebfd2647f0f60a1fca8752cf18e8fbf45544d59a5fc950432df5a76f9fd56dc",
+    "bytes": 1462348,
+    "sha256": "fb4e92bbefd03cd840d7fce43d7ef5e92cefd711a665ecf2a52609fcbdfbee0b",
     "preview": "assets/weapons/cs2-skins/stock-guns/previews/mp7-vanilla.webp",
     "previewBytes": 17406,
     "previewSha256": "fa471ced91bfad531279a8eebc47b304ad09fbac78da8d545e1c79a865bd1ca4"
@@ -1339,8 +1339,8 @@ const baseSkins = [
     "isDefault": false,
     "wear": null,
     "model": "assets/weapons/cs2-skins/stock-guns/bizon-vanilla.glb",
-    "bytes": 4159424,
-    "sha256": "7fbf6f3d59f0b6c9c132950c949aef9b6538edb18a6fc78261463addfda6bc07",
+    "bytes": 1349184,
+    "sha256": "5782988dbaa8ea26581aad7b73bfd6bf4207a9ac4f59e857cd423a71ec586733",
     "preview": "assets/weapons/cs2-skins/stock-guns/previews/bizon-vanilla.webp",
     "previewBytes": 13754,
     "previewSha256": "6ae9f74354287f477f4f392f8b7c7ccdc0b3e0ebd50d18ecb4fd5e66a6fdd39e"
@@ -1356,8 +1356,8 @@ const baseSkins = [
     "isDefault": false,
     "wear": null,
     "model": "assets/weapons/cs2-skins/stock-guns/scar20-vanilla.glb",
-    "bytes": 6755748,
-    "sha256": "6132c3ab53c535598085796fb3764f0ce9a2983eb19c94b1bf5cd52cd4a8009b",
+    "bytes": 2378956,
+    "sha256": "f3b5cd5705d9cfcc2bf8b0b7c872551b2e7f983550592063c6d69ea68a5492b7",
     "preview": "assets/weapons/cs2-skins/stock-guns/previews/scar20-vanilla.webp",
     "previewBytes": 19340,
     "previewSha256": "5ff35b11a16dd1dfc58342ccfcfecf44e3fd9f9f32d493c337e49d51b3bd19e6"
@@ -1373,8 +1373,8 @@ const baseSkins = [
     "isDefault": false,
     "wear": null,
     "model": "assets/weapons/cs2-skins/stock-guns/ssg08-vanilla.glb",
-    "bytes": 5968960,
-    "sha256": "cf4f7f1dbb81cfc6f596f872c5f2a7b05132750728b6f7a259707dfabc419a1a",
+    "bytes": 2230712,
+    "sha256": "a5e3dcbe2a59160f8775047e3b4858ea097c8f98763203225fd69dd571f6cf0e",
     "preview": "assets/weapons/cs2-skins/stock-guns/previews/ssg08-vanilla.webp",
     "previewBytes": 14830,
     "previewSha256": "784088c040f8c1f49b274651b3ff1578f3ca28101a0f29ae5f14b1f6f958d154"
@@ -1390,8 +1390,8 @@ const baseSkins = [
     "isDefault": false,
     "wear": null,
     "model": "assets/weapons/cs2-skins/stock-guns/tec9-vanilla.glb",
-    "bytes": 3223724,
-    "sha256": "36407d867171c640163cd43440ce8736163c2fcb08115e0502003b3218fac73f",
+    "bytes": 976284,
+    "sha256": "304f535dc7c48d3f15c3952e3693d32c732ae3fe5dee06327ab0f1d6015f11b7",
     "preview": "assets/weapons/cs2-skins/stock-guns/previews/tec9-vanilla.webp",
     "previewBytes": 12520,
     "previewSha256": "46dc9845266edc6abb754657076db2fea9571e40cf26de69281d4bcfe9405450"
@@ -1407,8 +1407,8 @@ const baseSkins = [
     "isDefault": false,
     "wear": null,
     "model": "assets/weapons/cs2-skins/stock-guns/xm1014-vanilla.glb",
-    "bytes": 4042688,
-    "sha256": "d568bc2e90a3e5b9a48432525d69ccb78a4d3c76a750144782a18782f782a0bc",
+    "bytes": 1318808,
+    "sha256": "8f15fb4a763b3aaf53652fa99c7ac5df95352dd330fd51f2de3170fc53c138c5",
     "preview": "assets/weapons/cs2-skins/stock-guns/previews/xm1014-vanilla.webp",
     "previewBytes": 10488,
     "previewSha256": "bb33c0463f58bbcfbb9b3ceb204439d557ce6be210c707d0387608d283c73fe9"
@@ -1424,8 +1424,8 @@ const baseSkins = [
     "isDefault": false,
     "wear": null,
     "model": "assets/weapons/cs2-skins/stock-guns/sawedoff-vanilla.glb",
-    "bytes": 2842000,
-    "sha256": "99627eb91c8bf51ba3ee81cc16c20736c5c2958ce3a5adcfcab12e653c7519b7",
+    "bytes": 765792,
+    "sha256": "2c611887d999cb6798f5de1b09703657b95d3d79a2c2184e289e1f3efe5ca220",
     "preview": "assets/weapons/cs2-skins/stock-guns/previews/sawedoff-vanilla.webp",
     "previewBytes": 12110,
     "previewSha256": "fe4e8c12b5429f368216ed92930bda43dbc60ba8a2d8b9f5ac0276059c4c310d"
@@ -1441,8 +1441,8 @@ const baseSkins = [
     "isDefault": false,
     "wear": null,
     "model": "assets/weapons/cs2-skins/stock-guns/mac10-vanilla.glb",
-    "bytes": 3420640,
-    "sha256": "029c8593031c2e23a83876cc808cc3b588f595d9b471dd8619a28341cf52e872",
+    "bytes": 1168352,
+    "sha256": "4373b886e9188b49779bcec66bedffdc6d9e804a0123ea75ce50374996a00a90",
     "preview": "assets/weapons/cs2-skins/stock-guns/previews/mac10-vanilla.webp",
     "previewBytes": 14240,
     "previewSha256": "6e73fca02f3b9c1c9ec491247ae3a6db8c9df1d110bd505e91489460d0804ba2"
@@ -1458,8 +1458,8 @@ const baseSkins = [
     "isDefault": false,
     "wear": null,
     "model": "assets/weapons/cs2-skins/stock-guns/galilar-vanilla.glb",
-    "bytes": 5583796,
-    "sha256": "5ea14ea56c0d8101b2088acc3ea1cc0f06ddcad6b0d3c2823f4c12cb2d6a38ad",
+    "bytes": 1893804,
+    "sha256": "3d24fcf5a976f9723ccb0f75ea6083a5252586b19305efc04bdc09f7515f21ef",
     "preview": "assets/weapons/cs2-skins/stock-guns/previews/galilar-vanilla.webp",
     "previewBytes": 15300,
     "previewSha256": "1a9662e0291fe594af7e9c19d63ec955d9b2310cc27db2ce284f45bd8252837f"
@@ -1475,8 +1475,8 @@ const baseSkins = [
     "isDefault": false,
     "wear": null,
     "model": "assets/weapons/cs2-skins/stock-guns/sg553-vanilla.glb",
-    "bytes": 6704808,
-    "sha256": "e8fef73cc52be29b8a1746ee08d5c0bee056c36b14f90cc463457da651b4088f",
+    "bytes": 2360204,
+    "sha256": "1e064fde98a5861e84f737fc69161515567d134f2aa7f66b524e9ce979255ce6",
     "preview": "assets/weapons/cs2-skins/stock-guns/previews/sg553-vanilla.webp",
     "previewBytes": 17042,
     "previewSha256": "4bd0ad6ca7a4c0e1824f8bddef38f6d987ec1f53ba74ea85d8cc45dfcbb29e4e"
@@ -1492,15 +1492,15 @@ const baseSkins = [
     "isDefault": false,
     "wear": null,
     "model": "assets/weapons/cs2-skins/stock-guns/hkp2000-vanilla.glb",
-    "bytes": 2989024,
-    "sha256": "5285dcfcc3796ecd5e1e9e09a63d39e887174182f422f6c4a8cb183acde7fccd",
+    "bytes": 893600,
+    "sha256": "fb4f401508076fd8addb42c692e7a68b6ba901bab8c22bbdc29b2bdbe0524518",
     "preview": "assets/weapons/cs2-skins/stock-guns/previews/hkp2000-vanilla.webp",
     "previewBytes": 13896,
     "previewSha256": "b46fc401afe2d6391fad0675d60d0bfda1c890bbcc8a07e02885a575f42e55bc",
     "animation": {
       "model": "assets/viewmodel/optional/hkp2000.glb",
-      "bytes": 910008,
-      "sha256": "d6e5632695296d283cc24d4b45c6949cbfb8fc3abc880b5c6ecb9638a44821f7"
+      "bytes": 377540,
+      "sha256": "6c88bba62d9a61185d06143f07843ff56d81e11f7c2ddf0627f81d0c0f33993b"
     }
   },
   {
@@ -1514,15 +1514,15 @@ const baseSkins = [
     "isDefault": false,
     "wear": null,
     "model": "assets/weapons/cs2-skins/stock-guns/cz75a-vanilla.glb",
-    "bytes": 3499520,
-    "sha256": "a1c9147ceb1379bdb66657b13ab70806b48faa83574094757a1a1de2928a118f",
+    "bytes": 1096308,
+    "sha256": "a953ed9e5dcc0295b0a9a116058b6b10fd7faa64b51620c516b95ca150e5c138",
     "preview": "assets/weapons/cs2-skins/stock-guns/previews/cz75a-vanilla.webp",
     "previewBytes": 18814,
     "previewSha256": "6f8d6518bccd673a9ded86f8a7c4e43f735dcc97c4daa08d5634bda90e5816a3",
     "animation": {
       "model": "assets/viewmodel/optional/cz75a.glb",
-      "bytes": 987188,
-      "sha256": "53f8a6b3bc96ddd3e9bf84d9460a90e9115465e9cb5f8ad1d1d3939eed16b0d1"
+      "bytes": 421744,
+      "sha256": "5b0e9a4a1b131bd72292f5e1b6777884d7d83a24ac05206295afe24f0cb7aacf"
     }
   },
   {
@@ -1536,15 +1536,15 @@ const baseSkins = [
     "isDefault": false,
     "wear": null,
     "model": "assets/weapons/cs2-skins/stock-guns/revolver-vanilla.glb",
-    "bytes": 4031260,
-    "sha256": "1082f9b88ef590c3d2d6782b31232434f03b35be5d51c03bd1621a5be6c58e5e",
+    "bytes": 1284664,
+    "sha256": "40fb046d158aa5e815925d6a8e4f310eed25e9c26a0d4da9e85095984fdd139d",
     "preview": "assets/weapons/cs2-skins/stock-guns/previews/revolver-vanilla.webp",
     "previewBytes": 17960,
     "previewSha256": "e1a54259cee467daf9f787b17170fbe00798769fa412e3417050263787cb1154",
     "animation": {
       "model": "assets/viewmodel/optional/revolver.glb",
-      "bytes": 1082788,
-      "sha256": "12077abaa414434abb75461b5e2943393aa8c1830fa48757a2a5cb694b69984a"
+      "bytes": 415168,
+      "sha256": "01305a95814411a103810f0d04f4aa28c351309e3734f517218e1022c87a0a7e"
     }
   },
   {
@@ -1558,15 +1558,15 @@ const baseSkins = [
     "isDefault": false,
     "wear": null,
     "model": "assets/weapons/cs2-skins/stock-guns/aug-vanilla.glb",
-    "bytes": 4933728,
-    "sha256": "5c516c59acd4a37202f2c6f82eab322b74a1a6649f3b8b8c83f6538ebe1254a6",
+    "bytes": 1815152,
+    "sha256": "706f72e74df1b4aab1cade795bc80f81b350863612befceadcf719597676010c",
     "preview": "assets/weapons/cs2-skins/stock-guns/previews/aug-vanilla.webp",
     "previewBytes": 19554,
     "previewSha256": "3bb39c6d12bf71f558d814348f50423d9e75e1d0cb038054c62e7e22f603293b",
     "animation": {
       "model": "assets/viewmodel/optional/aug.glb",
-      "bytes": 761164,
-      "sha256": "dda70bc54fd3271fd7b4034b00f8d63b75cdf0c50eca54f2980ed580f6797522"
+      "bytes": 288004,
+      "sha256": "e47dfd120e708f2bf68c90e093f12c5d6389892c49083023db322a6a9e56461d"
     }
   },
   {
@@ -1580,15 +1580,15 @@ const baseSkins = [
     "isDefault": false,
     "wear": null,
     "model": "assets/weapons/cs2-skins/stock-guns/famas-vanilla.glb",
-    "bytes": 4297952,
-    "sha256": "5b907b1d36be2824dc53b83603541245711888aeebe7ed669fc60c8c88ae7957",
+    "bytes": 1431016,
+    "sha256": "512695bac0c1caac4f03c03247ae19f901becb901a8b282a403777b47c13f712",
     "preview": "assets/weapons/cs2-skins/stock-guns/previews/famas-vanilla.webp",
     "previewBytes": 15810,
     "previewSha256": "169777392acda65f4a8773ae2721b66c81c407db018e2c3bab12b10055780e9c",
     "animation": {
       "model": "assets/viewmodel/optional/famas.glb",
-      "bytes": 634092,
-      "sha256": "747e6d07d46e85e56d7eedb6b20267ea2836407045010b68b1d00d58faf7ac24"
+      "bytes": 240816,
+      "sha256": "3708323d350e2b877f976d8161dd580090d2c4304dd146e19c74e6a40f904897"
     }
   },
   {
@@ -1602,15 +1602,15 @@ const baseSkins = [
     "isDefault": false,
     "wear": null,
     "model": "assets/weapons/cs2-skins/stock-guns/g3sg1-vanilla.glb",
-    "bytes": 5642224,
-    "sha256": "f779f88d3e189d476cbf4b4fb1ccf855c02d43d9fe5c8b591d9abb26fdc7f42b",
+    "bytes": 1947984,
+    "sha256": "d097ef59735e17d27e2319a3030a7bfd591e40e46504fd6da7f37ee900412ab9",
     "preview": "assets/weapons/cs2-skins/stock-guns/previews/g3sg1-vanilla.webp",
     "previewBytes": 17388,
     "previewSha256": "77054f76fe0857165954b0bc11704ff451e0c27cb47ee9878dbaf4879672f8d0",
     "animation": {
       "model": "assets/viewmodel/optional/g3sg1.glb",
-      "bytes": 743152,
-      "sha256": "a9819021fb4af42adef66fc7191b2da28ca4d85d9cb284836e1d9f2bef9cbf59"
+      "bytes": 286368,
+      "sha256": "ea6d790b4ee2276451140ba0740e06c3c39319aadc5eca882a37f932bc997cef"
     }
   },
   {
@@ -1624,15 +1624,15 @@ const baseSkins = [
     "isDefault": false,
     "wear": null,
     "model": "assets/weapons/cs2-skins/stock-guns/mp5sd-vanilla.glb",
-    "bytes": 4569376,
-    "sha256": "0761fa554d2231168bfc043f80b9f7b2abc432756ed0ce40510e75be0609cb81",
+    "bytes": 1517924,
+    "sha256": "5433167aa66bf6a16883c893332f52f5687d6a06dd6790d8d93d7b885d11c244",
     "preview": "assets/weapons/cs2-skins/stock-guns/previews/mp5sd-vanilla.webp",
     "previewBytes": 14522,
     "previewSha256": "61bb1902f4bc3019cc1b46200ff90e98b8357c73ca47c5ac1bd288a800876fcc",
     "animation": {
       "model": "assets/viewmodel/optional/mp5sd.glb",
-      "bytes": 647824,
-      "sha256": "b265a89ee325597b692d78379ea1e85eb5d0c8a28d588d5b68a1e299b0744aa8"
+      "bytes": 250752,
+      "sha256": "8b99f7824ae6be38005ae2c94183729ac1e29b45c6ab4697f7de0abed8b4dca9"
     }
   },
   {
@@ -1646,15 +1646,15 @@ const baseSkins = [
     "isDefault": false,
     "wear": null,
     "model": "assets/weapons/cs2-skins/stock-guns/p90-vanilla.glb",
-    "bytes": 3795128,
-    "sha256": "4e983de51a9730682c5c5d5de494048a1c76dee5a54373667bb1e32a5b6ac548",
+    "bytes": 1206236,
+    "sha256": "7417b3346a25e1ff5417fcc3323fdf957fed2238ea08d4e91cbbf7b83461506b",
     "preview": "assets/weapons/cs2-skins/stock-guns/previews/p90-vanilla.webp",
     "previewBytes": 17358,
     "previewSha256": "2e2007d3da77dd18f65f1cded5d3cd3705e11a4a5e7bdbfdcf10e339a539a065",
     "animation": {
       "model": "assets/viewmodel/optional/p90.glb",
-      "bytes": 742360,
-      "sha256": "54fe07690ccd4395caa551e59756660d97d7d889133679d0201b12790dfcffb5"
+      "bytes": 279700,
+      "sha256": "c7b4289c21f1ad78f34a4453d3590f5577f237e082489260c33efe259cf382ab"
     }
   },
   {
@@ -1668,15 +1668,15 @@ const baseSkins = [
     "isDefault": false,
     "wear": null,
     "model": "assets/weapons/cs2-skins/stock-guns/ump45-vanilla.glb",
-    "bytes": 4528772,
-    "sha256": "7f947356baad0bcd058fad35a222b4158b001e213d45ead874ac55535db6c902",
+    "bytes": 1485824,
+    "sha256": "c5ef8ebc61a6edec5b1e56906c182450db4f5415f4ebbb1a79c0ee3adb52d94b",
     "preview": "assets/weapons/cs2-skins/stock-guns/previews/ump45-vanilla.webp",
     "previewBytes": 19540,
     "previewSha256": "e7abbc44253ef9d85bd8a76b89eaf57a9444cf3a53ab4433999adbb3a7f44735",
     "animation": {
       "model": "assets/viewmodel/optional/ump45.glb",
-      "bytes": 782176,
-      "sha256": "277b59af3a2c4e44c5111772eb752436c9244df623f589bf1c0c1e013a36b2ff"
+      "bytes": 316048,
+      "sha256": "7f5140d265128a5a56195730b064416fe1e94302e6aa0a82468357b7aecac10c"
     }
   },
   {
@@ -1690,15 +1690,15 @@ const baseSkins = [
     "isDefault": false,
     "wear": null,
     "model": "assets/weapons/cs2-skins/stock-guns/m249-vanilla.glb",
-    "bytes": 7475564,
-    "sha256": "ed7dc694ee3ce3015fd82a5c5141cde2faf36d210d3ae5b15361c2fabdaefb59",
+    "bytes": 2661020,
+    "sha256": "539dc15a6f8b3923cbc4a0636f2caf1e88c84e77be1787bdd7de2be3ede1cf9f",
     "preview": "assets/weapons/cs2-skins/stock-guns/previews/m249-vanilla.webp",
     "previewBytes": 16626,
     "previewSha256": "e20a62db8ce7fe9957180f727599d2130d9c1ae99b3865eaea671c165d4e4adb",
     "animation": {
       "model": "assets/viewmodel/optional/m249.glb",
-      "bytes": 1588908,
-      "sha256": "fa12544e8ff4414eeae4cad3c1ff0e4327171373ae5bdde599b4322c2ae4541c"
+      "bytes": 777196,
+      "sha256": "ae8e9be00cfaabb638d6ca2571813f4c2b476563f79c7e83b8a439ae0bc7a2e9"
     }
   },
   {
@@ -1712,15 +1712,15 @@ const baseSkins = [
     "isDefault": false,
     "wear": null,
     "model": "assets/weapons/cs2-skins/stock-guns/negev-vanilla.glb",
-    "bytes": 7183156,
-    "sha256": "fa5ca10087baa28912becc88012b6d12d37bdfb0fac8595d0a7f202d4a46cb7d",
+    "bytes": 2554452,
+    "sha256": "1bbb969579a84ebd0eff41dad26077e3317a6c2dcf5b0a64dfee7a77c37176e8",
     "preview": "assets/weapons/cs2-skins/stock-guns/previews/negev-vanilla.webp",
     "previewBytes": 20040,
     "previewSha256": "d28c20a6a1e114390b527e8119ee6214f0d7b5efc84c0b0e3635cd21f1d0d17c",
     "animation": {
       "model": "assets/viewmodel/optional/negev.glb",
-      "bytes": 1620004,
-      "sha256": "1a3ac49e6dffe327eabec43251510e4ebf11e3b94ff8c6254b41d2859c236393"
+      "bytes": 634776,
+      "sha256": "8861b9c04847abad0d9eede7500b806da2558c2c75be3b446cbe38fb2d1a759e"
     }
   },
   {
@@ -1730,8 +1730,8 @@ const baseSkins = [
     "englishName": "AK-47 | Slate",
     "model": "assets/weapons/cs2-skins/popular/ak47-slate-1035.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/ak47-slate-1035.webp",
-    "bytes": 4017792,
-    "sha256": "e4cfcdc1c24b40505217796afce1a4f6ee5906bc67ab06705741f80d1d980f4d",
+    "bytes": 825440,
+    "sha256": "14050f27ffcb756f22299d82ff84fa1045646c4c56a40182bea7e185836851c9",
     "isDefault": false,
     "paintkit": 1035,
     "previewBytes": 12214,
@@ -1748,8 +1748,8 @@ const baseSkins = [
     "englishName": "AK-47 | Ice Coaled",
     "model": "assets/weapons/cs2-skins/popular/ak47-ice-coaled-1143.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/ak47-ice-coaled-1143.webp",
-    "bytes": 3507932,
-    "sha256": "49edf8380c9c93fbb85b4cb42b0dab8b65dac44fffe01e76c32f7e70dd30b4f3",
+    "bytes": 841612,
+    "sha256": "5cf93b15baad25e7b714a3a895c98d4445420984cb00d063e68917aa9c2b388f",
     "isDefault": false,
     "paintkit": 1143,
     "previewBytes": 17744,
@@ -1766,8 +1766,8 @@ const baseSkins = [
     "englishName": "AK-47 | Nightwish",
     "model": "assets/weapons/cs2-skins/popular/ak47-nightwish-1141.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/ak47-nightwish-1141.webp",
-    "bytes": 4569288,
-    "sha256": "a1f0a1a3a50ecb353c58275fc56dd61d3c3393494b3f18757690b554730727dc",
+    "bytes": 862536,
+    "sha256": "4346d6ee01c3cd7db6a5fd9693e6305635d780bc79848b378bb5e4bd6efab10c",
     "isDefault": false,
     "paintkit": 1141,
     "previewBytes": 24980,
@@ -1784,8 +1784,8 @@ const baseSkins = [
     "englishName": "M4A4 | Temukau",
     "model": "assets/weapons/cs2-skins/popular/m4a4-temukau-1228.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/m4a4-temukau-1228.webp",
-    "bytes": 4043628,
-    "sha256": "d299afeb2c46c1d1cfd4232d8650ba65f7572f3d8ee6e236bd04835650d926e5",
+    "bytes": 947460,
+    "sha256": "8023480d0fb879c670e9503b666d138af319d135c715959f64eecdb9b8c3bad2",
     "isDefault": false,
     "paintkit": 1228,
     "previewBytes": 25718,
@@ -1802,8 +1802,8 @@ const baseSkins = [
     "englishName": "M4A4 | Desolate Space",
     "model": "assets/weapons/cs2-skins/popular/m4a4-desolate-space-588.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/m4a4-desolate-space-588.webp",
-    "bytes": 3382656,
-    "sha256": "0247f23da4c4aaa369df6b8028a7d49ee69d5401bc7e51f5070ba75cec7fd4d9",
+    "bytes": 895972,
+    "sha256": "72e18c8b1a0a844ffe09ee90f3a05a3533c30a43e1f52fb87d2c6b1b424625c2",
     "isDefault": false,
     "paintkit": 588,
     "previewBytes": 25050,
@@ -1820,8 +1820,8 @@ const baseSkins = [
     "englishName": "M4A4 | Tooth Fairy",
     "model": "assets/weapons/cs2-skins/popular/m4a4-tooth-fairy-971.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/m4a4-tooth-fairy-971.webp",
-    "bytes": 5362672,
-    "sha256": "8466ffec001a7e9af86506b1d591da89fb4fdb0153f84a7281826e964dc6d14b",
+    "bytes": 1125880,
+    "sha256": "1d83ab7a57d5150bd6ff369f76e63bcdf140d54405523f2bdf5bb971a6fca076",
     "isDefault": false,
     "paintkit": 971,
     "previewBytes": 26634,
@@ -1838,8 +1838,8 @@ const baseSkins = [
     "englishName": "M4A1-S | Night Terror",
     "model": "assets/weapons/cs2-skins/popular/m4a1-night-terror-1130.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/m4a1-night-terror-1130.webp",
-    "bytes": 5025868,
-    "sha256": "d5fd6f54dd59857d0a997d038724dac59c13e3764c2174f57d45f293e09de79b",
+    "bytes": 1461484,
+    "sha256": "38da982ed9600436644f6136b38529198b16894e5cc17e143c87d7d2abbb5655",
     "isDefault": false,
     "paintkit": 1130,
     "previewBytes": 12524,
@@ -1856,8 +1856,8 @@ const baseSkins = [
     "englishName": "M4A1-S | Decimator",
     "model": "assets/weapons/cs2-skins/popular/m4a1-decimator-644.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/m4a1-decimator-644.webp",
-    "bytes": 5003196,
-    "sha256": "43347c50bfc4be12e47119775bb187d984ab6337c5c3e0906709f990f4d2c7c9",
+    "bytes": 1368692,
+    "sha256": "fa8370fc8758240a5edc6ba2bfda5933f79f7a9310a0302cea8e3d47e752ba6f",
     "isDefault": false,
     "paintkit": 644,
     "previewBytes": 13490,
@@ -1874,8 +1874,8 @@ const baseSkins = [
     "englishName": "M4A1-S | Emphorosaur-S",
     "model": "assets/weapons/cs2-skins/popular/m4a1-emphorosaur-s-1223.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/m4a1-emphorosaur-s-1223.webp",
-    "bytes": 5233216,
-    "sha256": "8c01e5a69edfd1e4beba3605668bfc8c43572fe9e62b431ff774f991e22da2af",
+    "bytes": 1492052,
+    "sha256": "1443eebd7a02c753010dcc24b6ec73648d62fbfdbf2f67cd21b2e3515e85304b",
     "isDefault": false,
     "paintkit": 1223,
     "previewBytes": 16654,
@@ -1892,8 +1892,8 @@ const baseSkins = [
     "englishName": "AWP | Atheris",
     "model": "assets/weapons/cs2-skins/popular/awp-atheris-838.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/awp-atheris-838.webp",
-    "bytes": 4347832,
-    "sha256": "edebfb3c99a065fba770d8352c15c3ac542486b7247c8fa60c5baa19aa428970",
+    "bytes": 1147252,
+    "sha256": "3df027f0f28d29f388cb5458252349be59ab45fd22f3d30636dd0d1da533b4cf",
     "isDefault": false,
     "paintkit": 838,
     "previewBytes": 16352,
@@ -1910,8 +1910,8 @@ const baseSkins = [
     "englishName": "AWP | Duality",
     "model": "assets/weapons/cs2-skins/popular/awp-duality-1222.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/awp-duality-1222.webp",
-    "bytes": 4553632,
-    "sha256": "9dc7bccd68cc6da5e019853a660ccf006d1966eb60044266946cb5bfc5015856",
+    "bytes": 1281416,
+    "sha256": "5876f182eb8a263b9dac89a8772cdb9e5470434b9b634ccb92710de12ecc2247",
     "isDefault": false,
     "paintkit": 1222,
     "previewBytes": 12822,
@@ -1928,8 +1928,8 @@ const baseSkins = [
     "englishName": "AWP | Wildfire",
     "model": "assets/weapons/cs2-skins/popular/awp-wildfire-917.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/awp-wildfire-917.webp",
-    "bytes": 4578948,
-    "sha256": "86ac022ecac0c914ab8a9fa799f34636d962dd50fefb56bae0a0ff851a597805",
+    "bytes": 1167944,
+    "sha256": "c4c2e5d004ddaa1f030aad3aebf02e6e751b32eb7d1fea68642c83d5d40e4b54",
     "isDefault": false,
     "paintkit": 917,
     "previewBytes": 15344,
@@ -1946,8 +1946,8 @@ const baseSkins = [
     "englishName": "Glock-18 | Vogue",
     "model": "assets/weapons/cs2-skins/popular/pistol-vogue-963.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/pistol-vogue-963.webp",
-    "bytes": 3195136,
-    "sha256": "151569dbe0943fd550cabc645ddf4f925c21929190c2c0c6f8e68b72ebd3f845",
+    "bytes": 324668,
+    "sha256": "ee6a8babf6570de88bd011467b8f11d984e4d25d1bad32ab92d567c75b13cdfe",
     "isDefault": false,
     "paintkit": 963,
     "previewBytes": 20898,
@@ -1964,8 +1964,8 @@ const baseSkins = [
     "englishName": "Glock-18 | Water Elemental",
     "model": "assets/weapons/cs2-skins/popular/pistol-water-elemental-353.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/pistol-water-elemental-353.webp",
-    "bytes": 1816948,
-    "sha256": "4df587b5b9cf5dc33f782c675ce7cbe268917347ae363ec6b820667ffff116fb",
+    "bytes": 287320,
+    "sha256": "c15794de30785e50fbd1967891570b75bd7426a4d3ba1561f36791a941a8266e",
     "isDefault": false,
     "paintkit": 353,
     "previewBytes": 22084,
@@ -1982,8 +1982,8 @@ const baseSkins = [
     "englishName": "Glock-18 | Umbral Rabbit",
     "model": "assets/weapons/cs2-skins/popular/pistol-umbral-rabbit-1227.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/pistol-umbral-rabbit-1227.webp",
-    "bytes": 2386756,
-    "sha256": "953e360064cd424dffb5edf7ec26d4cdb93745791ee8f0ac9f41df5a05b4b6a4",
+    "bytes": 347628,
+    "sha256": "e258136743067033fe4eb7bd088a24b732f49d1bd8cb33a721cb33457c0d3a8a",
     "isDefault": false,
     "paintkit": 1227,
     "previewBytes": 27148,
@@ -2000,8 +2000,8 @@ const baseSkins = [
     "englishName": "USP-S | Ticket to Hell",
     "model": "assets/weapons/cs2-skins/popular/usp-ticket-to-hell-1136.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/usp-ticket-to-hell-1136.webp",
-    "bytes": 1887740,
-    "sha256": "d2f3fb2db7cf5b5ffece1bdebc5bbd8e0b03fc498d3cf92b7bd543d7c9f16c03",
+    "bytes": 573816,
+    "sha256": "7534a8c1f48c39492e6f7e68aec97a55c87f4b4311d725d8f2fc6b9f3788d486",
     "isDefault": false,
     "paintkit": 1136,
     "previewBytes": 17890,
@@ -2018,8 +2018,8 @@ const baseSkins = [
     "englishName": "USP-S | Cortex",
     "model": "assets/weapons/cs2-skins/popular/usp-cortex-705.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/usp-cortex-705.webp",
-    "bytes": 3543096,
-    "sha256": "acbf166547b5b5710122dd552a495080fb1ae2d001803f3fd613d87bbdfddab6",
+    "bytes": 685952,
+    "sha256": "7bac0b918ddc4f5e4dcadc96a1497496cc333c546c161dd70c437642a056aadf",
     "isDefault": false,
     "paintkit": 705,
     "previewBytes": 21644,
@@ -2036,8 +2036,8 @@ const baseSkins = [
     "englishName": "USP-S | Cyrex",
     "model": "assets/weapons/cs2-skins/popular/usp-cyrex-637.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/usp-cyrex-637.webp",
-    "bytes": 2789320,
-    "sha256": "ca1ab52192a4066aabed31925a7c5f9941fa22a6ffa90d8963cd95f991069899",
+    "bytes": 601540,
+    "sha256": "6219be517193170ba3049e88e3bf3ec2fc642068a1cc7c3f6dab8e2270a46d60",
     "isDefault": false,
     "paintkit": 637,
     "previewBytes": 14396,
@@ -2054,8 +2054,8 @@ const baseSkins = [
     "englishName": "Dual Berettas | Melondrama",
     "model": "assets/weapons/cs2-skins/popular/elite-melondrama-1126.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/elite-melondrama-1126.webp",
-    "bytes": 3776288,
-    "sha256": "663ad752e96e380c0601e456155a363fb17b469f9b99ffed45e202d96f65c054",
+    "bytes": 848464,
+    "sha256": "16b5863ea0ebe1880c2035ca92b086aed41cecdea6aa99ef7151f364eaf75476",
     "isDefault": false,
     "paintkit": 1126,
     "previewBytes": 30698,
@@ -2072,8 +2072,8 @@ const baseSkins = [
     "englishName": "Dual Berettas | Flora Carnivora",
     "model": "assets/weapons/cs2-skins/popular/elite-flora-carnivora-1156.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/elite-flora-carnivora-1156.webp",
-    "bytes": 4691932,
-    "sha256": "e6c8f63b7333739f3e5dd5aeabbbf4d5a695716d08666e57ea7472bf24ab7d24",
+    "bytes": 1041820,
+    "sha256": "0e9e6199f6174e8b47cc624ee1d999ded07560ff3c1a776c0068cf233b93a3d3",
     "isDefault": false,
     "paintkit": 1156,
     "previewBytes": 32446,
@@ -2090,8 +2090,8 @@ const baseSkins = [
     "englishName": "Dual Berettas | Cobalt Quartz",
     "model": "assets/weapons/cs2-skins/popular/elite-cobalt-quartz-249.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/elite-cobalt-quartz-249.webp",
-    "bytes": 3828740,
-    "sha256": "337f6d31d66690225a6e4f22b6f683630f7742831e6609248f653aa24f725ac2",
+    "bytes": 842884,
+    "sha256": "00a109cbb19c6a6b9b8756aaea85374b52532aabc9b5256b5c22f62489d319c7",
     "isDefault": false,
     "paintkit": 249,
     "previewBytes": 25456,
@@ -2108,8 +2108,8 @@ const baseSkins = [
     "englishName": "P250 | Metallic DDPAT",
     "model": "assets/weapons/cs2-skins/popular/p250-metallic-ddpat-34.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/p250-metallic-ddpat-34.webp",
-    "bytes": 1933376,
-    "sha256": "07d07e876348ed309cf4d42ef487b5d5154be69b8cf56c070d152bbd05d059a9",
+    "bytes": 566692,
+    "sha256": "a5e0722ba25d70b3ab8d2ee68f94fbd73efed98b448c488b2ad34b0d361516a4",
     "isDefault": false,
     "paintkit": 34,
     "previewBytes": 13430,
@@ -2126,8 +2126,8 @@ const baseSkins = [
     "englishName": "P250 | Visions",
     "model": "assets/weapons/cs2-skins/popular/p250-visions-1153.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/p250-visions-1153.webp",
-    "bytes": 3432964,
-    "sha256": "31138a24329e8480f7c34ee1037924fb4f44f40693d9a298169a99e1f27224d5",
+    "bytes": 698352,
+    "sha256": "73aa2ba3989f097f53cc8ad85c485e1ad4be64325c467dc74c402881328310ad",
     "isDefault": false,
     "paintkit": 1153,
     "previewBytes": 22336,
@@ -2144,8 +2144,8 @@ const baseSkins = [
     "englishName": "P250 | Franklin",
     "model": "assets/weapons/cs2-skins/popular/p250-franklin-295.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/p250-franklin-295.webp",
-    "bytes": 3446380,
-    "sha256": "ad9c145929e247f5d5d442098f5809c3d308f523177c6419f14b7acd09ba5d49",
+    "bytes": 746372,
+    "sha256": "74ced95e799b9d0170a297bdb10acca4ad02ec101fe8f0a1a0307b5108c5aa0b",
     "isDefault": false,
     "paintkit": 295,
     "previewBytes": 27014,
@@ -2162,8 +2162,8 @@ const baseSkins = [
     "englishName": "Five-SeveN | Urban Hazard",
     "model": "assets/weapons/cs2-skins/popular/fiveseven-urban-hazard-387.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/fiveseven-urban-hazard-387.webp",
-    "bytes": 2330564,
-    "sha256": "d6841b953d1bd86a965923cff5657d17254025a05c992938f256b537792d6d26",
+    "bytes": 621036,
+    "sha256": "57b2124433f711e9e1d04481b0f0f7fb913b80a3a3b9561ea62e1e9deee8029c",
     "isDefault": false,
     "paintkit": 387,
     "previewBytes": 16838,
@@ -2180,8 +2180,8 @@ const baseSkins = [
     "englishName": "Five-SeveN | Scrawl",
     "model": "assets/weapons/cs2-skins/popular/fiveseven-scrawl-1128.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/fiveseven-scrawl-1128.webp",
-    "bytes": 4189492,
-    "sha256": "4eb5db368b093e548dec1b8fda0ad4ad4f66b7e68f3b5025a4f8a643a32fdb5f",
+    "bytes": 760584,
+    "sha256": "293331ae2c77f382ee3f96eff52f2f6f01f896fc9d7e4eab2bd5bdea609db386",
     "isDefault": false,
     "paintkit": 1128,
     "previewBytes": 26698,
@@ -2198,8 +2198,8 @@ const baseSkins = [
     "englishName": "Five-SeveN | Boost Protocol",
     "model": "assets/weapons/cs2-skins/popular/fiveseven-boost-protocol-1093.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/fiveseven-boost-protocol-1093.webp",
-    "bytes": 2613624,
-    "sha256": "c5124d711f4a5b4fd193b60c58fde80c5a5ccfd66c83000258868cd5e6db8533",
+    "bytes": 651612,
+    "sha256": "af7c2e65ca66936027436fe1d302199fb347cf38558f31762dab15b18ee67072",
     "isDefault": false,
     "paintkit": 1093,
     "previewBytes": 17736,
@@ -2216,8 +2216,8 @@ const baseSkins = [
     "englishName": "Desert Eagle | Mecha Industries",
     "model": "assets/weapons/cs2-skins/popular/deagle-mecha-industries-805.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/deagle-mecha-industries-805.webp",
-    "bytes": 2538032,
-    "sha256": "d03d98e07337218046334c1e4ef13adb49c14de498c73f0e440fffcfef545f8e",
+    "bytes": 586384,
+    "sha256": "11ccf0f4bca00b9b216f7c4f0a0136c65057c33f08d376b50171b166a3150333",
     "isDefault": false,
     "paintkit": 805,
     "previewBytes": 15750,
@@ -2234,8 +2234,8 @@ const baseSkins = [
     "englishName": "Desert Eagle | Light Rail",
     "model": "assets/weapons/cs2-skins/popular/deagle-light-rail-841.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/deagle-light-rail-841.webp",
-    "bytes": 2915672,
-    "sha256": "a36d9958c438dc703af9184b3c8edd401d81d1ccb36d1c60def19e589511d500",
+    "bytes": 717288,
+    "sha256": "8f1f9779562af1162e8eca5b5b90b77a27ab2901ac54e66deca587a6bc5057db",
     "isDefault": false,
     "paintkit": 841,
     "previewBytes": 13570,
@@ -2252,8 +2252,8 @@ const baseSkins = [
     "englishName": "Desert Eagle | Blue Ply",
     "model": "assets/weapons/cs2-skins/popular/deagle-blue-ply-945.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/deagle-blue-ply-945.webp",
-    "bytes": 4642760,
-    "sha256": "020d4878b3aca0a6e6dcc5883ead28974d57e2650ec2cabc871d906210fb7cc2",
+    "bytes": 857960,
+    "sha256": "d4177b19b3ed9aa79da13ac0d7811fd155410419b36e3cc88652514048cd40ef",
     "isDefault": false,
     "paintkit": 945,
     "previewBytes": 22776,
@@ -2270,8 +2270,8 @@ const baseSkins = [
     "englishName": "Nova | Wood Fired",
     "model": "assets/weapons/cs2-skins/popular/nova-wood-fired-809.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/nova-wood-fired-809.webp",
-    "bytes": 4426052,
-    "sha256": "8c1f0aa34f5797a553276feb5debda8ecd11b486b517e94cae83f2fce115d050",
+    "bytes": 1109808,
+    "sha256": "6bdf1e64c175f417c53d8c6d42236483497f4b48840f72f4cee1a67f604ec1ee",
     "isDefault": false,
     "paintkit": 809,
     "previewBytes": 13728,
@@ -2288,8 +2288,8 @@ const baseSkins = [
     "englishName": "Nova | Army Sheen",
     "model": "assets/weapons/cs2-skins/popular/nova-army-sheen-298.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/nova-army-sheen-298.webp",
-    "bytes": 4458472,
-    "sha256": "06920603936e3fe20009a5f2cfef3a1551effd56e823be048151d2f879e71adb",
+    "bytes": 1086060,
+    "sha256": "8fe5b1f5a2254995986279c1925db83297975f4989ca35c874c8f875365fd223",
     "isDefault": false,
     "paintkit": 298,
     "previewBytes": 12038,
@@ -2306,8 +2306,8 @@ const baseSkins = [
     "englishName": "Nova | Toy Soldier",
     "model": "assets/weapons/cs2-skins/popular/nova-toy-soldier-716.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/nova-toy-soldier-716.webp",
-    "bytes": 3474120,
-    "sha256": "10b6796555d4165fff1fb7de913efa5cb2bd220ca8faef5f5412b31f441ffbb4",
+    "bytes": 929780,
+    "sha256": "481f88ad316fa45abcec07e0f046e2e1ce146c3abf920ab4d5b553a268d8af80",
     "isDefault": false,
     "paintkit": 716,
     "previewBytes": 14304,
@@ -2324,8 +2324,8 @@ const baseSkins = [
     "englishName": "MAG-7 | Navy Sheen",
     "model": "assets/weapons/cs2-skins/popular/mag7-navy-sheen-822.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/mag7-navy-sheen-822.webp",
-    "bytes": 3366720,
-    "sha256": "037fceadd7c80c9ebaa4965db31ca6d05fbd0bcf9ad5ed0181994b0f32f028cf",
+    "bytes": 720704,
+    "sha256": "5c69719e2ea717a705793865e3d285e456ba53b0a3e66d956480068b4c43615d",
     "isDefault": false,
     "paintkit": 822,
     "previewBytes": 19184,
@@ -2342,8 +2342,8 @@ const baseSkins = [
     "englishName": "MAG-7 | Foresight",
     "model": "assets/weapons/cs2-skins/popular/mag7-foresight-1132.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/mag7-foresight-1132.webp",
-    "bytes": 2558564,
-    "sha256": "e13d869c27125cc7921ac664e646d3ac5b3ca4fa8348762933d215bde853cfec",
+    "bytes": 591768,
+    "sha256": "7f13b6db926309636504f5177d4d39574d7d106f53dd19151b703352738ba556",
     "isDefault": false,
     "paintkit": 1132,
     "previewBytes": 18412,
@@ -2360,8 +2360,8 @@ const baseSkins = [
     "englishName": "MAG-7 | Monster Call",
     "model": "assets/weapons/cs2-skins/popular/mag7-monster-call-961.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/mag7-monster-call-961.webp",
-    "bytes": 2891640,
-    "sha256": "ade098bf4dfd2c267b71f347c6e175476dbd5d50c27a82678cc9c29c97e0baab",
+    "bytes": 638244,
+    "sha256": "c56b6c6c419407e0e2a346bb473a93595a31532330163d1754c0104d74285131",
     "isDefault": false,
     "paintkit": 961,
     "previewBytes": 26190,
@@ -2378,8 +2378,8 @@ const baseSkins = [
     "englishName": "MP9 | Food Chain",
     "model": "assets/weapons/cs2-skins/popular/mp9-food-chain-1037.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/mp9-food-chain-1037.webp",
-    "bytes": 3977632,
-    "sha256": "8e5247d6b45e666436347a3d5f04248b883d6fc8400cb9e70c59b613c4f6c055",
+    "bytes": 942652,
+    "sha256": "fb7184a705917fa19e63d142db4184e55c804f60477a9c9a1ba6f896025e3ace",
     "isDefault": false,
     "paintkit": 1037,
     "previewBytes": 29552,
@@ -2396,8 +2396,8 @@ const baseSkins = [
     "englishName": "MP9 | Starlight Protector",
     "model": "assets/weapons/cs2-skins/popular/mp9-starlight-protector-1134.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/mp9-starlight-protector-1134.webp",
-    "bytes": 3435268,
-    "sha256": "ab235b35c0647b5dc80940c307f9db4acaf552b77cdc7b12431ef9310ab15e8a",
+    "bytes": 904964,
+    "sha256": "07276b94873d6f0fccf77e44097771f8882dacde619e0e2b2e07cfc5f4ff0e33",
     "isDefault": false,
     "paintkit": 1134,
     "previewBytes": 25608,
@@ -2414,8 +2414,8 @@ const baseSkins = [
     "englishName": "MP9 | Featherweight",
     "model": "assets/weapons/cs2-skins/popular/mp9-featherweight-1225.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/mp9-featherweight-1225.webp",
-    "bytes": 3309800,
-    "sha256": "aa72b3af0350edc43bbfe6a007590174d8d68cd4fed03ef0998a5a5459d8684f",
+    "bytes": 933544,
+    "sha256": "25e3513331b9cf5d031c6b8a3d0afc23e44c4edaa5f8b12067fa160bbc1e261d",
     "isDefault": false,
     "paintkit": 1225,
     "previewBytes": 23830,
@@ -2432,8 +2432,8 @@ const baseSkins = [
     "englishName": "MP7 | Abyssal Apparition",
     "model": "assets/weapons/cs2-skins/popular/mp7-abyssal-apparition-1133.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/mp7-abyssal-apparition-1133.webp",
-    "bytes": 3158292,
-    "sha256": "eabea3e924b0733e5dcef288f6c43b7d083da649c6ff16b67141c1af7f307245",
+    "bytes": 932412,
+    "sha256": "5b87b602d76ab812b01543449c0b7c5a08d63b15964b2fb66d06a9af0e74ea5d",
     "isDefault": false,
     "paintkit": 1133,
     "previewBytes": 22782,
@@ -2450,8 +2450,8 @@ const baseSkins = [
     "englishName": "MP7 | Cirrus",
     "model": "assets/weapons/cs2-skins/popular/mp7-cirrus-627.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/mp7-cirrus-627.webp",
-    "bytes": 3884980,
-    "sha256": "7411623d3957fc35850f738076c1ce356503bfe70608f27fe6ab4dfeb6405e92",
+    "bytes": 964580,
+    "sha256": "9dac6d9a523e21165aeafb635aed0da2e7317c4c52975d5736054b71d9e53387",
     "isDefault": false,
     "paintkit": 627,
     "previewBytes": 19194,
@@ -2468,8 +2468,8 @@ const baseSkins = [
     "englishName": "MP7 | Motherboard",
     "model": "assets/weapons/cs2-skins/popular/mp7-motherboard-782.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/mp7-motherboard-782.webp",
-    "bytes": 4295652,
-    "sha256": "e3d8eff13aeb36dcf49f8838014240012a2ed29bd6edda401f84735557284fdf",
+    "bytes": 1053716,
+    "sha256": "b700bce298eefca7b312d5bc03b45552236a86bfb973713a1f074f1139a2e0a2",
     "isDefault": false,
     "paintkit": 782,
     "previewBytes": 22304,
@@ -2486,8 +2486,8 @@ const baseSkins = [
     "englishName": "PP-Bizon | Space Cat",
     "model": "assets/weapons/cs2-skins/popular/bizon-space-cat-1125.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/bizon-space-cat-1125.webp",
-    "bytes": 3113336,
-    "sha256": "50f382480675e480502841d80f622518dd98ece9e2bc1dff91d3f33ba78106ed",
+    "bytes": 823152,
+    "sha256": "d234bbe309f281ff8169555523439cbacf1fd7dfac89ed030a6d44df0141a1d7",
     "isDefault": false,
     "paintkit": 1125,
     "previewBytes": 18222,
@@ -2504,8 +2504,8 @@ const baseSkins = [
     "englishName": "PP-Bizon | Osiris",
     "model": "assets/weapons/cs2-skins/popular/bizon-osiris-349.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/bizon-osiris-349.webp",
-    "bytes": 2817012,
-    "sha256": "93124b51c56f0d6db95d1c8d8ca12eadc4a4937c1e805ef984d1a823cf4f2450",
+    "bytes": 798324,
+    "sha256": "074d66e7be0a3a2eaf3374b5331890825abf10aed866b56825f81293b7b3c656",
     "isDefault": false,
     "paintkit": 349,
     "previewBytes": 16974,
@@ -2522,8 +2522,8 @@ const baseSkins = [
     "englishName": "PP-Bizon | Night Riot",
     "model": "assets/weapons/cs2-skins/popular/bizon-night-riot-692.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/bizon-night-riot-692.webp",
-    "bytes": 2881280,
-    "sha256": "5a559d76b29b8e5145aa8c5866ebc39d922afa95fc8aa9fe419745112b630142",
+    "bytes": 830628,
+    "sha256": "063e6a23f9109cf081f663e1df6c9142229ebe7cffe1b1bf451287ebe6d3e78d",
     "isDefault": false,
     "paintkit": 692,
     "previewBytes": 14860,
@@ -2540,8 +2540,8 @@ const baseSkins = [
     "englishName": "SCAR-20 | Fragments",
     "model": "assets/weapons/cs2-skins/popular/scar20-fragments-1226.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/scar20-fragments-1226.webp",
-    "bytes": 4023476,
-    "sha256": "e6625816c17fc54277c3c501206a7eb30b53c91529dd9a02abd9c9a73d429de8",
+    "bytes": 968752,
+    "sha256": "58bcf4c37fe9d165441703ec30907325cd38473a4b73fa7a1e30e48a8520107c",
     "isDefault": false,
     "paintkit": 1226,
     "previewBytes": 18396,
@@ -2558,8 +2558,8 @@ const baseSkins = [
     "englishName": "SCAR-20 | Enforcer",
     "model": "assets/weapons/cs2-skins/popular/scar20-enforcer-954.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/scar20-enforcer-954.webp",
-    "bytes": 3246932,
-    "sha256": "23a7bc36b7f8f946c00094fe494351e01a9c72c1161ccb69f1de8ad7e3bdf51d",
+    "bytes": 838104,
+    "sha256": "a5a3d7727bdace02df938db0747943cb3b0f8ae64b128a438de579804ee5c098",
     "isDefault": false,
     "paintkit": 954,
     "previewBytes": 16676,
@@ -2576,8 +2576,8 @@ const baseSkins = [
     "englishName": "SCAR-20 | Bloodsport",
     "model": "assets/weapons/cs2-skins/popular/scar20-bloodsport-597.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/scar20-bloodsport-597.webp",
-    "bytes": 3570540,
-    "sha256": "c9b9094f718d60d9c85039adf797de7460f5d4b9f3decaed25587957d6901347",
+    "bytes": 866984,
+    "sha256": "9dffab7c50bbcb561dbb436f93233ba0a22e256ddba860e27445f18e021a2e90",
     "isDefault": false,
     "paintkit": 597,
     "previewBytes": 21690,
@@ -2594,8 +2594,8 @@ const baseSkins = [
     "englishName": "SSG 08 | Fever Dream",
     "model": "assets/weapons/cs2-skins/popular/ssg08-fever-dream-956.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/ssg08-fever-dream-956.webp",
-    "bytes": 5691420,
-    "sha256": "c3883b4d0ae9d60f42847dd2ed87ca45c75d2da126f815f5bc2192dd43aaefe1",
+    "bytes": 1920128,
+    "sha256": "4523316b35ea03b284e2ce133a75da534f05c88e4aa64b55f24fdca46c312e81",
     "isDefault": false,
     "paintkit": 956,
     "previewBytes": 18450,
@@ -2612,8 +2612,8 @@ const baseSkins = [
     "englishName": "SSG 08 | Mainframe 001",
     "model": "assets/weapons/cs2-skins/popular/ssg08-mainframe-001-967.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/ssg08-mainframe-001-967.webp",
-    "bytes": 5395028,
-    "sha256": "490a37e7b400ade55425acb9d3cb3198e9f33470a1aaf7dbd767e1dcc6b7347d",
+    "bytes": 1864828,
+    "sha256": "3ce06eb99fb899b3a0dd3f85c5049b4f0ef473c2e3a51a88cdf56177dd651b5d",
     "isDefault": false,
     "paintkit": 967,
     "previewBytes": 15414,
@@ -2630,8 +2630,8 @@ const baseSkins = [
     "englishName": "SSG 08 | Turbo Peek",
     "model": "assets/weapons/cs2-skins/popular/ssg08-turbo-peek-1101.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/ssg08-turbo-peek-1101.webp",
-    "bytes": 5925532,
-    "sha256": "8170187693a623c3116870d489f56a8f066de3338b685bff8bb3f3b2e4de3b1d",
+    "bytes": 2007444,
+    "sha256": "24e49156e94c90d95d79114e3e7688dd09bc7952bf9ddb7837dd1e9bc59b290a",
     "isDefault": false,
     "paintkit": 1101,
     "previewBytes": 17488,
@@ -2648,8 +2648,8 @@ const baseSkins = [
     "englishName": "Tec-9 | Isaac",
     "model": "assets/weapons/cs2-skins/popular/tec9-isaac-303.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/tec9-isaac-303.webp",
-    "bytes": 1668764,
-    "sha256": "fab0d509a3e2f8fd4b2c7f3417e8f2aaadd764f17ce0d5a786cb7be12ee437c6",
+    "bytes": 431828,
+    "sha256": "bbd30dbf31ea08c7a416263ff8ad1b6a20645b4963d7d34b52c9f01c15f8bccd",
     "isDefault": false,
     "paintkit": 303,
     "previewBytes": 13838,
@@ -2666,8 +2666,8 @@ const baseSkins = [
     "englishName": "Tec-9 | Brother",
     "model": "assets/weapons/cs2-skins/popular/tec9-brother-964.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/tec9-brother-964.webp",
-    "bytes": 2981828,
-    "sha256": "612f26349e7f6f5610ac9682ca676f290f629ac8e48fc877d5096a2b572035e2",
+    "bytes": 593304,
+    "sha256": "e2f0001afefb91a4137288b7d9047c2eec7fa3965228294109a7af8f7db36ac4",
     "isDefault": false,
     "paintkit": 964,
     "previewBytes": 16556,
@@ -2684,8 +2684,8 @@ const baseSkins = [
     "englishName": "Tec-9 | Ice Cap",
     "model": "assets/weapons/cs2-skins/popular/tec9-ice-cap-599.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/tec9-ice-cap-599.webp",
-    "bytes": 2626716,
-    "sha256": "e7f225113211c862aa8b7c277ffa2c93cfe3b12590e86278ada4fb488e69a2b1",
+    "bytes": 507848,
+    "sha256": "45027e8b7d21e1972e8b0aa1c88669b5b533ee9c9442f8ea82f3b36f519107ce",
     "isDefault": false,
     "paintkit": 599,
     "previewBytes": 14174,
@@ -2702,8 +2702,8 @@ const baseSkins = [
     "englishName": "XM1014 | Zombie Offensive",
     "model": "assets/weapons/cs2-skins/popular/xm1014-zombie-offensive-1135.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/xm1014-zombie-offensive-1135.webp",
-    "bytes": 4716584,
-    "sha256": "c70edde72b3deae0ff6b48039a8779e91366036fe55f608ee112ef56383321ad",
+    "bytes": 1287764,
+    "sha256": "fdb515a639789c3139de0ea4ce66e46d7657787178ca4575f51e701f075562cf",
     "isDefault": false,
     "paintkit": 1135,
     "previewBytes": 15354,
@@ -2720,8 +2720,8 @@ const baseSkins = [
     "englishName": "XM1014 | Entombed",
     "model": "assets/weapons/cs2-skins/popular/xm1014-entombed-970.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/xm1014-entombed-970.webp",
-    "bytes": 5753140,
-    "sha256": "627b8a32d5fd14b0437834b02eb33168450585876f0e60851d1f0b4e4e9e0b6d",
+    "bytes": 1445536,
+    "sha256": "420c691b8de10faf966ce77097e16144d8e8811b7b5f34831bb3b7f4e5747728",
     "isDefault": false,
     "paintkit": 970,
     "previewBytes": 17932,
@@ -2738,8 +2738,8 @@ const baseSkins = [
     "englishName": "XM1014 | Black Tie",
     "model": "assets/weapons/cs2-skins/popular/xm1014-black-tie-557.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/xm1014-black-tie-557.webp",
-    "bytes": 3772180,
-    "sha256": "dcfc3347cf48619d346f08fce891c73f51650e92421c69fee531cbb6c227f184",
+    "bytes": 1176180,
+    "sha256": "3fa253a9eed1e7357462189bd6eedda63655ca45dfeb77792639f0525075cc73",
     "isDefault": false,
     "paintkit": 557,
     "previewBytes": 13660,
@@ -2756,8 +2756,8 @@ const baseSkins = [
     "englishName": "Sawed-Off | Spirit Board",
     "model": "assets/weapons/cs2-skins/popular/sawedoff-spirit-board-1140.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/sawedoff-spirit-board-1140.webp",
-    "bytes": 4370968,
-    "sha256": "cf967eea40e09df0937862cb5353040190e8a2efc85a33ec512ece50c6817bff",
+    "bytes": 752704,
+    "sha256": "9abe238cc659118adb98e736e2722a84c1c5a64b12cded4534d2af82cca8d25b",
     "isDefault": false,
     "paintkit": 1140,
     "previewBytes": 18156,
@@ -2774,8 +2774,8 @@ const baseSkins = [
     "englishName": "Sawed-Off | Kiss♥Love",
     "model": "assets/weapons/cs2-skins/popular/sawedoff-kiss-love-1155.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/sawedoff-kiss-love-1155.webp",
-    "bytes": 2240968,
-    "sha256": "3d70ed496ab0336bdc38dd45b0d5b3dbb4816573651d8300df735d3a8061571e",
+    "bytes": 317788,
+    "sha256": "3dc2504f63408297a295196f8f26c1d8c9474a044c49f83d7ec692786020feaa",
     "isDefault": false,
     "paintkit": 1155,
     "previewBytes": 12612,
@@ -2792,8 +2792,8 @@ const baseSkins = [
     "englishName": "Sawed-Off | Apocalypto",
     "model": "assets/weapons/cs2-skins/popular/sawedoff-apocalypto-953.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/sawedoff-apocalypto-953.webp",
-    "bytes": 2467952,
-    "sha256": "2d5629f0b6203a1d573c0bcddcde743e11350f0134dbbf5cfb32c83580f7140f",
+    "bytes": 373760,
+    "sha256": "20fda24c2f142faeeed9cda29bb45049dea54fe619e56ae4c982d8ea3d6958a8",
     "isDefault": false,
     "paintkit": 953,
     "previewBytes": 15236,
@@ -2810,8 +2810,8 @@ const baseSkins = [
     "englishName": "MAC-10 | Disco Tech",
     "model": "assets/weapons/cs2-skins/popular/mac10-disco-tech-947.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/mac10-disco-tech-947.webp",
-    "bytes": 2416188,
-    "sha256": "0d56c41a170ab44e05b07c929c8c93f7f79f4e8f6a2c04e9fe3afb3def6cfcfb",
+    "bytes": 497260,
+    "sha256": "095a0d2d08f1ec7bfdf7fc1ba53f9df25fcc0eb8ad439183e24e017affccb309",
     "isDefault": false,
     "paintkit": 947,
     "previewBytes": 19042,
@@ -2828,8 +2828,8 @@ const baseSkins = [
     "englishName": "MAC-10 | Allure",
     "model": "assets/weapons/cs2-skins/popular/mac10-allure-965.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/mac10-allure-965.webp",
-    "bytes": 2560072,
-    "sha256": "ceee8b4b2ce8c454a3dc8f947f3bf1d2a3186223c03a4db7e14ce4cf1b654360",
+    "bytes": 517292,
+    "sha256": "57e1d8599b459c9054389c494c59f2cd185ee7ad3501c81ce75322778ad6e16b",
     "isDefault": false,
     "paintkit": 965,
     "previewBytes": 20366,
@@ -2846,8 +2846,8 @@ const baseSkins = [
     "englishName": "MAC-10 | Ensnared",
     "model": "assets/weapons/cs2-skins/popular/mac10-ensnared-1131.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/mac10-ensnared-1131.webp",
-    "bytes": 2292048,
-    "sha256": "7f8df00e911f6995a331610a1be3a8ce5903762656991679902f84a86243e993",
+    "bytes": 489052,
+    "sha256": "5999bb2dfc0b136fceea4e27e4ff870a207754810eb5b86b8615178ce883c734",
     "isDefault": false,
     "paintkit": 1131,
     "previewBytes": 17380,
@@ -2864,8 +2864,8 @@ const baseSkins = [
     "englishName": "Galil AR | Chromatic Aberration",
     "model": "assets/weapons/cs2-skins/popular/galilar-chromatic-aberration-1038.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/galilar-chromatic-aberration-1038.webp",
-    "bytes": 2877028,
-    "sha256": "ce976629c1e17064d3233e57adcbd61a3d7033a6c086e83e01d1e18c0541b430",
+    "bytes": 512564,
+    "sha256": "d209094abb998f4092ede2027057a53501ad756d2a9f782140dd6e664da0fa6b",
     "isDefault": false,
     "paintkit": 1038,
     "previewBytes": 21542,
@@ -2882,8 +2882,8 @@ const baseSkins = [
     "englishName": "Galil AR | Stone Cold",
     "model": "assets/weapons/cs2-skins/popular/galilar-stone-cold-494.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/galilar-stone-cold-494.webp",
-    "bytes": 2631944,
-    "sha256": "12068f2c7cdec269d8945e96658daf8a5dd0e36fe5f9d95178fcfde4eec01e73",
+    "bytes": 518408,
+    "sha256": "6e3bd55d95c4132d55f1ed1c1b37ca7a2768c6e8f1ec90baa56871590902d4b4",
     "isDefault": false,
     "paintkit": 494,
     "previewBytes": 17994,
@@ -2900,8 +2900,8 @@ const baseSkins = [
     "englishName": "Galil AR | Rocket Pop",
     "model": "assets/weapons/cs2-skins/popular/galilar-rocket-pop-478.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/galilar-rocket-pop-478.webp",
-    "bytes": 3360012,
-    "sha256": "ab3c6bee82a96735c20a97adc5d790b32a3f3a87742bfe6d83b4a15f1961cc0c",
+    "bytes": 537844,
+    "sha256": "7fcf472855e75b83f374de521e526b6d6c8111353e9b94ff5b9a4bb99afa2876",
     "isDefault": false,
     "paintkit": 478,
     "previewBytes": 23536,
@@ -2918,8 +2918,8 @@ const baseSkins = [
     "englishName": "SG 553 | Dragon Tech",
     "model": "assets/weapons/cs2-skins/popular/sg553-dragon-tech-1151.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/sg553-dragon-tech-1151.webp",
-    "bytes": 3990420,
-    "sha256": "4a7da286b58fc9f782087d94a6a01250229466781a5b8b3d9452dad282f093be",
+    "bytes": 931628,
+    "sha256": "e04dccf3ca741784649ffc0ae73e64f9a89b9ea5584b2a616c5954f9ed957b17",
     "isDefault": false,
     "paintkit": 1151,
     "previewBytes": 24330,
@@ -2936,8 +2936,8 @@ const baseSkins = [
     "englishName": "SG 553 | Darkwing",
     "model": "assets/weapons/cs2-skins/popular/sg553-darkwing-955.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/sg553-darkwing-955.webp",
-    "bytes": 2672392,
-    "sha256": "c2a97003dab4e5c17d65307c889c8bbf2f12e61fc3f77512248e7162b49fa5ef",
+    "bytes": 788068,
+    "sha256": "9d50fe6739c19268ee588080674e6b247955ed85886dfec46c74444917563db9",
     "isDefault": false,
     "paintkit": 955,
     "previewBytes": 18688,
@@ -2954,8 +2954,8 @@ const baseSkins = [
     "englishName": "SG 553 | Cyberforce",
     "model": "assets/weapons/cs2-skins/popular/sg553-cyberforce-1234.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/sg553-cyberforce-1234.webp",
-    "bytes": 3865268,
-    "sha256": "35fb3e590cdab5d308e0872152a6a95b3c77956e371bc904d3bd11cfd68bcf9f",
+    "bytes": 962892,
+    "sha256": "744af9c2e78d345ae88f1880343fe7f8d74f54823a5cb2dde29fa18a3886966a",
     "isDefault": false,
     "paintkit": 1234,
     "previewBytes": 21742,
@@ -2972,8 +2972,8 @@ const baseSkins = [
     "englishName": "P2000 | Wicked Sick",
     "model": "assets/weapons/cs2-skins/popular/hkp2000-wicked-sick-1224.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/hkp2000-wicked-sick-1224.webp",
-    "bytes": 3356448,
-    "sha256": "001d29e3bf5c583770f766bf733ecc4b41e7d1951b6b86c74b6ad5a3fa84d3f0",
+    "bytes": 821428,
+    "sha256": "c35254338766d00f8caae579390b311e81ee1ecf55a3e5e34b538175c5a72935",
     "isDefault": false,
     "paintkit": 1224,
     "previewBytes": 25566,
@@ -2984,8 +2984,8 @@ const baseSkins = [
     "collection": "popular",
     "animation": {
       "model": "assets/viewmodel/optional/hkp2000.glb",
-      "bytes": 910008,
-      "sha256": "d6e5632695296d283cc24d4b45c6949cbfb8fc3abc880b5c6ecb9638a44821f7"
+      "bytes": 377540,
+      "sha256": "6c88bba62d9a61185d06143f07843ff56d81e11f7c2ddf0627f81d0c0f33993b"
     }
   },
   {
@@ -2995,8 +2995,8 @@ const baseSkins = [
     "englishName": "P2000 | Lifted Spirits",
     "model": "assets/weapons/cs2-skins/popular/hkp2000-lifted-spirits-1138.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/hkp2000-lifted-spirits-1138.webp",
-    "bytes": 2933852,
-    "sha256": "286842201955ddf030d3be1e2a0e8679227a2bc421765802f6211a9b38c5ce3d",
+    "bytes": 729084,
+    "sha256": "88f9e7dccd87033969fd2d7edf611790c67c52ff019b5f46406a46f77c24d1e3",
     "isDefault": false,
     "paintkit": 1138,
     "previewBytes": 16918,
@@ -3007,8 +3007,8 @@ const baseSkins = [
     "collection": "popular",
     "animation": {
       "model": "assets/viewmodel/optional/hkp2000.glb",
-      "bytes": 910008,
-      "sha256": "d6e5632695296d283cc24d4b45c6949cbfb8fc3abc880b5c6ecb9638a44821f7"
+      "bytes": 377540,
+      "sha256": "6c88bba62d9a61185d06143f07843ff56d81e11f7c2ddf0627f81d0c0f33993b"
     }
   },
   {
@@ -3018,8 +3018,8 @@ const baseSkins = [
     "englishName": "P2000 | Imperial Dragon",
     "model": "assets/weapons/cs2-skins/popular/hkp2000-imperial-dragon-591.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/hkp2000-imperial-dragon-591.webp",
-    "bytes": 3777604,
-    "sha256": "18876bf4d71a0ad9934e163e8c1d15161ce1f709e892362b8f330ef41af7ed0f",
+    "bytes": 794784,
+    "sha256": "300fe3bb68ded47a27d827b4764980cb4899eaef8e5299d781afabf80c507a87",
     "isDefault": false,
     "paintkit": 591,
     "previewBytes": 26432,
@@ -3030,8 +3030,8 @@ const baseSkins = [
     "collection": "popular",
     "animation": {
       "model": "assets/viewmodel/optional/hkp2000.glb",
-      "bytes": 910008,
-      "sha256": "d6e5632695296d283cc24d4b45c6949cbfb8fc3abc880b5c6ecb9638a44821f7"
+      "bytes": 377540,
+      "sha256": "6c88bba62d9a61185d06143f07843ff56d81e11f7c2ddf0627f81d0c0f33993b"
     }
   },
   {
@@ -3041,8 +3041,8 @@ const baseSkins = [
     "englishName": "CZ75-Auto | Circaetus",
     "model": "assets/weapons/cs2-skins/popular/cz75a-circaetus-1036.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/cz75a-circaetus-1036.webp",
-    "bytes": 6687040,
-    "sha256": "cd2d4c23fd74897152726cd3e186cc90fa23ec8cedf8de69aa39ca264cb99cb6",
+    "bytes": 1366356,
+    "sha256": "92fe9af91fde06fcec177ec50d2644ed724d87338bd9ecfab981f8bd9440761c",
     "isDefault": false,
     "paintkit": 1036,
     "previewBytes": 29660,
@@ -3053,8 +3053,8 @@ const baseSkins = [
     "collection": "popular",
     "animation": {
       "model": "assets/viewmodel/optional/cz75a.glb",
-      "bytes": 987188,
-      "sha256": "53f8a6b3bc96ddd3e9bf84d9460a90e9115465e9cb5f8ad1d1d3939eed16b0d1"
+      "bytes": 421744,
+      "sha256": "5b0e9a4a1b131bd72292f5e1b6777884d7d83a24ac05206295afe24f0cb7aacf"
     }
   },
   {
@@ -3064,8 +3064,8 @@ const baseSkins = [
     "englishName": "CZ75-Auto | Tigris",
     "model": "assets/weapons/cs2-skins/popular/cz75a-tigris-350.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/cz75a-tigris-350.webp",
-    "bytes": 2850616,
-    "sha256": "de4b5d2e4432975c58f0cecaea603aeb1fe85650740ec76ef3a9af8cb47769a6",
+    "bytes": 903600,
+    "sha256": "02087de8cd6044bde105e040d59a715ece8fe1d47b118c967f55666a9e8efdcb",
     "isDefault": false,
     "paintkit": 350,
     "previewBytes": 20246,
@@ -3076,8 +3076,8 @@ const baseSkins = [
     "collection": "popular",
     "animation": {
       "model": "assets/viewmodel/optional/cz75a.glb",
-      "bytes": 987188,
-      "sha256": "53f8a6b3bc96ddd3e9bf84d9460a90e9115465e9cb5f8ad1d1d3939eed16b0d1"
+      "bytes": 421744,
+      "sha256": "5b0e9a4a1b131bd72292f5e1b6777884d7d83a24ac05206295afe24f0cb7aacf"
     }
   },
   {
@@ -3087,8 +3087,8 @@ const baseSkins = [
     "englishName": "CZ75-Auto | Tacticat",
     "model": "assets/weapons/cs2-skins/popular/cz75a-tacticat-687.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/cz75a-tacticat-687.webp",
-    "bytes": 3380420,
-    "sha256": "68ffd9225606573b07a958c7302bab0e4aa7cb9f861e513c7905750197ae9bf9",
+    "bytes": 930912,
+    "sha256": "fb054727da7389eea1af51aa411f9f35d330fdb275060b07b666f7acb64bff96",
     "isDefault": false,
     "paintkit": 687,
     "previewBytes": 19942,
@@ -3099,8 +3099,8 @@ const baseSkins = [
     "collection": "popular",
     "animation": {
       "model": "assets/viewmodel/optional/cz75a.glb",
-      "bytes": 987188,
-      "sha256": "53f8a6b3bc96ddd3e9bf84d9460a90e9115465e9cb5f8ad1d1d3939eed16b0d1"
+      "bytes": 421744,
+      "sha256": "5b0e9a4a1b131bd72292f5e1b6777884d7d83a24ac05206295afe24f0cb7aacf"
     }
   },
   {
@@ -3110,8 +3110,8 @@ const baseSkins = [
     "englishName": "R8 Revolver | Banana Cannon",
     "model": "assets/weapons/cs2-skins/popular/revolver-banana-cannon-1232.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/revolver-banana-cannon-1232.webp",
-    "bytes": 4939248,
-    "sha256": "8139ff27f581634a2d9e84c3cb3b795af0d69aecd9b0c7f76c9d5d2bdc2550e0",
+    "bytes": 1080208,
+    "sha256": "8daaa4b165ff4b9dbe9245c8c9f9fec253f9930e772916723e0acd8dd93d150b",
     "isDefault": false,
     "paintkit": 1232,
     "previewBytes": 23242,
@@ -3122,8 +3122,8 @@ const baseSkins = [
     "collection": "popular",
     "animation": {
       "model": "assets/viewmodel/optional/revolver.glb",
-      "bytes": 1082788,
-      "sha256": "12077abaa414434abb75461b5e2943393aa8c1830fa48757a2a5cb694b69984a"
+      "bytes": 415168,
+      "sha256": "01305a95814411a103810f0d04f4aa28c351309e3734f517218e1022c87a0a7e"
     }
   },
   {
@@ -3133,8 +3133,8 @@ const baseSkins = [
     "englishName": "R8 Revolver | Crazy 8",
     "model": "assets/weapons/cs2-skins/popular/revolver-crazy-8-1145.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/revolver-crazy-8-1145.webp",
-    "bytes": 5927844,
-    "sha256": "64e9d1a33d99abf6f635f2b1358ee8767445f1957bdc880c3be6ce7555b35844",
+    "bytes": 1261800,
+    "sha256": "7f2de8235c4f540835a3c8330979cbf4a23d60094eb32afc49d200b30ba87d1f",
     "isDefault": false,
     "paintkit": 1145,
     "previewBytes": 21950,
@@ -3145,8 +3145,8 @@ const baseSkins = [
     "collection": "popular",
     "animation": {
       "model": "assets/viewmodel/optional/revolver.glb",
-      "bytes": 1082788,
-      "sha256": "12077abaa414434abb75461b5e2943393aa8c1830fa48757a2a5cb694b69984a"
+      "bytes": 415168,
+      "sha256": "01305a95814411a103810f0d04f4aa28c351309e3734f517218e1022c87a0a7e"
     }
   },
   {
@@ -3156,8 +3156,8 @@ const baseSkins = [
     "englishName": "R8 Revolver | Grip",
     "model": "assets/weapons/cs2-skins/popular/revolver-grip-701.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/revolver-grip-701.webp",
-    "bytes": 4172708,
-    "sha256": "3acc62415e8a99322e94a98860a819fc2fc33678977ef3a7a2fb51bc16ca6ca1",
+    "bytes": 1023024,
+    "sha256": "694bcf36e6f0af2fe8d5fd0aca2ccb972ad4e134548b8854b35b1340d3ba887b",
     "isDefault": false,
     "paintkit": 701,
     "previewBytes": 24780,
@@ -3168,8 +3168,8 @@ const baseSkins = [
     "collection": "popular",
     "animation": {
       "model": "assets/viewmodel/optional/revolver.glb",
-      "bytes": 1082788,
-      "sha256": "12077abaa414434abb75461b5e2943393aa8c1830fa48757a2a5cb694b69984a"
+      "bytes": 415168,
+      "sha256": "01305a95814411a103810f0d04f4aa28c351309e3734f517218e1022c87a0a7e"
     }
   },
   {
@@ -3179,8 +3179,8 @@ const baseSkins = [
     "englishName": "AUG | Momentum",
     "model": "assets/weapons/cs2-skins/popular/aug-momentum-845.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/aug-momentum-845.webp",
-    "bytes": 3334392,
-    "sha256": "e50aa4b35ff0ddd4c0ad51f64f24aad147309f73eec9d359ca22d245e01cd488",
+    "bytes": 959388,
+    "sha256": "7051cbd6e01382fc60b800578c7be469dccfe2f5097fba7a0e987a12b728483f",
     "isDefault": false,
     "paintkit": 845,
     "previewBytes": 23734,
@@ -3191,8 +3191,8 @@ const baseSkins = [
     "collection": "popular",
     "animation": {
       "model": "assets/viewmodel/optional/aug.glb",
-      "bytes": 761164,
-      "sha256": "dda70bc54fd3271fd7b4034b00f8d63b75cdf0c50eca54f2980ed580f6797522"
+      "bytes": 288004,
+      "sha256": "e47dfd120e708f2bf68c90e093f12c5d6389892c49083023db322a6a9e56461d"
     }
   },
   {
@@ -3202,8 +3202,8 @@ const baseSkins = [
     "englishName": "AUG | Chameleon",
     "model": "assets/weapons/cs2-skins/popular/aug-chameleon-280.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/aug-chameleon-280.webp",
-    "bytes": 3791988,
-    "sha256": "7baedca7c9f6e9ff0ee15857d7a0477d171d351d97bb6b4c809a9c320fdb8949",
+    "bytes": 1000748,
+    "sha256": "4a187c0ed95d3f5469b39b2d88add04fb7c738b0c78360b368bc43471059ae41",
     "isDefault": false,
     "paintkit": 280,
     "previewBytes": 20056,
@@ -3214,8 +3214,8 @@ const baseSkins = [
     "collection": "popular",
     "animation": {
       "model": "assets/viewmodel/optional/aug.glb",
-      "bytes": 761164,
-      "sha256": "dda70bc54fd3271fd7b4034b00f8d63b75cdf0c50eca54f2980ed580f6797522"
+      "bytes": 288004,
+      "sha256": "e47dfd120e708f2bf68c90e093f12c5d6389892c49083023db322a6a9e56461d"
     }
   },
   {
@@ -3225,8 +3225,8 @@ const baseSkins = [
     "englishName": "AUG | Stymphalian",
     "model": "assets/weapons/cs2-skins/popular/aug-stymphalian-690.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/aug-stymphalian-690.webp",
-    "bytes": 4461388,
-    "sha256": "07bc0e265a8c8902814dab98a8ed6bf8ffa47896f2c2e5acee969c6bf245bfbd",
+    "bytes": 1096876,
+    "sha256": "9d806122c1a448fbaad1748619632fd2407e86f02fdd27d0a457a7e315c45605",
     "isDefault": false,
     "paintkit": 690,
     "previewBytes": 26120,
@@ -3237,8 +3237,8 @@ const baseSkins = [
     "collection": "popular",
     "animation": {
       "model": "assets/viewmodel/optional/aug.glb",
-      "bytes": 761164,
-      "sha256": "dda70bc54fd3271fd7b4034b00f8d63b75cdf0c50eca54f2980ed580f6797522"
+      "bytes": 288004,
+      "sha256": "e47dfd120e708f2bf68c90e093f12c5d6389892c49083023db322a6a9e56461d"
     }
   },
   {
@@ -3248,8 +3248,8 @@ const baseSkins = [
     "englishName": "FAMAS | Rapid Eye Movement",
     "model": "assets/weapons/cs2-skins/popular/famas-rapid-eye-movement-1127.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/famas-rapid-eye-movement-1127.webp",
-    "bytes": 4355764,
-    "sha256": "20d09da153b343d635a8e5d86fc558297c4464b9e09a75725a84d77b11206fd8",
+    "bytes": 881296,
+    "sha256": "9d8186abb15a3f0da4a14acfd4ad062ab99993efafb36b2f97caf0ab9a43e007",
     "isDefault": false,
     "paintkit": 1127,
     "previewBytes": 23246,
@@ -3260,8 +3260,8 @@ const baseSkins = [
     "collection": "popular",
     "animation": {
       "model": "assets/viewmodel/optional/famas.glb",
-      "bytes": 634092,
-      "sha256": "747e6d07d46e85e56d7eedb6b20267ea2836407045010b68b1d00d58faf7ac24"
+      "bytes": 240816,
+      "sha256": "3708323d350e2b877f976d8161dd580090d2c4304dd146e19c74e6a40f904897"
     }
   },
   {
@@ -3271,8 +3271,8 @@ const baseSkins = [
     "englishName": "FAMAS | ZX Spectron",
     "model": "assets/weapons/cs2-skins/popular/famas-zx-spectron-1092.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/famas-zx-spectron-1092.webp",
-    "bytes": 3228296,
-    "sha256": "45079261756b0f21af62f7ed8f512dd4308109215aa30cb7407e4abc0f67f0bc",
+    "bytes": 611064,
+    "sha256": "1ad9d41ca3f2cf2528a0e1a77c1d413b3c71d03bdf4e5f7809a478fde92b84ac",
     "isDefault": false,
     "paintkit": 1092,
     "previewBytes": 18920,
@@ -3283,8 +3283,8 @@ const baseSkins = [
     "collection": "popular",
     "animation": {
       "model": "assets/viewmodel/optional/famas.glb",
-      "bytes": 634092,
-      "sha256": "747e6d07d46e85e56d7eedb6b20267ea2836407045010b68b1d00d58faf7ac24"
+      "bytes": 240816,
+      "sha256": "3708323d350e2b877f976d8161dd580090d2c4304dd146e19c74e6a40f904897"
     }
   },
   {
@@ -3294,8 +3294,8 @@ const baseSkins = [
     "englishName": "FAMAS | Mecha Industries",
     "model": "assets/weapons/cs2-skins/popular/famas-mecha-industries-626.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/famas-mecha-industries-626.webp",
-    "bytes": 2723564,
-    "sha256": "7dd881f77ac0a9ba97d164e32828ee120c46c6c23463d560bf472239eb1eb731",
+    "bytes": 630236,
+    "sha256": "8c0e65d9e66749de6f9b1260d51930314a20384ed1519af47f9414f878789537",
     "isDefault": false,
     "paintkit": 626,
     "previewBytes": 23270,
@@ -3306,8 +3306,8 @@ const baseSkins = [
     "collection": "popular",
     "animation": {
       "model": "assets/viewmodel/optional/famas.glb",
-      "bytes": 634092,
-      "sha256": "747e6d07d46e85e56d7eedb6b20267ea2836407045010b68b1d00d58faf7ac24"
+      "bytes": 240816,
+      "sha256": "3708323d350e2b877f976d8161dd580090d2c4304dd146e19c74e6a40f904897"
     }
   },
   {
@@ -3317,8 +3317,8 @@ const baseSkins = [
     "englishName": "G3SG1 | Dream Glade",
     "model": "assets/weapons/cs2-skins/popular/g3sg1-dream-glade-1129.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/g3sg1-dream-glade-1129.webp",
-    "bytes": 3533428,
-    "sha256": "d0a50903f1165815e1e17258b1a1c14d7c091f9812f471fe1982a8ace83f73ff",
+    "bytes": 852192,
+    "sha256": "b842880a3e8d5641d1153ab595064cea1f35731d5bde74b0d0c2082681bc7a1d",
     "isDefault": false,
     "paintkit": 1129,
     "previewBytes": 22930,
@@ -3329,8 +3329,8 @@ const baseSkins = [
     "collection": "popular",
     "animation": {
       "model": "assets/viewmodel/optional/g3sg1.glb",
-      "bytes": 743152,
-      "sha256": "a9819021fb4af42adef66fc7191b2da28ca4d85d9cb284836e1d9f2bef9cbf59"
+      "bytes": 286368,
+      "sha256": "ea6d790b4ee2276451140ba0740e06c3c39319aadc5eca882a37f932bc997cef"
     }
   },
   {
@@ -3340,8 +3340,8 @@ const baseSkins = [
     "englishName": "G3SG1 | Scavenger",
     "model": "assets/weapons/cs2-skins/popular/g3sg1-scavenger-806.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/g3sg1-scavenger-806.webp",
-    "bytes": 4037412,
-    "sha256": "296fbff69c502c54c3f313d5ef8d095043cb0ea5736abac3bd2ab0ba4a21c943",
+    "bytes": 905976,
+    "sha256": "cb2fed306d20f85af2ce5f072305c152904890098f54582af8861bd7615c68f9",
     "isDefault": false,
     "paintkit": 806,
     "previewBytes": 19876,
@@ -3352,8 +3352,8 @@ const baseSkins = [
     "collection": "popular",
     "animation": {
       "model": "assets/viewmodel/optional/g3sg1.glb",
-      "bytes": 743152,
-      "sha256": "a9819021fb4af42adef66fc7191b2da28ca4d85d9cb284836e1d9f2bef9cbf59"
+      "bytes": 286368,
+      "sha256": "ea6d790b4ee2276451140ba0740e06c3c39319aadc5eca882a37f932bc997cef"
     }
   },
   {
@@ -3363,8 +3363,8 @@ const baseSkins = [
     "englishName": "G3SG1 | High Seas",
     "model": "assets/weapons/cs2-skins/popular/g3sg1-high-seas-712.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/g3sg1-high-seas-712.webp",
-    "bytes": 4570632,
-    "sha256": "08810e37456f77740127afb2aa174977a14cbd6f6f78ff023655bdf61cc5896e",
+    "bytes": 1016832,
+    "sha256": "8343f069ade31dbc328327ac1781a943523a59250e2f0fa27c2524b5e36a5726",
     "isDefault": false,
     "paintkit": 712,
     "previewBytes": 23928,
@@ -3375,8 +3375,8 @@ const baseSkins = [
     "collection": "popular",
     "animation": {
       "model": "assets/viewmodel/optional/g3sg1.glb",
-      "bytes": 743152,
-      "sha256": "a9819021fb4af42adef66fc7191b2da28ca4d85d9cb284836e1d9f2bef9cbf59"
+      "bytes": 286368,
+      "sha256": "ea6d790b4ee2276451140ba0740e06c3c39319aadc5eca882a37f932bc997cef"
     }
   },
   {
@@ -3386,8 +3386,8 @@ const baseSkins = [
     "englishName": "MP5-SD | Necro Jr.",
     "model": "assets/weapons/cs2-skins/popular/mp5sd-necro-jr-1137.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/mp5sd-necro-jr-1137.webp",
-    "bytes": 4585672,
-    "sha256": "ed061bf3a676dc76204f8bc42040b2101ccfd6af6c1fecdcf7fcdddaaaa1f005",
+    "bytes": 1027248,
+    "sha256": "fbc7fa8aedf40e01e9f9d69f0e98bbed29b1d15ffec4dedac08b95ccb3cbf5cd",
     "isDefault": false,
     "paintkit": 1137,
     "previewBytes": 20570,
@@ -3398,8 +3398,8 @@ const baseSkins = [
     "collection": "popular",
     "animation": {
       "model": "assets/viewmodel/optional/mp5sd.glb",
-      "bytes": 647824,
-      "sha256": "b265a89ee325597b692d78379ea1e85eb5d0c8a28d588d5b68a1e299b0744aa8"
+      "bytes": 250752,
+      "sha256": "8b99f7824ae6be38005ae2c94183729ac1e29b45c6ab4697f7de0abed8b4dca9"
     }
   },
   {
@@ -3409,8 +3409,8 @@ const baseSkins = [
     "englishName": "MP5-SD | Liquidation",
     "model": "assets/weapons/cs2-skins/popular/mp5sd-liquidation-1231.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/mp5sd-liquidation-1231.webp",
-    "bytes": 3701008,
-    "sha256": "1b4c54643a64f5443c92aca16d62c7ca4de07c24d9c8ba110b4de74f5be37938",
+    "bytes": 897432,
+    "sha256": "30bf8809987ec82d7646273badd314e2a0506d1ad913ed3763c00b40dfbe5f54",
     "isDefault": false,
     "paintkit": 1231,
     "previewBytes": 19564,
@@ -3421,8 +3421,8 @@ const baseSkins = [
     "collection": "popular",
     "animation": {
       "model": "assets/viewmodel/optional/mp5sd.glb",
-      "bytes": 647824,
-      "sha256": "b265a89ee325597b692d78379ea1e85eb5d0c8a28d588d5b68a1e299b0744aa8"
+      "bytes": 250752,
+      "sha256": "8b99f7824ae6be38005ae2c94183729ac1e29b45c6ab4697f7de0abed8b4dca9"
     }
   },
   {
@@ -3432,8 +3432,8 @@ const baseSkins = [
     "englishName": "MP5-SD | Kitbash",
     "model": "assets/weapons/cs2-skins/popular/mp5sd-kitbash-974.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/mp5sd-kitbash-974.webp",
-    "bytes": 5302476,
-    "sha256": "a368b5e8b7a27df7976a0fc229940c2cf3bf8afb651edeceefec2c82a831910b",
+    "bytes": 1144904,
+    "sha256": "1a00f8d2fba9b410d8e0022fd7a53ae593d4eba4f75b9bbc049e8fa39fcd920d",
     "isDefault": false,
     "paintkit": 974,
     "previewBytes": 22632,
@@ -3444,8 +3444,8 @@ const baseSkins = [
     "collection": "popular",
     "animation": {
       "model": "assets/viewmodel/optional/mp5sd.glb",
-      "bytes": 647824,
-      "sha256": "b265a89ee325597b692d78379ea1e85eb5d0c8a28d588d5b68a1e299b0744aa8"
+      "bytes": 250752,
+      "sha256": "8b99f7824ae6be38005ae2c94183729ac1e29b45c6ab4697f7de0abed8b4dca9"
     }
   },
   {
@@ -3455,8 +3455,8 @@ const baseSkins = [
     "englishName": "P90 | Neoqueen",
     "model": "assets/weapons/cs2-skins/popular/p90-neoqueen-1233.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/p90-neoqueen-1233.webp",
-    "bytes": 4487792,
-    "sha256": "cda3cd949f0d63ca50d7f21e8de129857fce230af16e4b48dad11aebd1213f39",
+    "bytes": 993304,
+    "sha256": "79e68fb9c2b6a1ea5f9d3d88f5a140afbe7fa448512b934cc91869db62e281b0",
     "isDefault": false,
     "paintkit": 1233,
     "previewBytes": 29216,
@@ -3467,8 +3467,8 @@ const baseSkins = [
     "collection": "popular",
     "animation": {
       "model": "assets/viewmodel/optional/p90.glb",
-      "bytes": 742360,
-      "sha256": "54fe07690ccd4395caa551e59756660d97d7d889133679d0201b12790dfcffb5"
+      "bytes": 279700,
+      "sha256": "c7b4289c21f1ad78f34a4453d3590f5577f237e082489260c33efe259cf382ab"
     }
   },
   {
@@ -3478,8 +3478,8 @@ const baseSkins = [
     "englishName": "P90 | Vent Rush",
     "model": "assets/weapons/cs2-skins/popular/p90-vent-rush-1154.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/p90-vent-rush-1154.webp",
-    "bytes": 4265364,
-    "sha256": "3af03e988e741b117494c4545bc8e84a27b30d4bf644d7522acbf3e5f60dbd3e",
+    "bytes": 1045096,
+    "sha256": "7b52896ece8f6e113d93c17ed0992806b67cb7d82ee30e0df7e7b3ba8c1fa14c",
     "isDefault": false,
     "paintkit": 1154,
     "previewBytes": 28800,
@@ -3490,8 +3490,8 @@ const baseSkins = [
     "collection": "popular",
     "animation": {
       "model": "assets/viewmodel/optional/p90.glb",
-      "bytes": 742360,
-      "sha256": "54fe07690ccd4395caa551e59756660d97d7d889133679d0201b12790dfcffb5"
+      "bytes": 279700,
+      "sha256": "c7b4289c21f1ad78f34a4453d3590f5577f237e082489260c33efe259cf382ab"
     }
   },
   {
@@ -3501,8 +3501,8 @@ const baseSkins = [
     "englishName": "P90 | Freight",
     "model": "assets/weapons/cs2-skins/popular/p90-freight-969.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/p90-freight-969.webp",
-    "bytes": 4847352,
-    "sha256": "578d1898a3265e8e51daf730a5bf285d25fcad2e103fcaf30ed05a66c8d53147",
+    "bytes": 1135360,
+    "sha256": "46e75203ae59f726f90d90d12b00d59db279578185e5c13968e7ef9b186ef521",
     "isDefault": false,
     "paintkit": 969,
     "previewBytes": 28464,
@@ -3513,8 +3513,8 @@ const baseSkins = [
     "collection": "popular",
     "animation": {
       "model": "assets/viewmodel/optional/p90.glb",
-      "bytes": 742360,
-      "sha256": "54fe07690ccd4395caa551e59756660d97d7d889133679d0201b12790dfcffb5"
+      "bytes": 279700,
+      "sha256": "c7b4289c21f1ad78f34a4453d3590f5577f237e082489260c33efe259cf382ab"
     }
   },
   {
@@ -3524,8 +3524,8 @@ const baseSkins = [
     "englishName": "UMP-45 | Wild Child",
     "model": "assets/weapons/cs2-skins/popular/ump45-wild-child-1236.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/ump45-wild-child-1236.webp",
-    "bytes": 4015668,
-    "sha256": "a21575987366415cbade02d58e3b67f6377717af7924ca2b3503ac7450ffb04a",
+    "bytes": 679984,
+    "sha256": "90bd665d6949ba5efb353b8505b70a68a707c6187487322c3b92ae5f5005a5ef",
     "isDefault": false,
     "paintkit": 1236,
     "previewBytes": 32150,
@@ -3536,8 +3536,8 @@ const baseSkins = [
     "collection": "popular",
     "animation": {
       "model": "assets/viewmodel/optional/ump45.glb",
-      "bytes": 782176,
-      "sha256": "277b59af3a2c4e44c5111772eb752436c9244df623f589bf1c0c1e013a36b2ff"
+      "bytes": 316048,
+      "sha256": "7f5140d265128a5a56195730b064416fe1e94302e6aa0a82468357b7aecac10c"
     }
   },
   {
@@ -3547,8 +3547,8 @@ const baseSkins = [
     "englishName": "UMP-45 | Oscillator",
     "model": "assets/weapons/cs2-skins/popular/ump45-oscillator-1049.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/ump45-oscillator-1049.webp",
-    "bytes": 3460312,
-    "sha256": "8c72d26a9c89a0b2059ae726234aa08b58a4fa3a9a2a947e4a42ba2530ca3f56",
+    "bytes": 723740,
+    "sha256": "c04598c2f3013f5963c2632d0fbc03e6519bfaa2fb31f99200478db5c298c680",
     "isDefault": false,
     "paintkit": 1049,
     "previewBytes": 25478,
@@ -3559,8 +3559,8 @@ const baseSkins = [
     "collection": "popular",
     "animation": {
       "model": "assets/viewmodel/optional/ump45.glb",
-      "bytes": 782176,
-      "sha256": "277b59af3a2c4e44c5111772eb752436c9244df623f589bf1c0c1e013a36b2ff"
+      "bytes": 316048,
+      "sha256": "7f5140d265128a5a56195730b064416fe1e94302e6aa0a82468357b7aecac10c"
     }
   },
   {
@@ -3570,8 +3570,8 @@ const baseSkins = [
     "englishName": "UMP-45 | Corporal",
     "model": "assets/weapons/cs2-skins/popular/ump45-corporal-281.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/ump45-corporal-281.webp",
-    "bytes": 2910156,
-    "sha256": "90366ac93d840d6d0bfc9381bb12c0d2546e595dc8b99c0ec6a710666987054f",
+    "bytes": 640052,
+    "sha256": "5621ce08df5f276609d04529386cd6774358244ffe59611fac6e2bd61f05e7b5",
     "isDefault": false,
     "paintkit": 281,
     "previewBytes": 21972,
@@ -3582,8 +3582,8 @@ const baseSkins = [
     "collection": "popular",
     "animation": {
       "model": "assets/viewmodel/optional/ump45.glb",
-      "bytes": 782176,
-      "sha256": "277b59af3a2c4e44c5111772eb752436c9244df623f589bf1c0c1e013a36b2ff"
+      "bytes": 316048,
+      "sha256": "7f5140d265128a5a56195730b064416fe1e94302e6aa0a82468357b7aecac10c"
     }
   },
   {
@@ -3593,8 +3593,8 @@ const baseSkins = [
     "englishName": "M249 | Downtown",
     "model": "assets/weapons/cs2-skins/popular/m249-downtown-1148.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/m249-downtown-1148.webp",
-    "bytes": 4567920,
-    "sha256": "b979976508230e8b9090b53720d1a7ea333e6103fa5a8f6b89f9b7d6406498a2",
+    "bytes": 1155392,
+    "sha256": "1fea0661ae0bb32d0247be6a8ba8b007c07df8fd2f267682fbafc8cf776d8043",
     "isDefault": false,
     "paintkit": 1148,
     "previewBytes": 23048,
@@ -3605,8 +3605,8 @@ const baseSkins = [
     "collection": "popular",
     "animation": {
       "model": "assets/viewmodel/optional/m249.glb",
-      "bytes": 1588908,
-      "sha256": "fa12544e8ff4414eeae4cad3c1ff0e4327171373ae5bdde599b4322c2ae4541c"
+      "bytes": 777196,
+      "sha256": "ae8e9be00cfaabb638d6ca2571813f4c2b476563f79c7e83b8a439ae0bc7a2e9"
     }
   },
   {
@@ -3616,8 +3616,8 @@ const baseSkins = [
     "englishName": "M249 | O.S.I.P.R.",
     "model": "assets/weapons/cs2-skins/popular/m249-o-s-i-p-r-1042.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/m249-o-s-i-p-r-1042.webp",
-    "bytes": 3933088,
-    "sha256": "5c9ad1e4c503636f6948837f34d29a04c1852da565949c127a8d6001066575b0",
+    "bytes": 1103488,
+    "sha256": "fdb1947eea23c66b48f648741c60c166167c98e25f156bf157b29b857e0bb0e2",
     "isDefault": false,
     "paintkit": 1042,
     "previewBytes": 12224,
@@ -3628,8 +3628,8 @@ const baseSkins = [
     "collection": "popular",
     "animation": {
       "model": "assets/viewmodel/optional/m249.glb",
-      "bytes": 1588908,
-      "sha256": "fa12544e8ff4414eeae4cad3c1ff0e4327171373ae5bdde599b4322c2ae4541c"
+      "bytes": 777196,
+      "sha256": "ae8e9be00cfaabb638d6ca2571813f4c2b476563f79c7e83b8a439ae0bc7a2e9"
     }
   },
   {
@@ -3639,8 +3639,8 @@ const baseSkins = [
     "englishName": "M249 | Submerged",
     "model": "assets/weapons/cs2-skins/popular/m249-submerged-1242.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/m249-submerged-1242.webp",
-    "bytes": 5047264,
-    "sha256": "29de88a6d7055b4f9a8c80569cddb87d66a2e16a8632770f19bfd086a154ea31",
+    "bytes": 1308220,
+    "sha256": "3244d7d7b317097596df744f4b7a30c912e4e256f9a1d06984cbf62230badcf2",
     "isDefault": false,
     "paintkit": 1242,
     "previewBytes": 18146,
@@ -3651,8 +3651,8 @@ const baseSkins = [
     "collection": "popular",
     "animation": {
       "model": "assets/viewmodel/optional/m249.glb",
-      "bytes": 1588908,
-      "sha256": "fa12544e8ff4414eeae4cad3c1ff0e4327171373ae5bdde599b4322c2ae4541c"
+      "bytes": 777196,
+      "sha256": "ae8e9be00cfaabb638d6ca2571813f4c2b476563f79c7e83b8a439ae0bc7a2e9"
     }
   },
   {
@@ -3662,8 +3662,8 @@ const baseSkins = [
     "englishName": "Negev | Ultralight",
     "model": "assets/weapons/cs2-skins/popular/negev-ultralight-958.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/negev-ultralight-958.webp",
-    "bytes": 4617140,
-    "sha256": "572b316413adce0971b6d2eaca76efc032b1965a89c169c0bff58a256057964c",
+    "bytes": 1474596,
+    "sha256": "3d002d8d07d4717e43e22bf2ea574ccbf3de3ecb0b24b9f63ce1747492db6e4e",
     "isDefault": false,
     "paintkit": 958,
     "previewBytes": 19550,
@@ -3674,8 +3674,8 @@ const baseSkins = [
     "collection": "popular",
     "animation": {
       "model": "assets/viewmodel/optional/negev.glb",
-      "bytes": 1620004,
-      "sha256": "1a3ac49e6dffe327eabec43251510e4ebf11e3b94ff8c6254b41d2859c236393"
+      "bytes": 634776,
+      "sha256": "8861b9c04847abad0d9eede7500b806da2558c2c75be3b446cbe38fb2d1a759e"
     }
   },
   {
@@ -3685,8 +3685,8 @@ const baseSkins = [
     "englishName": "Negev | dev_texture",
     "model": "assets/weapons/cs2-skins/popular/negev-dev-texture-1043.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/negev-dev-texture-1043.webp",
-    "bytes": 5560220,
-    "sha256": "a538d64cbe2846bd99b9dae2888a35694f1448baacec4716ee2f2f1f983552d0",
+    "bytes": 1620672,
+    "sha256": "3fef54ba8ce597729cef82d6f96316b2adc5389469212204ce4219b2d7b18964",
     "isDefault": false,
     "paintkit": 1043,
     "previewBytes": 20872,
@@ -3697,8 +3697,8 @@ const baseSkins = [
     "collection": "popular",
     "animation": {
       "model": "assets/viewmodel/optional/negev.glb",
-      "bytes": 1620004,
-      "sha256": "1a3ac49e6dffe327eabec43251510e4ebf11e3b94ff8c6254b41d2859c236393"
+      "bytes": 634776,
+      "sha256": "8861b9c04847abad0d9eede7500b806da2558c2c75be3b446cbe38fb2d1a759e"
     }
   },
   {
@@ -3708,8 +3708,8 @@ const baseSkins = [
     "englishName": "Negev | Drop Me",
     "model": "assets/weapons/cs2-skins/popular/negev-drop-me-1152.glb",
     "preview": "assets/weapons/cs2-skins/popular/previews/negev-drop-me-1152.webp",
-    "bytes": 6882440,
-    "sha256": "c8195f44f777b9127d46afc27f1851d928b3bf347d24e5671937c1062fcbb33c",
+    "bytes": 1812228,
+    "sha256": "8cc8c59e80c230413270f42d1332a3288d67a9fc75c10be1661e25ac09e6685c",
     "isDefault": false,
     "paintkit": 1152,
     "previewBytes": 26166,
@@ -3720,8 +3720,8 @@ const baseSkins = [
     "collection": "popular",
     "animation": {
       "model": "assets/viewmodel/optional/negev.glb",
-      "bytes": 1620004,
-      "sha256": "1a3ac49e6dffe327eabec43251510e4ebf11e3b94ff8c6254b41d2859c236393"
+      "bytes": 634776,
+      "sha256": "8861b9c04847abad0d9eede7500b806da2558c2c75be3b446cbe38fb2d1a759e"
     }
   },
   {
@@ -3735,16 +3735,16 @@ const baseSkins = [
     "preview": "assets/weapons/cs2-skins/knives/previews/bayonet.webp",
     "previewBytes": 11502,
     "previewSha256": "60c9b6a976af7ddc114ea560ebf64517db020d9a929edc89f2291865956ece5a",
-    "bytes": 2571536,
-    "sha256": "915ef5c8e64ad007ca9fc08414519dfa5ebe57504935cd4cca83471dc5d469a1",
+    "bytes": 369912,
+    "sha256": "1a8bc11c211a721799fa3d1fc8be7845ccfe3b1821df1cde06d3f1d3c715298f",
     "isDefault": false,
     "downloadRequired": true,
     "condition": "Vanilla",
     "wear": 0,
     "animation": {
       "model": "assets/weapons/cs2-skins/knives/bayonet-animations.glb",
-      "bytes": 821404,
-      "sha256": "1c5f96d7a30b0e2b1f548042c38a5fccc036fcbf72646829e56f41cda7d5d967"
+      "bytes": 300808,
+      "sha256": "800764963bfd91b87f940a60f135e1008d3f0a72357ffcb89d1eecd01f82aa70"
     },
     "animationFamily": "bayonet"
   },
@@ -3759,16 +3759,16 @@ const baseSkins = [
     "preview": "assets/weapons/cs2-skins/knives/previews/bowie.webp",
     "previewBytes": 9980,
     "previewSha256": "8931decc5f1cfbc1c3b9c6262ce576ddc535ec128096b31fe17707960d57af71",
-    "bytes": 3488532,
-    "sha256": "e29f65f1f4514b0425ff3b10e2fd61d3fe9da65623462f8e74fc73031be4daa3",
+    "bytes": 727136,
+    "sha256": "98c5c67f210cb70bc4f3e0cdc9d5d1b11835d6813a89cda8b05cb9a44c19d36c",
     "isDefault": false,
     "downloadRequired": true,
     "condition": "Vanilla",
     "wear": 0,
     "animation": {
       "model": "assets/weapons/cs2-skins/knives/bowie-animations.glb",
-      "bytes": 933556,
-      "sha256": "762bb1df5f1e45603c6a9b444ad0e7638e3c57bc7ecb12086a36addcbdac8000"
+      "bytes": 356684,
+      "sha256": "4d489d22f43b9a1c7f6ed70a715c1bb6ed018c6e2e355b608212bf4c9ec55558"
     },
     "animationFamily": "bowie"
   },
@@ -3783,16 +3783,16 @@ const baseSkins = [
     "preview": "assets/weapons/cs2-skins/knives/previews/canis.webp",
     "previewBytes": 9408,
     "previewSha256": "3def0185c8f4837fb4ce1774b7261fb58cc579dc752843d9574e249a74058b3b",
-    "bytes": 2246440,
-    "sha256": "85990b13b4dc6f8116f098356b9f35cff39f613d2eb5211e9416d00daf7a106c",
+    "bytes": 357824,
+    "sha256": "f6bbe43cc84117e58711bf07ec9f54723e5cea313a42fa43c638d74c1e6726d3",
     "isDefault": false,
     "downloadRequired": true,
     "condition": "Vanilla",
     "wear": 0,
     "animation": {
       "model": "assets/weapons/cs2-skins/knives/canis-animations.glb",
-      "bytes": 890228,
-      "sha256": "cab3c67e0f89f4861bca244a369d1fa8cdc5c30d93efc18668e76b35c0a69620"
+      "bytes": 343656,
+      "sha256": "414f0538aefe8cf47b4cba809c9346e5e554cef1df5ee452e2eacd1e8ee639a9"
     },
     "animationFamily": "canis"
   },
@@ -3807,16 +3807,16 @@ const baseSkins = [
     "preview": "assets/weapons/cs2-skins/knives/previews/cord.webp",
     "previewBytes": 14060,
     "previewSha256": "2f9b9d355e2ae081aa069c00ce9aab993b6fa2449c4a044ee331b8172a806b4e",
-    "bytes": 4219932,
-    "sha256": "06aa771868e9e8fe53807f715f78fe6be408c2205fa2be3d8e239a5dc8ee2f87",
+    "bytes": 680412,
+    "sha256": "75a31572d0cb33bf6d43bc13d48d0b37c629196cf9d8c8b5eecc68c0ab6a6205",
     "isDefault": false,
     "downloadRequired": true,
     "condition": "Vanilla",
     "wear": 0,
     "animation": {
       "model": "assets/weapons/cs2-skins/knives/cord-animations.glb",
-      "bytes": 865440,
-      "sha256": "1d47c4cd42647a022b35f2b47e0737c791d72730d523aac7146fb1020f5cb4b1"
+      "bytes": 322848,
+      "sha256": "46841ffb729435ba0da504a652e3e935cd9e1c7b3cab11b2fcee8f135ef76c0f"
     },
     "animationFamily": "cord"
   },
@@ -3831,16 +3831,16 @@ const baseSkins = [
     "preview": "assets/weapons/cs2-skins/knives/previews/css.webp",
     "previewBytes": 10626,
     "previewSha256": "17c707837fcf5b98d9b0169aaafa11fb696265282710257d8c8f80500ebb1235",
-    "bytes": 2538476,
-    "sha256": "ddb4b4674935e2b507d40e83804e40688ef48cfdc0c5ad24f7d2d526827332bb",
+    "bytes": 251708,
+    "sha256": "33d08f9b18133ab650e2966a999e8cea943e6ad153f2b42ffd5f16b9c9cc129d",
     "isDefault": false,
     "downloadRequired": true,
     "condition": "Vanilla",
     "wear": 0,
     "animation": {
       "model": "assets/weapons/cs2-skins/knives/css-animations.glb",
-      "bytes": 862552,
-      "sha256": "1c38dde094212323244d2356206be96a912a6c4bf93a4706774a61af52dc76bf"
+      "bytes": 317304,
+      "sha256": "96eeaa5e3e28a9dfc0ac45482c3054f2edddd09f5a08a26da3a8abbe8c3255e5"
     },
     "animationFamily": "css"
   },
@@ -3855,16 +3855,16 @@ const baseSkins = [
     "preview": "assets/weapons/cs2-skins/knives/previews/default_ct.webp",
     "previewBytes": 12396,
     "previewSha256": "4165e6eca80e0ed5777e953a1a100e31d6c204bd8894f32a418cd43f9f63fdbd",
-    "bytes": 2785284,
-    "sha256": "5a170e1b7402255b37698f91f7fda0fc3bc96d124ab5243521d368b6667f49a7",
+    "bytes": 460656,
+    "sha256": "d1e5485c548c2fe2f0358a3f7bdc4aa5508950971dac7b55b5067287e1ceb83b",
     "isDefault": false,
     "downloadRequired": true,
     "condition": "Vanilla",
     "wear": 0,
     "animation": {
       "model": "assets/weapons/cs2-skins/knives/default_ct-animations.glb",
-      "bytes": 837080,
-      "sha256": "34c443702fa0a1923e5248c5d5b4af3c41f2ddf98dc9591500b4fe588d9c61a6"
+      "bytes": 315940,
+      "sha256": "4bf48dfd0820a521b65a38b98225d601680986596e230325eb8998d969f2eb6f"
     },
     "animationFamily": "default_ct"
   },
@@ -3879,16 +3879,16 @@ const baseSkins = [
     "preview": "assets/weapons/cs2-skins/knives/previews/default_t.webp",
     "previewBytes": 11966,
     "previewSha256": "ab75ba32cf7373337d1f07903a43602add1edfa2044cdf7e28d41928a7fc8cb7",
-    "bytes": 2307848,
-    "sha256": "2d65b0426d80a922218b912aaeb56ea17551f6b2cc46b9319c2ae84821a47e69",
+    "bytes": 294844,
+    "sha256": "5c1450a0ba057cf4d8e07606046809fb0bc362d07840eb4f9380118d0f9f4aed",
     "isDefault": false,
     "downloadRequired": true,
     "condition": "Vanilla",
     "wear": 0,
     "animation": {
       "model": "assets/weapons/cs2-skins/knives/default_t-animations.glb",
-      "bytes": 860924,
-      "sha256": "33f12e1a324b4aebb04339bb9e1e0cc439f36c8483ca43a463b190bcb9fe9512"
+      "bytes": 321716,
+      "sha256": "2f47ae2a3d267aa5ab3e49e5b4973b42c8338850298a7beacf191fcb0f447ab3"
     },
     "animationFamily": "default_t"
   },
@@ -3903,16 +3903,16 @@ const baseSkins = [
     "preview": "assets/weapons/cs2-skins/knives/previews/falchion.webp",
     "previewBytes": 9226,
     "previewSha256": "71374d724cb8c3c9e633e755b4cc21b92c59b9f2561b1c9cde06f2afd52a78b3",
-    "bytes": 2215640,
-    "sha256": "550d07ecb12fdadb919052775acfc61024183a52e06e3e69737438a37dea2fa6",
+    "bytes": 504200,
+    "sha256": "4fe959e41b6baa062a997314d0af2b36ee78aa6a65ba5915d91e04fc9459ee9f",
     "isDefault": false,
     "downloadRequired": true,
     "condition": "Vanilla",
     "wear": 0,
     "animation": {
       "model": "assets/weapons/cs2-skins/knives/falchion-animations.glb",
-      "bytes": 965056,
-      "sha256": "832f8f25c6adfbbeb1fb1ea2865e864596a25d2553f69621bf48c7a63fcfd642"
+      "bytes": 412220,
+      "sha256": "0248961c8b9012e23ddcecb9a77b92f39168721bf3ff473fa6a57d4f8eb19dd7"
     },
     "animationFamily": "falchion"
   },
@@ -3927,16 +3927,16 @@ const baseSkins = [
     "preview": "assets/weapons/cs2-skins/knives/previews/flip.webp",
     "previewBytes": 9740,
     "previewSha256": "5f3a9f919c96e984b9e6899625d1c38656cde6c9b8fd42bdc183f6efa85a2033",
-    "bytes": 2245024,
-    "sha256": "e23edfb04b363a59a7cb61042bbd35a36a51bb419735f566fdb960157e5e8036",
+    "bytes": 302256,
+    "sha256": "aabea15ddbfd6f92294abbd006859a93bbe1d666ae15212af1a1e4bac4945665",
     "isDefault": false,
     "downloadRequired": true,
     "condition": "Vanilla",
     "wear": 0,
     "animation": {
       "model": "assets/weapons/cs2-skins/knives/flip-animations.glb",
-      "bytes": 885212,
-      "sha256": "ca428101a1adc1d82baafeb4e1acee690444e99eb17dcf17ca93c1aa39a6b375"
+      "bytes": 331044,
+      "sha256": "d60a88626a5f1a186736d9cd8878641cc583b1cef3a539cc2d14138f616f8b1f"
     },
     "animationFamily": "flip"
   },
@@ -3951,16 +3951,16 @@ const baseSkins = [
     "preview": "assets/weapons/cs2-skins/knives/previews/gut.webp",
     "previewBytes": 13894,
     "previewSha256": "c57d299804dc98cc3bdfec12f40126c697e3bd53d58300ebb7e1c2aac375c556",
-    "bytes": 2971732,
-    "sha256": "ab7fe6d61b73ce638c87d0a60c01a75ff6a294a40906358c539654ca32b91a8c",
+    "bytes": 549924,
+    "sha256": "eb23fb517ee44c0e53678aa6321a35280c96cc34706d0ecd306fd41ed1f90709",
     "isDefault": false,
     "downloadRequired": true,
     "condition": "Vanilla",
     "wear": 0,
     "animation": {
       "model": "assets/weapons/cs2-skins/knives/gut-animations.glb",
-      "bytes": 841544,
-      "sha256": "c43488cdcc57da306577b14d5e80a011a4a9cb06f38ca3830a5bb5a6909055c5"
+      "bytes": 324144,
+      "sha256": "eb63bc4e06158ee7894fc977998f5fcdb1d8389b30ad4ff3736e3f5afd1c5891"
     },
     "animationFamily": "gut"
   },
@@ -3975,16 +3975,16 @@ const baseSkins = [
     "preview": "assets/weapons/cs2-skins/knives/previews/karambit.webp",
     "previewBytes": 13938,
     "previewSha256": "8d8744c4d9ac5005372d3d2e6b9adf06f0fde0e52a95930708ed9b6e1b518c9e",
-    "bytes": 2577008,
-    "sha256": "459f51cbd254ae5f78cf033bd331e7671ff54b223feeb25b6e07a1c145260fc3",
+    "bytes": 637904,
+    "sha256": "214e3b219c1fa93628c6c5e85b94aaa1998e1bfdcbda3f2537d78b314992d83f",
     "isDefault": false,
     "downloadRequired": true,
     "condition": "Vanilla",
     "wear": 0,
     "animation": {
       "model": "assets/weapons/cs2-skins/knives/karambit-animations.glb",
-      "bytes": 799688,
-      "sha256": "a0724b1f062e2ac56f8823222405e7e0c67191c44cd3f9b1e85aece9418199ac"
+      "bytes": 296760,
+      "sha256": "5bfecb7a1e0f1f2b469e3f0d33625ea1800be3f873b68c81b1f35a86940b4ad4"
     },
     "animationFamily": "karambit"
   },
@@ -3999,16 +3999,16 @@ const baseSkins = [
     "preview": "assets/weapons/cs2-skins/knives/previews/kukri.webp",
     "previewBytes": 9832,
     "previewSha256": "164cabc4aef8a4ab7e029a92e91877f944332096f180597ef6c24e8db41a1a35",
-    "bytes": 2287840,
-    "sha256": "87ba0ff4bdc01ee18a0c1157cf325ebd063b0eccdf446d6e10b06707e719180b",
+    "bytes": 345520,
+    "sha256": "bad8ccd61ca3c9050cd3ad441930dfd4804181c74e792adcff932aa926cb3270",
     "isDefault": false,
     "downloadRequired": true,
     "condition": "Vanilla",
     "wear": 0,
     "animation": {
       "model": "assets/weapons/cs2-skins/knives/kukri-animations.glb",
-      "bytes": 850552,
-      "sha256": "60da351964b3dd0f261930d21b1e704a3aa746850822d4afb5ba0783cf4b22d8"
+      "bytes": 356176,
+      "sha256": "8347470760ca9eaced632a322c774fe6d7ec29a043050b75f008f1745ee6145e"
     },
     "animationFamily": "kukri"
   },
@@ -4023,16 +4023,16 @@ const baseSkins = [
     "preview": "assets/weapons/cs2-skins/knives/previews/navaja.webp",
     "previewBytes": 13774,
     "previewSha256": "906fe0d89ac920584b19204d009ca8427e663eb6e2ccb961e17f086a55869fc5",
-    "bytes": 2946732,
-    "sha256": "757fc672c6a5ace46e69044bb72351051d31ae18cf7f094bf2448a275c605f00",
+    "bytes": 440964,
+    "sha256": "994ac746f8372f8971680cdae1264d2878ea32beac911567bfc67ca1eb427fc9",
     "isDefault": false,
     "downloadRequired": true,
     "condition": "Vanilla",
     "wear": 0,
     "animation": {
       "model": "assets/weapons/cs2-skins/knives/navaja-animations.glb",
-      "bytes": 885904,
-      "sha256": "56673ef229bd83e1443fab3c06b59bace54207d23e1094c12f72de022789446f"
+      "bytes": 334308,
+      "sha256": "7eec71996250cef9590cf24845ceffac0db9ab90537ac81a69a5f4fbe56f9b2f"
     },
     "animationFamily": "navaja"
   },
@@ -4047,16 +4047,16 @@ const baseSkins = [
     "preview": "assets/weapons/cs2-skins/knives/previews/outdoor.webp",
     "previewBytes": 11356,
     "previewSha256": "a429a969f456586838009121ff42bb11e3d6cd970547f25b665ddb824ef9655e",
-    "bytes": 3437932,
-    "sha256": "5d9123cfefb56e6c1400f21d16fbd96baf0b794aaede3908872585107bcc9715",
+    "bytes": 686356,
+    "sha256": "a3c02b55244146efdf93dfd2f849496519c788172b316ba7b25b048cd3b7d269",
     "isDefault": false,
     "downloadRequired": true,
     "condition": "Vanilla",
     "wear": 0,
     "animation": {
       "model": "assets/weapons/cs2-skins/knives/outdoor-animations.glb",
-      "bytes": 882092,
-      "sha256": "502370dbb2a0d78c73ada2783315b43cee77926bbd3e5030315d19f1a9c20c94"
+      "bytes": 344076,
+      "sha256": "703d2d60d94c60d57408ebec0d2475d34582bf78eca73a55a8b50865b1e0a98c"
     },
     "animationFamily": "outdoor"
   },
@@ -4071,16 +4071,16 @@ const baseSkins = [
     "preview": "assets/weapons/cs2-skins/knives/previews/push.webp",
     "previewBytes": 19888,
     "previewSha256": "7c7c21c515058121f2e8221a5a6413b43f36a67f5501e134dfa1b351a03f1456",
-    "bytes": 2068928,
-    "sha256": "8f660f563bcf44cb5cf7f25a678ed154130ec91202586e7fdf7c81647192b058",
+    "bytes": 434512,
+    "sha256": "0267e1b0e219eaf6e4675c3cc775e6893adf44d4a49b82f7924a03721909cf03",
     "isDefault": false,
     "downloadRequired": true,
     "condition": "Vanilla",
     "wear": 0,
     "animation": {
       "model": "assets/weapons/cs2-skins/knives/push-animations.glb",
-      "bytes": 779400,
-      "sha256": "f5bfcf5bbd137481c621e65b567c5f64eda5485a521690fc028a52fc7ff46d31"
+      "bytes": 285720,
+      "sha256": "6c7d99743bf13bfe43ba859b2b17b82a4115c5456a96a79c0b0d03087b691687"
     },
     "animationFamily": "push"
   },
@@ -4095,16 +4095,16 @@ const baseSkins = [
     "preview": "assets/weapons/cs2-skins/knives/previews/skeleton.webp",
     "previewBytes": 9260,
     "previewSha256": "b3c5ca737544926a809da757f9a4c53ea4cf70d1b82e925d620c2b6a75e10f0f",
-    "bytes": 2154760,
-    "sha256": "4a4b8d8f734c714014b4d98a4963434fd8005a24155b248f50ccb2c1a7515247",
+    "bytes": 273308,
+    "sha256": "aaad328045b3981e0ac0fc8816f65aaaae83ae8216c7af79dacbc6c075b342be",
     "isDefault": false,
     "downloadRequired": true,
     "condition": "Vanilla",
     "wear": 0,
     "animation": {
       "model": "assets/weapons/cs2-skins/knives/skeleton-animations.glb",
-      "bytes": 844948,
-      "sha256": "74a0991bb7bdaa32b580bd60bf12add4ee0a92e6ae4cd76c537050216260719a"
+      "bytes": 317392,
+      "sha256": "19ded576d7a8611ae346e4ee9c27d1ac7846c1985b7f99618d2c506a64caf336"
     },
     "animationFamily": "skeleton"
   },
@@ -4119,16 +4119,16 @@ const baseSkins = [
     "preview": "assets/weapons/cs2-skins/knives/previews/stiletto.webp",
     "previewBytes": 8844,
     "previewSha256": "112cfe2298ebe76e5b0980608d35996dd5570afbbaac594a293b6ad515a126ab",
-    "bytes": 3085980,
-    "sha256": "fe7b4409d3b12b54bd3b5db4d973b8fd3bdbd692b3707e82e07c256ca682854e",
+    "bytes": 502476,
+    "sha256": "6bff2a15caa4280c605db51b55d3d3e951761730a435338f011cb3af358b4674",
     "isDefault": false,
     "downloadRequired": true,
     "condition": "Vanilla",
     "wear": 0,
     "animation": {
       "model": "assets/weapons/cs2-skins/knives/stiletto-animations.glb",
-      "bytes": 799656,
-      "sha256": "a1c308f268ae2e5a02da9f58569e889103c60b9a3b3b45fb26e230e8fa818426"
+      "bytes": 296760,
+      "sha256": "bc9f6db8ecaf17b673535104cd0633a62feb48aa46402a687449d0b6d1bf83c6"
     },
     "animationFamily": "stiletto"
   },
@@ -4143,16 +4143,16 @@ const baseSkins = [
     "preview": "assets/weapons/cs2-skins/knives/previews/tactical.webp",
     "previewBytes": 12662,
     "previewSha256": "3b5c91bdf78f2cf2d0dfb9306c3efabf50a98461a9a57c2c1bea3e2e217f5de3",
-    "bytes": 3652640,
-    "sha256": "f77f430a7b8846afae6ac656100324b53bf5583f3cbdca47dedbb37fd5ffa357",
+    "bytes": 745184,
+    "sha256": "b1423e9f4ecf390e0397b171eb7f47ae4670983992dc47ce5853ef734437dcc3",
     "isDefault": false,
     "downloadRequired": true,
     "condition": "Vanilla",
     "wear": 0,
     "animation": {
       "model": "assets/weapons/cs2-skins/knives/tactical-animations.glb",
-      "bytes": 834036,
-      "sha256": "95f7ced693057b497091c21134c9329f146258ae4e25b464f3d9a84cd759a0b8"
+      "bytes": 325064,
+      "sha256": "696df95e3eeed237bacbf3112cb1e36386fe36695c359f53faba2c53e7a28345"
     },
     "animationFamily": "tactical"
   },
@@ -4167,16 +4167,16 @@ const baseSkins = [
     "preview": "assets/weapons/cs2-skins/knives/previews/talon.webp",
     "previewBytes": 13306,
     "previewSha256": "4e55562b429b30a180ec199e022d68be3ee98f8f38a50ec3d68c780cfab9898e",
-    "bytes": 2405872,
-    "sha256": "78bc7b4792b636a376e6af3e04f9be51bd708dbe248002bebf5ce729fca85568",
+    "bytes": 401936,
+    "sha256": "712e7aac36c1568a26024d60405e39148e55e78f139cf341e028ee9996873fc4",
     "isDefault": false,
     "downloadRequired": true,
     "condition": "Vanilla",
     "wear": 0,
     "animation": {
       "model": "assets/weapons/cs2-skins/knives/talon-animations.glb",
-      "bytes": 789740,
-      "sha256": "3da80a7311e1fb94531375c088c6a7b255c0947a431ce44231b50e3a22d478c8"
+      "bytes": 290084,
+      "sha256": "89d02614293323bbfb54f6d8e83bb1041e710b94eac4446322be950af687752d"
     },
     "animationFamily": "talon"
   },
@@ -4191,16 +4191,16 @@ const baseSkins = [
     "preview": "assets/weapons/cs2-skins/knives/previews/ursus.webp",
     "previewBytes": 9718,
     "previewSha256": "7ada8432e287e950dfb9d4aa310650a4e6dd6a73c6fe7ae7d2e995769da9d0e3",
-    "bytes": 2296096,
-    "sha256": "a739508520851d8c02855ae10ed57b9f944f0afae71f4cb12c73a2c02e4d945e",
+    "bytes": 323908,
+    "sha256": "037a1db5dd8c967a7381a5ba52d0294b528e201ff0cb8c39c466c5533a5267c0",
     "isDefault": false,
     "downloadRequired": true,
     "condition": "Vanilla",
     "wear": 0,
     "animation": {
       "model": "assets/weapons/cs2-skins/knives/ursus-animations.glb",
-      "bytes": 839164,
-      "sha256": "c36fee18825df4a5a8ed2670790a75332bdb175ce7abfc8944272f9e7b8626ff"
+      "bytes": 319040,
+      "sha256": "6068a33156c80d35f626450c5164dd6f746216f6c9d14938778ec7294fb2e3b0"
     },
     "animationFamily": "ursus"
   }

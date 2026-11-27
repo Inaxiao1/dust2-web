@@ -184,6 +184,10 @@ export function decodeCompactMapMesh(buffer) {
   const colShift = 8 - colorBits;
   const colMask = (1 << colorBits) - 1;
   const colReplicateShift = Math.max(0, colorBits - colShift);
+  const lightBits = meta.lightBits || 0;
+  const lightShift = 8 - lightBits;
+  const lightMask = lightBits > 0 ? (1 << lightBits) - 1 : 0;
+  const lightReplicateShift = Math.max(0, lightBits - lightShift);
 
   for (const sector of meta.sectors) {
     const n = sector.verts;
@@ -242,11 +246,30 @@ export function decodeCompactMapMesh(buffer) {
       indices[i] = pi;
     }
 
-    const normalsI16 = packNormalsInt16(computeCreasedNormals(positions, indices, 38));
+    let bakedLight = null;
+    if (lightBits > 0) {
+      bakedLight = new Uint8Array(n * 2);
+      let ps = 0;
+      let pa = 0;
+      for (let i = 0; i < n; i++) {
+        ps = (ps + bytes[state.pos++]) & lightMask;
+        bakedLight[i * 2] = (ps << lightShift) | (ps >> lightReplicateShift);
+      }
+      for (let i = 0; i < n; i++) {
+        pa = (pa + bytes[state.pos++]) & lightMask;
+        bakedLight[i * 2 + 1] = (pa << lightShift) | (pa >> lightReplicateShift);
+      }
+    }
+
+    // Sharp 18° architectural crease normals: keeps boxes, walls, sills & trims razor-sharp while smoothing true curves!
+    const normalsI16 = packNormalsInt16(computeCreasedNormals(positions, indices, 18));
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geometry.setAttribute('normal', new THREE.BufferAttribute(normalsI16, 3, true));
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 4, true));
+    if (bakedLight) {
+      geometry.setAttribute('aBakedLight', new THREE.BufferAttribute(bakedLight, 2, true));
+    }
     geometry.setIndex(new THREE.BufferAttribute(indices, 1));
     geometry.computeBoundingSphere();
     geometry.computeBoundingBox();
@@ -264,7 +287,7 @@ export function decodeCompactMapMesh(buffer) {
 
   return {
     scene,
-    extras: { surfaceMaterialVersion: 1, compactVersion: 2 },
+    extras: { surfaceMaterialVersion: 1, compactVersion: lightBits > 0 ? 3 : 2, lightBaked: lightBits > 0 },
     parser: { associations, json: { nodes: parserNodes } },
   };
 }

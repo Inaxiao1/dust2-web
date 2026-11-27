@@ -2,8 +2,8 @@
 export const AGENT_ASSETS = Object.freeze({
   "ct-sas": {
     "model": "assets/characters-cs2/ct-sas.glb",
-    "bytes": 3974156,
-    "sha256": "06fb306077ffab8f9d5fd5a9593f2fc82ed09aaf96061005299a377ad0e2da91",
+    "bytes": 1030580,
+    "sha256": "91020d64b85471d7da841a5f6822f17af0cd8e7b165dc5c31eab6ba7294d088c",
     "preview": {
       "file": "assets/characters-cs2/previews/ct-sas.webp",
       "bytes": 33412,
@@ -12,8 +12,8 @@ export const AGENT_ASSETS = Object.freeze({
   },
   "t-phoenix": {
     "model": "assets/characters-cs2/t-phoenix.glb",
-    "bytes": 4804936,
-    "sha256": "eda1202f89846b10aac030b4f223c508a33b98c28ec197c5abdbc899e7dc179a",
+    "bytes": 1354308,
+    "sha256": "560e6cabb49b160ac78c8a5b877655d7f596a78f57dd5ad9b905b036f97fba51",
     "preview": {
       "file": "assets/characters-cs2/previews/t-phoenix.webp",
       "bytes": 35784,
@@ -22,8 +22,8 @@ export const AGENT_ASSETS = Object.freeze({
   },
   "ct-ava": {
     "model": "assets/characters-cs2/optional/ct-ava.glb",
-    "bytes": 5496352,
-    "sha256": "798505af008a151ffa2dc8cdb9ac85a845b0a960d033e9c491e25baa4791aefe",
+    "bytes": 1583556,
+    "sha256": "ddd52c7512cc9399614be3b703378c12d3ffdf5fbac08e94f0f9b0de8402549d",
     "preview": {
       "file": "assets/characters-cs2/previews/ct-ava.webp",
       "bytes": 32442,
@@ -32,8 +32,8 @@ export const AGENT_ASSETS = Object.freeze({
   },
   "t-miami": {
     "model": "assets/characters-cs2/optional/t-miami.glb",
-    "bytes": 6734460,
-    "sha256": "6f259be0dbc67849892022db9f766593dc5e4723003e2a02184905efa564842a",
+    "bytes": 2249604,
+    "sha256": "ea79b597604a4f8367d3196b68161d2d98af16d829640f07f378783053503e89",
     "preview": {
       "file": "assets/characters-cs2/previews/t-miami.webp",
       "bytes": 39940,
@@ -41,9 +41,9 @@ export const AGENT_ASSETS = Object.freeze({
     }
   },
   "ct-syfers": {
-    "model": "assets/characters-cs2/popular/ct-syfers/body-a8a65afbbabb.glb",
-    "bytes": 4801248,
-    "sha256": "a8a65afbbabb1796f854947f23a4ca8218c0dd51c4bc7d4aa34ed7b58ded3d7f",
+    "model": "assets/characters-cs2/popular/ct-syfers/body-ce847de2b977.glb",
+    "bytes": 1472108,
+    "sha256": "ce847de2b9774c5352f56cc6be9603036eddc36ec645b5be53b834e1ed4f8c16",
     "preview": {
       "file": "assets/characters-cs2/popular/ct-syfers/portrait-d31a4bb10887.webp",
       "bytes": 31888,
@@ -51,9 +51,9 @@ export const AGENT_ASSETS = Object.freeze({
     }
   },
   "ct-ricksaw": {
-    "model": "assets/characters-cs2/popular/ct-ricksaw/body-f7ad0e0d53d1.glb",
-    "bytes": 5733780,
-    "sha256": "f7ad0e0d53d1f315fe58d2455e88d39252e44800db5d08f121f265df84436a77",
+    "model": "assets/characters-cs2/popular/ct-ricksaw/body-4e07986117dd.glb",
+    "bytes": 1808532,
+    "sha256": "4e07986117dd2373bf1335982b60ba5e544ad726d9e4f5dd8d4de75d2000da75",
     "preview": {
       "file": "assets/characters-cs2/popular/ct-ricksaw/portrait-31b70d1a6dbf.webp",
       "bytes": 38336,
@@ -61,9 +61,9 @@ export const AGENT_ASSETS = Object.freeze({
     }
   },
   "ct-operator": {
-    "model": "assets/characters-cs2/popular/ct-operator/body-dcfe5d07e5f6.glb",
-    "bytes": 5086932,
-    "sha256": "dcfe5d07e5f6ff1efb314a593196709aedd66b038eb79260cb55facde4e4b0ae",
+    "model": "assets/characters-cs2/popular/ct-operator/body-d8ec369b5fea.glb",
+    "bytes": 1541916,
+    "sha256": "d8ec369b5fea5182798698ab8cc23811a1bda5141cefec4c2a447336d9dacb4c",
     "preview": {
       "file": "assets/characters-cs2/popular/ct-operator/portrait-c96d669698b2.webp",
       "bytes": 29636,
@@ -71,9 +71,9 @@ export const AGENT_ASSETS = Object.freeze({
     }
   },
   "t-number-k": {
-    "model": "assets/characters-cs2/popular/t-number-k/body-dccd48c6e28d.glb",
-    "bytes": 4440532,
-    "sha256": "dccd48c6e28dd96bf238f59791eca43afce1e23eda4f71b4877fff299507dae0",
+    "model": "assets/characters-cs2/popular/t-number-k/body-20141ef4482a.glb",
+    "bytes": 1597148,
+    "sha256": "20141ef4482aaea8c4f8cf72398122bdb7bf86c98448df546c8450258b2ef58d",
     "preview": {
       "file": "assets/characters-cs2/popular/t-number-k/portrait-2189df87326f.webp",
       "bytes": 35998,
@@ -81,9 +81,9 @@ export const AGENT_ASSETS = Object.freeze({
     }
   },
   "t-silent-darryl": {
-    "model": "assets/characters-cs2/popular/t-silent-darryl/body-f50d9c28412a.glb",
-    "bytes": 5862684,
-    "sha256": "f50d9c28412ab845b31b8582fd185c270e898d89d246399d5549256635ae3c98",
+    "model": "assets/characters-cs2/popular/t-silent-darryl/body-8518e49b33b5.glb",
+    "bytes": 2054176,
+    "sha256": "8518e49b33b53e5305716b4e4e847f5ff677ead9baf77ede489bcb383df229e5",
     "preview": {
       "file": "assets/characters-cs2/popular/t-silent-darryl/portrait-a4685d65236d.webp",
       "bytes": 30894,
@@ -91,9 +91,9 @@ export const AGENT_ASSETS = Object.freeze({
     }
   },
   "t-enforcer": {
-    "model": "assets/characters-cs2/popular/t-enforcer/body-06c841d80b19.glb",
-    "bytes": 4124176,
-    "sha256": "06c841d80b195cbb888563f5816d28b1a6b98f62fc8c1dc0f8396bb812dc5cc0",
+    "model": "assets/characters-cs2/popular/t-enforcer/body-3b0b7fb80ae0.glb",
+    "bytes": 1207920,
+    "sha256": "3b0b7fb80ae0690afb7dfd31aabb265a030a533d45a40beeaa15b78e89fd98aa",
     "preview": {
       "file": "assets/characters-cs2/popular/t-enforcer/portrait-909fe8d4460e.webp",
       "bytes": 30710,

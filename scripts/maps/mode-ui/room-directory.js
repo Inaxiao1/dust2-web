@@ -2,6 +2,17 @@ const roomCode = /^[A-Z0-9]{4,12}$/;
 const mapId = /^de_[a-z0-9_]+$/;
 const modeLabels = {defuse:'竞技爆破', deathmatch:'团队死斗'};
 
+function staticRuntime() {
+  const rt = globalThis.__CS2_STATIC_RUNTIME__;
+  return rt && typeof rt === 'object' ? rt : null;
+}
+
+function apiUrl(pathAndQuery) {
+  const rt = staticRuntime();
+  if (rt?.gameServerOrigin) return new URL(pathAndQuery, rt.gameServerOrigin).href;
+  return pathAndQuery;
+}
+
 function availableRooms(rooms) {
   return rooms.filter(room => room && mapId.test(room.mapId) && roomCode.test(room.code)
     && Object.hasOwn(modeLabels, room.mode) && Number.isInteger(room.capacity) && room.capacity > 0
@@ -12,13 +23,21 @@ function availableRooms(rooms) {
 export function directoryJoinPath(room, graphics) {
   if (!mapId.test(room.mapId) || !roomCode.test(room.code) || !Object.hasOwn(modeLabels, room.mode)) return null;
   const quality = graphics === 'quality' && room.qualityAvailable;
+  const rt = staticRuntime();
+  if (rt) {
+    const params = new URLSearchParams({map:room.mapId, room:room.code, join:'1', matchMode:room.mode});
+    if (quality) params.set('quality', '1');
+    return (rt.staticPlayPath || './play.html') + '?' + params;
+  }
   const params = new URLSearchParams({room:room.code, join:'1', matchMode:room.mode});
   return '/perf/' + (quality ? 'quality/' : '') + 'play/' + room.mapId + '/?' + params;
 }
 
 // A plain ?room= invitation keeps its usual confirmation. Only directory links start a join.
 export function consumeDirectoryJoin(url, replace) {
-  if (!/^\/perf\/(?:quality\/)?play\/de_[a-z0-9_]+\/$/.test(url.pathname) || url.searchParams.get('join') !== '1') return null;
+  const isPerfPath = /^\/perf\/(?:quality\/)?play\/de_[a-z0-9_]+\/$/.test(url.pathname);
+  const isStaticPlay = /(?:^|\/)play\.html$/i.test(url.pathname) && mapId.test(url.searchParams.get('map') || '');
+  if ((!isPerfPath && !isStaticPlay) || url.searchParams.get('join') !== '1') return null;
   const code = url.searchParams.get('room'), mode = url.searchParams.get('matchMode');
   url.searchParams.delete('join');
   url.searchParams.delete('matchMode');
@@ -111,7 +130,7 @@ export function mountRoomDirectory(section, {
     request = current;
     deadline = setTimeout(() => current.abort(), 6000);
     try {
-      const response = await fetch('/perf/rooms.json', {cache:'no-store', signal:current.signal});
+      const response = await fetch(apiUrl('/perf/rooms.json'), {cache:'no-store', signal:current.signal});
       if (!response.ok) throw Error('Room directory unavailable');
       const data = await response.json();
       if (!Array.isArray(data.rooms)) throw Error('Invalid room directory');

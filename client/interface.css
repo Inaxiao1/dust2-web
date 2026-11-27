@@ -161,11 +161,15 @@
 }
 
 #settings-menu .config-card {
-  height: min(710px, 88dvh);
+  width: min(1080px, 95vw);
+  height: min(740px, 89dvh);
   display: flex;
   flex-direction: column;
   padding: 0;
   overflow: hidden;
+  background: linear-gradient(168deg, rgba(22, 33, 39, 0.98) 0%, rgba(14, 22, 27, 0.98) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 32px 110px rgba(0, 0, 0, 0.68), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   animation: modalIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 #settings-menu .config-card > header {
@@ -173,23 +177,58 @@
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  padding: 20px 28px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(17, 27, 31, 0.82);
+  padding: 18px 26px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+  background: linear-gradient(90deg, rgba(16, 26, 32, 0.95) 0%, rgba(23, 35, 42, 0.88) 100%);
   flex-shrink: 0;
 }
+#settings-menu .settings-title-block { display: grid; gap: 3px; }
+#settings-menu .settings-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
 #settings-menu .config-card > header .eyebrow {
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.18em;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
   color: #e3bd6b;
-  margin-bottom: 4px;
+  margin: 0;
 }
 #settings-menu .config-card > header h2 {
   margin: 0;
-  font-size: 26px;
-  font-weight: 700;
-  color: #eff2ed;
+  font-size: 24px;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  color: #f3f6f2;
+}
+#settings-menu .settings-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  border: 1px solid transparent;
+  line-height: 1.45;
+  white-space: nowrap;
+}
+#settings-menu .settings-badge.badge-live {
+  background: rgba(227, 189, 107, 0.13);
+  border-color: rgba(227, 189, 107, 0.42);
+  color: #f5dfac;
+}
+#settings-menu .settings-badge.badge-ready {
+  background: rgba(102, 205, 170, 0.12);
+  border-color: rgba(102, 205, 170, 0.36);
+  color: #9be8cd;
+}
+#settings-menu .settings-badge.badge-locked {
+  background: rgba(148, 163, 184, 0.12);
+  border-color: rgba(148, 163, 184, 0.32);
+  color: #c5d1d8;
 }
 #settings-menu #close-settings {
   appearance: none;
@@ -197,75 +236,116 @@
   border-radius: 0;
   background: #22323a;
   color: #edf0e8;
-  padding: 10px 18px;
+  padding: 9px 18px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 650;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 #settings-menu #close-settings:hover {
   background: #30424b;
   border-color: #e3bd6b;
+  color: #f5dfac;
 }
 #settings-menu .config-body {
   display: grid;
-  grid-template-columns: 204px minmax(0, 1fr);
+  grid-template-columns: 224px minmax(0, 1fr);
   flex: 1;
   min-height: 0;
 }
 #settings-menu .config-tabs {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 16px 12px;
+  gap: 16px;
+  padding: 18px 12px;
   border-bottom: 0;
-  border-right: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(16, 25, 30, 0.64);
+  border-right: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(11, 18, 23, 0.72);
   overflow-y: auto;
+}
+#settings-menu .nav-section {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+#settings-menu .nav-section[hidden] { display: none; }
+#settings-menu .nav-section + .nav-section {
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+#settings-menu .nav-section-title {
+  padding: 0 12px 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #728b96;
 }
 #settings-menu .config-tabs button {
   appearance: none;
   width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   text-align: left;
   background: transparent;
   border: 1px solid transparent;
   border-left: 3px solid transparent;
   border-radius: 0;
-  padding: 11px 14px;
-  font-size: 13.5px;
+  padding: 10px 12px;
+  font-size: 13px;
   font-weight: 600;
-  color: #aabac0;
+  color: #9eb1ba;
   cursor: pointer;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+#settings-menu .config-tabs button .tab-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  opacity: 0.78;
+}
+#settings-menu .config-tabs button .tab-icon svg {
+  width: 16px;
+  height: 16px;
+  display: block;
 }
 #settings-menu .config-tabs button:hover {
   background: rgba(255, 255, 255, 0.05);
   color: #eff2ed;
 }
+#settings-menu .config-tabs button:hover .tab-icon { opacity: 1; }
 #settings-menu .config-tabs button.selected {
-  background: rgba(227, 189, 107, 0.12);
+  background: linear-gradient(90deg, rgba(227, 189, 107, 0.16) 0%, rgba(227, 189, 107, 0.04) 100%);
   border-left-color: #e3bd6b;
-  color: #f5dfac;
+  color: #f7e3b5;
+}
+#settings-menu .config-tabs button.selected .tab-icon {
+  color: #e3bd6b;
+  opacity: 1;
 }
 #settings-menu .config-scroll {
   height: auto;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 22px 28px 32px;
+  padding: 24px 30px 34px;
   scrollbar-color: #364a54 transparent;
 }
 #settings-menu .config-scroll > section:not([hidden]) {
   animation: panelIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
-#settings-menu .config-scroll h3 { margin: 0 0 4px; font-size: 19px; font-weight: 700; color: #eff2ed; }
+#settings-menu .config-scroll h3 { margin: 0 0 5px; font-size: 20px; font-weight: 750; color: #f3f6f2; }
 #settings-menu .config-scroll h4 {
   display: flex;
   align-items: center;
   gap: 8px;
   margin: 0 0 13px;
   font-size: 12.5px;
-  font-weight: 650;
+  font-weight: 700;
   letter-spacing: 0.06em;
   color: #85bfd9;
 }
@@ -276,24 +356,144 @@
   height: 14px;
   background: #85bfd9;
 }
+#settings-menu .group-header-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+  margin-bottom: 13px;
+}
+#settings-menu .group-header-row h4 { margin: 0; }
 #settings-menu .config-scroll p,
-#settings-menu .config-scroll small { color: #aabac0; line-height: 1.65; font-size: 12.5px; margin: 0; }
+#settings-menu .config-scroll small { color: #9fb1b9; line-height: 1.6; font-size: 12.5px; margin: 0; }
 #settings-menu .settings-panel-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 #settings-menu .settings-group {
-  background: rgba(29, 43, 50, 0.52);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: linear-gradient(180deg, rgba(28, 42, 50, 0.64) 0%, rgba(21, 33, 40, 0.56) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-top-color: rgba(255, 255, 255, 0.16);
   border-radius: 0;
-  padding: 16px 18px;
-  margin-bottom: 14px;
+  padding: 17px 20px;
+  margin-bottom: 15px;
 }
 #settings-menu .settings-group > p { margin-top: 8px; }
-#settings-menu .config-card button:not(.config-tabs button):not(#close-settings):not(.step-btn):not(.preset-chip):not(.dpi-pill):not(.color-swatch):not(.controls-button):not(.preview-bg-switch button):not(.tac-opt):not(.tac-step-btn):not(.tac-quick-chip) {
+#settings-menu .group-hint {
+  margin-top: 10px !important;
+  padding: 9px 12px;
+  border-left: 3px solid #85bfd9;
+  background: rgba(133, 191, 217, 0.09);
+  color: #c7dce6 !important;
+  font-size: 12px !important;
+}
+#settings-menu .visual-style-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+#settings-menu .visual-style-card {
+  appearance: none;
+  display: grid;
+  grid-template-rows: 10px 1fr;
+  text-align: left;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 0;
+  background: rgba(17, 27, 33, 0.84);
+  color: #eff2ed;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.16s, background 0.16s, transform 0.14s, box-shadow 0.16s;
+}
+#settings-menu .visual-style-card:hover {
+  border-color: rgba(133, 191, 217, 0.72);
+  background: rgba(25, 39, 47, 0.92);
+  transform: translateY(-1px);
+}
+#settings-menu .visual-style-card.active {
+  border-color: #e3bd6b;
+  background: linear-gradient(180deg, rgba(227, 189, 107, 0.15) 0%, rgba(22, 34, 41, 0.96) 100%);
+  box-shadow: inset 0 -2px #e3bd6b, 0 8px 24px rgba(0, 0, 0, 0.28);
+}
+#settings-menu .vsc-swatch {
+  display: block;
+  width: 100%;
+  height: 10px;
+}
+#settings-menu .vsc-body {
+  display: grid;
+  gap: 6px;
+  padding: 13px 15px 14px;
+}
+#settings-menu .vsc-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#settings-menu .vsc-top strong {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #f3f6f2;
+}
+#settings-menu .visual-style-card.active .vsc-top strong { color: #f7e3b5; }
+#settings-menu .vsc-tag {
+  padding: 2px 7px;
+  font-size: 10.5px;
+  font-weight: 650;
+  background: rgba(255, 255, 255, 0.08);
+  color: #b7c8cf;
+}
+#settings-menu .visual-style-card.active .vsc-tag {
+  background: rgba(227, 189, 107, 0.20);
+  color: #f5dfac;
+}
+#settings-menu .vsc-check {
+  margin-left: auto;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 800;
+  border: 1px solid rgba(255, 255, 255, 0.20);
+  color: transparent;
+  transition: background 0.14s, border-color 0.14s, color 0.14s;
+}
+#settings-menu .visual-style-card.active .vsc-check {
+  background: #e3bd6b;
+  border-color: #e3bd6b;
+  color: #131c21;
+}
+#settings-menu .vsc-body p {
+  font-size: 12px;
+  color: #9cb0b9;
+  line-height: 1.5;
+}
+#settings-menu .config-row.is-locked {
+  background: rgba(12, 20, 25, 0.42);
+  padding: 12px 14px;
+  border: 1px dashed rgba(148, 163, 184, 0.28);
+}
+#settings-menu .config-row.is-locked > span > small { color: #c4d0d6; }
+#settings-menu .config-row.is-locked .tac-opt { opacity: 0.56; }
+#settings-menu .config-row.is-locked .tac-opt.active { opacity: 0.86; }
+#settings-menu .settings-info-list {
+  display: grid;
+  gap: 8px;
+}
+#settings-menu .settings-info-list p {
+  padding-left: 11px;
+  border-left: 2px solid rgba(133, 191, 217, 0.35);
+}
+#settings-menu .config-card button:not(.config-tabs button):not(#close-settings):not(.step-btn):not(.preset-chip):not(.dpi-pill):not(.color-swatch):not(.controls-button):not(.preview-bg-switch button):not(.tac-opt):not(.tac-step-btn):not(.tac-quick-chip):not(.visual-style-card) {
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 0;
   background: #22323a;
@@ -306,7 +506,7 @@
   transition: background 0.14s, border-color 0.14s;
 }
 #settings-menu .config-card button.btn-subtle:hover,
-#settings-menu .config-card button:not(.config-tabs button):not(#close-settings):not(.step-btn):not(.preset-chip):not(.dpi-pill):not(.color-swatch):not(.controls-button):not(.preview-bg-switch button):not(.tac-opt):not(.tac-step-btn):not(.tac-quick-chip):hover:not(:disabled) {
+#settings-menu .config-card button:not(.config-tabs button):not(#close-settings):not(.step-btn):not(.preset-chip):not(.dpi-pill):not(.color-swatch):not(.controls-button):not(.preview-bg-switch button):not(.tac-opt):not(.tac-step-btn):not(.tac-quick-chip):not(.visual-style-card):hover:not(:disabled) {
   background: #30424b;
   border-color: #e3bd6b;
   color: #f5dfac;
@@ -543,11 +743,54 @@
 #settings-menu .audio-actions-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 #settings-menu #music-status { margin-top: 10px; color: #dfc68e; }
 
-/* Pause menu sensitivity row */
+/* Pause menu sensitivity row & visual status */
 .pause-sens-row { display: grid; grid-template-columns: minmax(0, 1fr) 76px; align-items: center; gap: 10px; margin-top: 6px; }
 .pause-sens-row input[type="range"] { width: 100%; margin: 0; }
 .pause-card .settings .pause-sens-row input[type="number"] { width: 76px; height: 32px; padding: 0 6px; text-align: center; border: 1px solid rgba(255, 255, 255, 0.18); background: #19262d; color: #eff2ed; }
 .pause-card .settings .tac-control { margin-top: 8px; }
+.pause-card .settings .pause-live-tag {
+  float: right;
+  display: inline-flex;
+  align-items: center;
+  width: auto;
+  margin: 0;
+  padding: 1px 7px;
+  font-size: 10.5px;
+  font-weight: 650;
+  background: rgba(227, 189, 107, 0.15);
+  border: 1px solid rgba(227, 189, 107, 0.38);
+  color: #f5dfac;
+}
+.pause-texture-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 10px;
+  margin-top: 12px;
+  padding: 9px 11px;
+  border: 1px dashed rgba(148, 163, 184, 0.28);
+  background: rgba(14, 23, 29, 0.65);
+  font-size: 12px;
+}
+.pause-texture-status span { color: #9ab0ba; }
+.pause-texture-status b { color: #eff2ed; font-weight: 650; margin-right: auto; }
+.pause-texture-status small { color: #8da2aa; font-size: 11px; margin: 0 !important; width: auto !important; display: inline !important; }
+.pause-card .utility-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin: 14px 0 8px;
+}
+.pause-card .utility-row button {
+  padding: 9px 6px;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pause-card .utility-row .room-open { grid-column: 1 / -1; }
+.pause-card { scrollbar-width: thin; scrollbar-color: #364a54 transparent; }
 .host-bot-row { display: grid !important; gap: 8px; }
 
 /* Armory / Shop / Misc preserved styles (Unified Square Slate + Gold/Blue) */
@@ -595,9 +838,13 @@ body.mouse-captured #game-canvas { cursor: none; }
   #settings-menu .config-card { width: 100%; height: min(760px, calc(100dvh - 16px)); max-height: calc(100dvh - 16px); }
   #settings-menu .config-card > header { padding: 14px 16px; }
   #settings-menu .config-body { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
-  #settings-menu .config-tabs { flex-direction: row; border-right: 0; border-bottom: 1px solid rgba(255, 255, 255, 0.14); padding: 8px 12px; overflow-x: auto; flex-shrink: 0; }
-  #settings-menu .config-tabs button { width: auto; flex: none; border-left: 0; border-bottom: 2px solid transparent; padding: 8px 13px; font-size: 12.5px; white-space: nowrap; }
+  #settings-menu .config-tabs { flex-direction: row; gap: 8px; border-right: 0; border-bottom: 1px solid rgba(255, 255, 255, 0.14); padding: 8px 12px; overflow-x: auto; flex-shrink: 0; }
+  #settings-menu .nav-section { flex-direction: row; align-items: center; gap: 4px; flex-shrink: 0; }
+  #settings-menu .nav-section + .nav-section { padding-top: 0; padding-left: 8px; border-top: 0; border-left: 1px solid rgba(255, 255, 255, 0.12); }
+  #settings-menu .nav-section-title { display: none; }
+  #settings-menu .config-tabs button { width: auto; flex: none; border-left: 0; border-bottom: 2px solid transparent; padding: 8px 12px; font-size: 12.5px; white-space: nowrap; }
   #settings-menu .config-tabs button.selected { border-bottom-color: #e3bd6b; }
+  #settings-menu .visual-style-grid { grid-template-columns: 1fr; }
   #settings-menu .config-scroll { padding: 16px; }
   #settings-menu .config-row .tac-pills { justify-content: flex-start; width: 100%; }
   #settings-menu .slider-control-head { flex-wrap: wrap; }

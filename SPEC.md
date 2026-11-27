@@ -92,6 +92,11 @@
 
 ## 6. 变更与验证日志
 
+- `2026-11-27`：
+  - 完成精简高效的后端可观测性与集群调度加固：
+    - Go 控制面新增零依赖 Prometheus `GET /metrics`、多图实时容量视图 `GET /api/v1/maps`，以及基于 Redis `INCR + EXPIRE` 的跨副本分布式 IP 限流（[redis.go](control-plane/internal/store/redis.go)、[server.go](control-plane/internal/api/server.go)），Redis 异常时自动回退本地令牌桶。
+    - Battle Worker（[server/index.js](server/index.js)）与 Lobby 网关（[server/performance-maps.js](server/performance-maps.js)）新增 Prometheus `/metrics`、真实 `tickP99Ms` 采集上报、`DUST2_MAX_WS_CONNECTIONS` 可配上限与 `/perf/api/maps` 聚合接口。
+    - 本地集群启动器 [scripts/dev-ha-cluster.mjs](scripts/dev-ha-cluster.mjs) 支持 `HA_MAPS=all` 或逗号分隔自定义九图组合启动；[deploy/ha/k8s-deployment.yaml](deploy/ha/k8s-deployment.yaml) 补齐 Prometheus 自动抓取注解。
 - `2026-11-26`：
   - 完成 Phase 1 全部验证：`npm run logic:check` 校验通过，`tests/logic-only-server.mjs` 等 108 项服务端与 CDN 回归测试 **108 pass / 0 fail**。
   - 根据确认锁定 **Web 版演进路线（ADR-001）**：客户端 `TS + Three.js WebGPU/WebGL2 + SolidJS + Rust/WASM`，控制面 `Go + Redis`，对局服 `Node Logic Worker (过渡) -> Rust (目标)`。

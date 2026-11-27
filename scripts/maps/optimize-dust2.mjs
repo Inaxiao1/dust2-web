@@ -148,7 +148,7 @@ function readPositionComponent(bin, offset, componentType, normalized) {
   throw new Error('Unsupported POSITION componentType: ' + componentType);
 }
 
-function ptInTri3D(px, py, pz, T) {
+function ptInTri3D(px, py, pz, T, margin = 0.008) {
   const v0x = T.cx - T.ax, v0y = T.cy - T.ay, v0z = T.cz - T.az;
   const v1x = T.bx - T.ax, v1y = T.by - T.ay, v1z = T.bz - T.az;
   const v2x = px - T.ax, v2y = py - T.ay, v2z = pz - T.az;
@@ -161,7 +161,15 @@ function ptInTri3D(px, py, pz, T) {
   if (Math.abs(inv) < 1e-11) return false;
   const u = (d11 * d02 - d01 * d12) / inv;
   const v = (d00 * d12 - d01 * d02) / inv;
-  return u >= 0.008 && v >= 0.008 && u + v <= 0.992;
+  return u >= margin && v >= margin && u + v <= 1 - margin;
+}
+
+function triContainedIn(small, big) {
+  return (
+    ptInTri3D(small.ax, small.ay, small.az, big, -0.004) &&
+    ptInTri3D(small.bx, small.by, small.bz, big, -0.004) &&
+    ptInTri3D(small.cx, small.cy, small.cz, big, -0.004)
+  );
 }
 
 function trisOverlapCoplanar(A, B) {
@@ -191,7 +199,7 @@ function trisOverlapCoplanar(A, B) {
  * Resolve exact duplicate, opposite-facing coplanar, and same-facing coplanar
  * triangles across all static world geometry to eliminate two-color Z-fighting.
  */
-function resolveWorldZFighting(tris) {
+function resolveWorldZFighting(tris, { preserveAll = false } = {}) {
   const n = tris.length;
   const deleted = new Uint8Array(n);
   const frontSide = new Uint8Array(n);
@@ -325,61 +333,87 @@ function resolveWorldZFighting(tris) {
         const colorOrTagDiff = cd > 10 || A.tag !== B.tag;
 
         if (dot < -0.90) {
-          if (!frontSide[iA] || !frontSide[iB]) {
-            if (dist >= 0.0005 && dist <= 0.010) {
-              const dirDot = (A.mx - B.mx) * A.nx + (A.my - B.my) * A.ny + (A.mz - B.mz) * A.nz;
-              if (dirDot < -0.0002) {
-                for (const T of [A, B]) {
-                  const tx = T.bx, ty = T.by, tz = T.bz;
-                  const tr = T.br, tg = T.bg, tb = T.bb;
-                  T.bx = T.cx; T.by = T.cy; T.bz = T.cz;
-                  T.br = T.cr; T.bg = T.cg; T.bb = T.cb;
-                  T.cx = tx; T.cy = ty; T.cz = tz;
-                  T.cr = tr; T.cg = tg; T.cb = tb;
-                  T.nx = -T.nx; T.ny = -T.ny; T.nz = -T.nz;
-                }
-                stats.coplanarOppFlipped++;
+          // Exact Pass-1 FrontSide twins already rely on hardware backface culling — never nudge them apart!
+          if (frontSide[iA] && frontSide[iB]) continue;
+          // NEVER force asymmetric or partial coplanar overlaps to FrontSide (or flip their winding)!
+          // Original Source 2 performance maps are DoubleSide; flipping/culling a 10m² exterior wall
+          // because a tiny 0.02m² trim/poster sits 7mm in front of it creates massive X-ray wall holes!
+          // Instead, if they are within Z-fighting range (< 4.5mm) and differ in color/tag, gently nudge
+          // ONLY the smaller detail/decal triangle outward along its existing side while keeping BOTH DoubleSide.
+          if (dist < 0.0045 && colorOrTagDiff) {
+            let smIdx, bgIdx;
+            if (A.area < B.area * 0.78) {
+              smIdx = iA; bgIdx = iB;
+            } else if (B.area < A.area * 0.78) {
+              smIdx = iB; bgIdx = iA;
+            } else {
+              const aTagged = A.tag >= 1 && A.tag <= 6;
+              const bTagged = B.tag >= 1 && B.tag <= 6;
+              if (aTagged !== bTagged) {
+                bgIdx = aTagged ? iA : iB;
+                smIdx = aTagged ? iB : iA;
+              } else {
+                bgIdx = A.area >= B.area ? iA : iB;
+                smIdx = A.area >= B.area ? iB : iA;
               }
             }
-            frontSide[iA] = 1;
-            frontSide[iB] = 1;
-            locked[iA] = 1;
-            locked[iB] = 1;
-            stats.coplanarOppFrontSided++;
+            if (frontSide[smIdx]) continue;
+            const sm = tris[smIdx];
+            const bg = tris[bgIdx];
+            const signedClear = (sm.mx - bg.ax) * bg.nx + (sm.my - bg.ay) * bg.ny + (sm.mz - bg.az) * bg.nz;
+            const dirSign = Math.abs(signedClear) >= 0.0003 ? (signedClear >= 0 ? 1 : -1) : -1;
+            const currentClear = Math.abs(signedClear);
+            const targetClear = 0.0055;
+            const needed = Math.min(0.010, Math.max(0.0045, targetClear - currentClear));
+            if (needed > offsetDist[smIdx]) {
+              offsetDist[smIdx] = needed;
+              offsetDirX[smIdx] = bg.nx * dirSign;
+              offsetDirY[smIdx] = bg.ny * dirSign;
+              offsetDirZ[smIdx] = bg.nz * dirSign;
+              stats.coplanarSameNudged++;
+            }
+            locked[smIdx] = 1;
           }
         } else if (dot > 0.90 && colorOrTagDiff) {
-          let smIdx, bgIdx;
-          if (A.area < B.area * 0.78) {
-            smIdx = iA; bgIdx = iB;
-          } else if (B.area < A.area * 0.78) {
-            smIdx = iB; bgIdx = iA;
-          } else {
-            const aTagged = A.tag >= 1 && A.tag <= 6;
-            const bTagged = B.tag >= 1 && B.tag <= 6;
-            if (aTagged !== bTagged) {
-              bgIdx = aTagged ? iA : iB;
-              smIdx = aTagged ? iB : iA;
+          if (dist < 0.0045) {
+            let smIdx, bgIdx;
+            if (A.area < B.area * 0.78) {
+              smIdx = iA; bgIdx = iB;
+            } else if (B.area < A.area * 0.78) {
+              smIdx = iB; bgIdx = iA;
             } else {
-              bgIdx = A.area >= B.area ? iA : iB;
-              smIdx = A.area >= B.area ? iB : iA;
+              const aTagged = A.tag >= 1 && A.tag <= 6;
+              const bTagged = B.tag >= 1 && B.tag <= 6;
+              if (aTagged !== bTagged) {
+                bgIdx = aTagged ? iA : iB;
+                smIdx = aTagged ? iB : iA;
+              } else {
+                bgIdx = A.area >= B.area ? iA : iB;
+                smIdx = A.area >= B.area ? iB : iA;
+              }
             }
+            if (frontSide[smIdx]) continue;
+            const sm = tris[smIdx];
+            const bg = tris[bgIdx];
+            const signedClear = (sm.mx - bg.ax) * bg.nx + (sm.my - bg.ay) * bg.ny + (sm.mz - bg.az) * bg.nz;
+            const dirSign = Math.abs(signedClear) >= 0.0003 ? (signedClear >= 0 ? 1 : -1) : 1;
+            const currentClear = Math.abs(signedClear);
+            const targetClear = 0.0055; // 5.5mm clean Z-buffer clearance
+            const needed = Math.min(0.010, Math.max(0.0045, targetClear - currentClear));
+            if (needed > offsetDist[smIdx]) {
+              offsetDist[smIdx] = needed;
+              offsetDirX[smIdx] = bg.nx * dirSign;
+              offsetDirY[smIdx] = bg.ny * dirSign;
+              offsetDirZ[smIdx] = bg.nz * dirSign;
+              stats.coplanarSameNudged++;
+            }
+            locked[smIdx] = 1;
           }
-          const sm = tris[smIdx];
-          const bg = tris[bgIdx];
-          const signedClear = (sm.mx - bg.ax) * bg.nx + (sm.my - bg.ay) * bg.ny + (sm.mz - bg.az) * bg.nz;
-          const targetClear = 0.0055; // 5.5mm clean Z-buffer clearance
-          const needed = Math.min(0.010, Math.max(0.0045, targetClear - signedClear));
-          if (needed > offsetDist[smIdx]) {
-            offsetDist[smIdx] = needed;
-            offsetDirX[smIdx] = bg.nx;
-            offsetDirY[smIdx] = bg.ny;
-            offsetDirZ[smIdx] = bg.nz;
-            stats.coplanarSameNudged++;
-          }
-          locked[smIdx] = 1;
-        } else if (dot > 0.96 && !colorOrTagDiff && dist < 0.001) {
+        } else if (dot > 0.96 && !colorOrTagDiff && dist < 0.001 && !preserveAll) {
           const dropIdx = A.area <= B.area ? iA : iB;
-          if (Math.min(A.area, B.area) / Math.max(A.area, B.area) > 0.85) {
+          const keepIdx = dropIdx === iA ? iB : iA;
+          // Never delete a paired FrontSide twin, and only drop a redundant duplicate if strictly contained.
+          if (!frontSide[dropIdx] && triContainedIn(tris[dropIdx], tris[keepIdx])) {
             deleted[dropIdx] = 1;
             stats.coplanarSameDeleted++;
           }
@@ -493,7 +527,7 @@ function encodeChunk(name, tris, { isFence = false, frontSide = false, origNodeI
         Uint8Array.from(locks),
         target,
         err,
-        ['ErrorAbsolute', 'Permissive'],
+        ['ErrorAbsolute'],
       )[0];
     }
 
@@ -593,7 +627,7 @@ function encodeChunk(name, tris, { isFence = false, frontSide = false, origNodeI
 }
 
 /** 2. Build optimized, Z-fighting-free, spatially-chunked MGP1 compact mesh package */
-async function buildCompactMesh(mapId, mapDir) {
+async function buildCompactMesh(mapId, mapDir, { noSimplify = false } = {}) {
   await MeshoptSimplifier.ready;
   const gltfPath = path.join(mapDir, 'render/map.gltf');
   const binPath = path.join(mapDir, 'render/map.bin');
@@ -728,11 +762,12 @@ async function buildCompactMesh(mapId, mapDir) {
   }
 
   // Run pre-simplification coplanar Z-fighting resolution on all static world triangles!
-  const zStats = resolveWorldZFighting(worldTris);
+  const zStats = resolveWorldZFighting(worldTris, { preserveAll: noSimplify });
   const preActive = worldTris.filter((t) => !t.deleted);
 
-  // Stage A: Simplify static world triangles per tag & frontSide (keeping seams locked!)
+  // Stage A: Simplify static world triangles per tag & frontSide (keeping seams & open borders strictly locked!)
   const simplifyGroup = (list) => {
+    if (noSimplify) return list;
     const out = [];
     const byTag = new Map();
     for (const t of list) {
@@ -794,7 +829,7 @@ async function buildCompactMesh(mapId, mapDir) {
           const target = Math.max(3, 3 * Math.floor((gIdx.length / 3) * (isTagged ? 0.28 : 0.36)));
           const err = isTagged ? 0.032 : 0.022;
           res = MeshoptSimplifier.simplifyWithAttributes(
-            gIdx, fPts, 3, attrs, 3, [0.10, 0.14, 0.10], Uint8Array.from(locks), target, err, ['ErrorAbsolute', 'Permissive'],
+            gIdx, fPts, 3, attrs, 3, [0.10, 0.14, 0.10], Uint8Array.from(locks), target, err, ['ErrorAbsolute', 'LockBorder'],
           )[0];
         }
         for (let i = 0; i < res.length; i += 3) {
@@ -830,11 +865,32 @@ async function buildCompactMesh(mapId, mapDir) {
   };
 
   const simplifiedWorld = simplifyGroup(preActive);
-  // Stage B: Final post-simplification Z-fighting cleanup catches 100% of any foldovers or overlaps introduced by MeshoptSimplifier!
-  const zStatsPost = resolveWorldZFighting(simplifiedWorld);
-  for (const k of Object.keys(zStats)) zStats[k] += zStatsPost[k];
-  // Preserve frontSide flags from stage A as well as stage B
+  // Stage B: Final post-simplification Z-fighting cleanup (only needed when simplified!)
+  if (!noSimplify) {
+    const zStatsPost = resolveWorldZFighting(simplifiedWorld);
+    for (const k of Object.keys(zStats)) zStats[k] += zStatsPost[k];
+  }
+  // Preserve frontSide flags from stage A as well as stage B, and guarantee ZERO unpaired FrontSide triangles
   const activeWorld = simplifiedWorld.filter((t) => !t.deleted);
+  const fsPairs = new Map();
+  for (const t of activeWorld) {
+    if (!t.frontSide) continue;
+    const vs = [
+      `${Math.round(t.ax * 200)},${Math.round(t.ay * 200)},${Math.round(t.az * 200)}`,
+      `${Math.round(t.bx * 200)},${Math.round(t.by * 200)},${Math.round(t.bz * 200)}`,
+      `${Math.round(t.cx * 200)},${Math.round(t.cy * 200)},${Math.round(t.cz * 200)}`,
+    ].sort();
+    const key = vs.join('|');
+    let list = fsPairs.get(key);
+    if (!list) { list = []; fsPairs.set(key, list); }
+    list.push(t);
+  }
+  for (const list of fsPairs.values()) {
+    const hasOpp = list.length >= 2 && list.some((a) => list.some((b) => a !== b && a.nx * b.nx + a.ny * b.ny + a.nz * b.nz < -0.9));
+    if (!hasOpp) {
+      for (const t of list) t.frontSide = false;
+    }
+  }
 
   // Compute world XZ bounds for 3x3 spatial chunk grid (preserves frustum culling while slashing draw calls!)
   let wMinX = Infinity, wMaxX = -Infinity, wMinZ = Infinity, wMaxZ = -Infinity;
@@ -967,11 +1023,11 @@ function precompressBrotliExtras(mapDir) {
   return { totalBr, totalGz };
 }
 
-async function optimizeMap(mapId) {
+async function optimizeMap(mapId, opts = {}) {
   const mapDir = path.join(MAPS_ROOT, mapId);
   const t0 = Date.now();
   const physStats = buildPackedPhysics(mapDir);
-  const meshStats = await buildCompactMesh(mapId, mapDir);
+  const meshStats = await buildCompactMesh(mapId, mapDir, opts);
   const extras = precompressBrotliExtras(mapDir);
 
   const compactManifest = {
@@ -1025,15 +1081,18 @@ async function optimizeMap(mapId) {
   console.log('TOTAL DOWNLOAD:', `${(origTotalGz / 1e6).toFixed(2)} MB gz -> ${(compactManifest.totalBrBytes / 1e6).toFixed(2)} MB br (-${((1 - compactManifest.totalBrBytes / origTotalGz) * 100).toFixed(1)}%)`);
 }
 
-const arg = process.argv[2] || 'de_dust2';
+const rawArgs = process.argv.slice(2);
+const noSimplify = rawArgs.includes('--no-simplify');
+const mapArgs = rawArgs.filter((a) => !a.startsWith('--'));
+const arg = mapArgs[0] || 'de_dust2';
 const targets =
-  arg === '--all'
+  arg === '--all' || rawArgs.includes('--all')
     ? fs
         .readdirSync(MAPS_ROOT)
         .filter((d) => fs.existsSync(path.join(MAPS_ROOT, d, 'render/map.gltf')))
         .sort()
-    : process.argv.slice(2);
+    : mapArgs.length ? mapArgs : ['de_dust2'];
 
 for (const mapId of targets) {
-  await optimizeMap(mapId);
+  await optimizeMap(mapId, { noSimplify });
 }

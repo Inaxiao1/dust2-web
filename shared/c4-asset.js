@@ -1,8 +1,8 @@
 export const C4_ASSET=Object.freeze({
   "id": "c4",
   "file": "c4.glb",
-  "bytes": 4858264,
-  "sha256": "f3a554e3a90aa9f3a7f2b3ec83fdfe6f9b2ea5fb871cf9741f32e73f2350fead",
+  "bytes": 861632,
+  "sha256": "c5996bbfa5e11f3635bc6054bcb341b85fd4c840621bced858cf293faeca3616",
   "triangles": 17945,
   "sizeMetres": [
     0.18930727988481522,

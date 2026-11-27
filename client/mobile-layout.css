@@ -113,8 +113,12 @@
 .touch-device #settings-menu .eyebrow{font-size:9px}
 .touch-device #settings-menu .config-card>header button{min-height:36px;padding:0 12px;font-size:12px}
 .touch-device #settings-menu .config-body{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}
-.touch-device #settings-menu .config-tabs{flex-direction:row;border-right:0;border-bottom:1px solid rgba(148,174,201,.16);gap:4px;padding:6px 10px;overflow-x:auto}
-.touch-device #settings-menu .config-tabs button{width:auto;flex:none;padding:6px 10px;min-height:36px;font-size:12px;border-left:0;border-bottom:2px solid transparent}
+.touch-device #settings-menu .config-tabs{flex-direction:row;align-items:center;border-right:0;border-bottom:1px solid rgba(148,174,201,.16);gap:8px;padding:6px 10px;overflow-x:auto;scrollbar-width:thin;scrollbar-color:#364a54 transparent}
+.touch-device #settings-menu .nav-section{flex-direction:row;align-items:center;gap:4px;flex-shrink:0}
+.touch-device #settings-menu .nav-section+.nav-section{padding-top:0;padding-left:8px;border-top:0;border-left:1px solid rgba(255,255,255,.12)}
+.touch-device #settings-menu .nav-section-title{display:none}
+.touch-device #settings-menu .config-tabs button{width:auto;flex:none;padding:6px 10px;min-height:36px;font-size:12px;border-left:0;border-bottom:2px solid transparent;white-space:nowrap}
+.touch-device #settings-menu .config-tabs button.selected{border-bottom-color:#e3bd6b}
 .touch-device #settings-menu .config-scroll{height:auto;flex:1;min-height:0;overflow:auto;padding:12px 14px;font-size:12px}
 .touch-device #settings-menu .config-scroll h3{font-size:15px;margin:0 0 4px}
 .touch-device #settings-menu .config-row{margin:0;padding:10px 0;gap:10px}

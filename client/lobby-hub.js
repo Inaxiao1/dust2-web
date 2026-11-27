@@ -23,6 +23,7 @@ import { LoadoutMenu } from './loadout-menu.js';
 import { SkinMenu } from './skin-menu.js';
 import { ProgressionMenu } from './progression-menu.js';
 import { upgradeAllSelects } from './tactical-select.js';
+import { getStoredVisualStyle, setStoredVisualStyle } from './arena-look-presets.js';
 
 let hubPromise = null;
 
@@ -52,6 +53,7 @@ function createHub() {
     let invertY = Boolean(storedSettings.invertY);
     let crosshairSettings = normalizeCrosshair(storedSettings.crosshair || DEFAULT_CROSSHAIR);
     let quality = preferences.getItem('dust2.quality.v2') === 'high' ? 'high' : 'low';
+    let visualStyle = getStoredVisualStyle();
     let brightness = Math.max(60, Math.min(160, Number(preferences.getItem('dust2.brightness')) || 100));
     let radarRotate = storedSettings.radarRotate !== false;
     let mobileClarity = normalizeClarity(storedSettings.mobileClarity);
@@ -101,12 +103,14 @@ function createHub() {
       controls,
       crosshair,
       videoDefaults,
+      isInMatch: () => false,
       getSettings: () => ({
         sensitivity,
         zoomSensitivity,
         invertY,
         crosshair: crosshairSettings,
         quality,
+        visualStyle,
         brightness,
         mobileClarity,
         flatRenderScale,
@@ -123,6 +127,9 @@ function createHub() {
         if (values.zoomSensitivity !== undefined) zoomSensitivity = values.zoomSensitivity;
         if (values.invertY !== undefined) invertY = Boolean(values.invertY);
         if (values.crosshair) crosshairSettings = values.crosshair;
+        if (values.visualStyle !== undefined) {
+          visualStyle = setStoredVisualStyle(values.visualStyle);
+        }
         if (values.quality !== undefined) {
           quality = values.quality === 'high' ? 'high' : 'low';
           preferences.setItem('dust2.quality.v2', quality);
@@ -158,7 +165,7 @@ function createHub() {
       'cs-aspect': { variant: 'pills' },
       'cs-display': { variant: 'pills' },
       'cs-radar-direction': { variant: 'pills' },
-      'cs-quality': { variant: 'pills' },
+      'cs-quality': { variant: 'cards' },
       'cs-flat-render-scale': { variant: 'pills' },
       'cs-mobile-clarity': { variant: 'pills' },
       'frame-limit': { variant: 'pills' },
@@ -229,8 +236,7 @@ function createHub() {
         else if (panel === 'skins') skins.open();
         else if (panel === 'settings') settingsUI.open();
         else if (panel === 'music') {
-          settingsUI.open();
-          settingsUI.element.querySelector('.config-tabs [data-tab="audio"]')?.click();
+          settingsUI.open('audio');
         }
       },
     };

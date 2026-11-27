@@ -129,6 +129,27 @@ func (s *fakeRedisServer) handleConn(conn net.Conn) {
 		case "DEL":
 			delete(s.kv, args[1])
 			_, _ = io.WriteString(conn, ":1\r\n")
+		case "INCR":
+			entry, ok := s.kv[args[1]]
+			var n int64
+			if ok && (entry.expire.IsZero() || !time.Now().After(entry.expire)) {
+				n, _ = strconv.ParseInt(entry.val, 10, 64)
+			} else {
+				entry = fakeRedisEntry{}
+			}
+			n++
+			entry.val = strconv.FormatInt(n, 10)
+			s.kv[args[1]] = entry
+			_, _ = io.WriteString(conn, fmt.Sprintf(":%d\r\n", n))
+		case "EXPIRE":
+			if entry, ok := s.kv[args[1]]; ok && len(args) >= 3 {
+				sec, _ := strconv.Atoi(args[2])
+				entry.expire = time.Now().Add(time.Duration(sec) * time.Second)
+				s.kv[args[1]] = entry
+				_, _ = io.WriteString(conn, ":1\r\n")
+			} else {
+				_, _ = io.WriteString(conn, ":0\r\n")
+			}
 		case "SADD":
 			if s.sets[args[1]] == nil {
 				s.sets[args[1]] = make(map[string]struct{})
@@ -338,5 +359,46 @@ func TestRedisStoreClosedRoomPruningAndConcurrentPool(t *testing.T) {
 	}
 	if rooms := rs.ListPublicRooms("de_dust2"); len(rooms) != 0 {
 		t.Fatalf("expected 0 public rooms after prune, got %+v", rooms)
+	}
+}
+
+func TestRedisStoreDistributedRateLimit(t *testing.T) {
+	srv := startFakeRedis(t, "")
+	var mu sync.Mutex
+	clock := time.Unix(1700000100, 0)
+	now := func() time.Time {
+		mu.Lock()
+		defer mu.Unlock()
+		return clock
+	}
+
+	r1, err := NewRedisStore(RedisConfig{Addr: srv.addr(), KeyPrefix: "rltest", Timeout: time.Second}, now)
+	if err != nil {
+		t.Fatalf("NewRedisStore r1: %v", err)
+	}
+	defer r1.Close()
+	r2, err := NewRedisStore(RedisConfig{Addr: srv.addr(), KeyPrefix: "rltest", Timeout: time.Second}, now)
+	if err != nil {
+		t.Fatalf("NewRedisStore r2: %v", err)
+	}
+	defer r2.Close()
+
+	// Limit of 3 shared across replica 1 and replica 2.
+	for i, rs := range []*RedisStore{r1, r2, r1} {
+		ok, err := rs.AllowRate("198.51.100.7", 3, time.Minute)
+		if err != nil || !ok {
+			t.Fatalf("hit %d expected allowed, got ok=%v err=%v", i+1, ok, err)
+		}
+	}
+	if ok, err := r2.AllowRate("198.51.100.7", 3, time.Minute); err != nil || ok {
+		t.Fatalf("4th hit across replica 2 expected denied, got ok=%v err=%v", ok, err)
+	}
+
+	// Advancing to the next minute bucket resets the shared window cleanly.
+	mu.Lock()
+	clock = clock.Add(65 * time.Second)
+	mu.Unlock()
+	if ok, err := r2.AllowRate("198.51.100.7", 3, time.Minute); err != nil || !ok {
+		t.Fatalf("next window expected allowed, got ok=%v err=%v", ok, err)
 	}
 }

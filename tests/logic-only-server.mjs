@@ -267,9 +267,57 @@ test('performance-maps gateway honors PERF_MAP_BASE_URL, PERF_DISABLE_LOCAL_ASSE
   assert.equal(health.disableLocalAssets, true);
   assert.equal(health.logicGatewayOnly, true);
 
+  const gwMetricsRes = await fetch(base + '/perf/metrics');
+  assert.equal(gwMetricsRes.status, 200);
+  const gwMetricsText = await gwMetricsRes.text();
+  assert.match(gwMetricsText, /cs2_gateway_up 1/);
+  assert.match(gwMetricsText, /cs2_gateway_ready 1/);
+
+  const mapsApiRes = await fetch(base + '/perf/api/maps');
+  assert.equal(mapsApiRes.status, 200);
+  const mapsApiJson = await mapsApiRes.json();
+  assert.equal(mapsApiJson.ok, true);
+  assert.equal(Array.isArray(mapsApiJson.maps), true);
+
   child.kill('SIGUSR2');
   await new Promise(r => setTimeout(r, 100));
   const readyAfter = await fetch(base + '/perf/ready');
   assert.equal(readyAfter.status, 503);
   assert.equal((await readyAfter.json()).draining, true);
+});
+
+test('battle worker exposes Prometheus /metrics with tick quantiles and token rejection counters', async () => {
+  const app = await startGameServer({
+    port: 0,
+    host: '127.0.0.1',
+    logicOnly: true,
+    requireJoinToken: true,
+    joinTokenSecret: 'metrics-worker-secret-32-bytes!!',
+  });
+  let ws;
+  try {
+    ws = new WebSocket(`ws://127.0.0.1:${app.port}/ws`);
+    await once(ws, 'open');
+    const errPromise = once(ws, 'message');
+    ws.send(JSON.stringify({ type: 'join', name: 'NoToken', mode: 'deathmatch', bots: 0 }));
+    const [raw] = await errPromise;
+    assert.equal(JSON.parse(raw.toString()).code, 'JOIN_TOKEN_REQUIRED');
+
+    const res = await fetch(`http://127.0.0.1:${app.port}/metrics`);
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get('content-type') || '', /text\/plain/);
+    const body = await res.text();
+    assert.match(body, /cs2_worker_up\{map_id="de_dust2"\} 1/);
+    assert.match(body, /cs2_worker_ready\{map_id="de_dust2"\} 1/);
+    assert.match(body, /cs2_worker_tick_ms\{map_id="de_dust2",quantile="0\.99"\}/);
+    assert.match(body, /cs2_worker_join_token_rejected_total\{map_id="de_dust2"\} 1/);
+
+    app.beginDrain();
+    const drainedBody = await (await fetch(`http://127.0.0.1:${app.port}/metrics`)).text();
+    assert.match(drainedBody, /cs2_worker_ready\{map_id="de_dust2"\} 0/);
+    assert.match(drainedBody, /cs2_worker_draining\{map_id="de_dust2"\} 1/);
+  } finally {
+    if (ws && ws.readyState === WebSocket.OPEN) ws.terminate();
+    await app.close();
+  }
 });

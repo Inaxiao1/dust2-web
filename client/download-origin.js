@@ -2,6 +2,7 @@ import {validateDownloadConfig} from '../shared/download-config.js';
 import {isPackagedAgentPath} from '../shared/packaged-agent-assets.js';
 import {isPackagedSkinPath} from '../shared/packaged-skin-assets.js';
 import {packagedMusicKitForPath} from '../shared/music-kits.js';
+import {getStaticRuntime,resolveStaticAsset,maybeGunzipResponse} from '../shared/static-runtime.js';
 
 const DEFAULT_CONFIG=Object.freeze({schemaVersion:1,assetBaseURL:null,mapBaseURL:null,fallbackToGameServer:false});
 const AVAILABILITY_STATUS=new Set([404,408,429,500,502,503,504]);
@@ -16,6 +17,17 @@ export function getDownloadOrigin(){return downloadOrigin;}
  * A missing endpoint preserves compatibility with older same-origin servers. */
 export async function initDownloadOrigin({configURL,pageURL=defaultPageURL(),signal,fetcher=globalThis.fetch}={}){
  check(signal);
+ const rt=getStaticRuntime();
+ if(rt){
+  const config=Object.freeze({
+   schemaVersion:1,
+   assetBaseURL:rt.assetBaseURL||null,
+   mapBaseURL:rt.mapBaseURL||null,
+   fallbackToGameServer:false,
+  });
+  downloadOrigin=config;
+  return config;
+ }
  const page=new URL(pageURL),url=new URL(configURL||'download-config.json',page);
  if(!['http:','https:'].includes(page.protocol)||url.origin!==page.origin||url.username||url.password||url.href.includes('?')||url.href.includes('#'))
   throw Error('Download configuration must come from the game origin');
@@ -35,14 +47,21 @@ export async function initDownloadOrigin({configURL,pageURL=defaultPageURL(),sig
  * URLs for hash checks and cache keys. No API, map or websocket route is moved. */
 export function assetDownloadURL(value,{pageURL=defaultPageURL(),config=downloadOrigin||DEFAULT_CONFIG}={}){
  const page=new URL(pageURL),url=new URL(value,page),prefix=new URL('assets/',new URL('.',page));
- if(!config.assetBaseURL||url.origin!==page.origin||!url.pathname.startsWith(prefix.pathname)||url.username||url.password||url.hash)
+ if(url.origin!==page.origin||!url.pathname.startsWith(prefix.pathname)||url.username||url.password||url.hash)
   return url;
  const relative=url.pathname.slice(prefix.pathname.length);
  if(!relative||relative.split('/').some(part=>!part||part==='.'||part==='..')||/%(?:2e|2f|5c)/i.test(relative)||relative.includes('\\'))
   throw Error('Asset download path is outside the source assets directory');
+ const assetPath='assets/'+relative;
+ const staticHit=resolveStaticAsset(assetPath,page);
+ if(staticHit){
+  const target=new URL(staticHit.url.href);
+  if(staticHit.source==='cdn')target.search=url.search;
+  return target;
+ }
+ if(!config.assetBaseURL)return url;
  // A private map server may already carry newly verified skin models in its package.
  const map=globalThis.__DUST2_PRIVATE_MAP__;
- const assetPath='assets/'+relative;
  if(map?.flatOnly||map?.graphicsMode==='quality'){
   if(isPackagedSkinPath(assetPath)&&Array.isArray(map.localSkinPaths)&&map.localSkinPaths.includes(assetPath))return url;
   if(isPackagedAgentPath(assetPath)&&Array.isArray(map.localAgentPaths)&&map.localAgentPaths.includes(assetPath))return url;
@@ -58,8 +77,14 @@ export async function fetchAssetDownload(value,options={}){
  const {pageURL=defaultPageURL(),config=downloadOrigin||DEFAULT_CONFIG,fetcher=globalThis.fetch,...request}=options;
  check(request.signal);
  const original=new URL(value,pageURL),remote=assetDownloadURL(original,{pageURL,config});
+ const isGzLocal=remote.origin===original.origin&&remote.pathname.endsWith('.gz')&&!original.pathname.endsWith('.gz');
  const fetchOriginal=async()=>{check(request.signal);const response=await fetcher(original,request);check(request.signal);return response;};
  if(remote.href===original.href)return fetchOriginal();
+ if(isGzLocal){
+  const response=await fetcher(remote,request);
+  check(request.signal);
+  return maybeGunzipResponse(response);
+ }
  let response;
  try{response=await fetcher(remote,{...request,mode:'cors',credentials:'omit'});}
  catch(error){
