@@ -335,9 +335,11 @@ export async function startGameServer({
     verifyClient: corsOrigins instanceof Set
       ? ({ origin }, callback) => callback(!origin || corsOrigins.has(origin), 403, 'Origin not allowed')
       : undefined,
-    perMessageDeflate: {serverNoContextTakeover:true,clientNoContextTakeover:true,threshold:1024,concurrencyLimit:2,zlibDeflateOptions:{level:1,memLevel:7}}
+    perMessageDeflate: {serverNoContextTakeover:true,clientNoContextTakeover:true,threshold:1024,concurrencyLimit:8,zlibDeflateOptions:{level:1,memLevel:7}}
   });
   wss.on('connection', (socket, req) => {
+    // Disable Nagle's algorithm so 30Hz snapshots and ping/pong frames flush immediately with minimal jitter.
+    try { req?.socket?.setNoDelay?.(true); socket?._socket?.setNoDelay?.(true); } catch {}
     // Rejected connections can still receive invalid frames while closing.
     socket.on('error', () => {});
     if (wss.clients.size > maxWsConnections) { workerMetrics.wsConnectionsRejected++; socket.close(1013, 'Server busy'); return; }

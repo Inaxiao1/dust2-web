@@ -48,7 +48,7 @@ const qualityPacks=disableLocalAssets?new Map():findQualityPacks(root,maps,
 const workers=new Map();
 const idleMs=Math.max(1000,Number(process.env.PERF_IDLE_MS)||120000);
 const maxWorkers=Math.max(1,Math.min(32,Number(process.env.PERF_MAX_WORKERS)||4));
-const strictHeavyLock=process.env.PERF_STRICT_HEAVY_LOCK==='1'||maxWorkers<=2;
+const strictHeavyLock=process.env.PERF_STRICT_HEAVY_LOCK!==undefined?process.env.PERF_STRICT_HEAVY_LOCK==='1':maxWorkers<=2;
 const heavy=new Set(['de_inferno','de_cache','de_ancient','de_train']);
 const warmMaps=(process.env.PERF_WARM_MAPS||'').split(',').map(v=>v.trim()).filter(id=>maps.has(id)).slice(0,maxWorkers);
 let draining=false;
@@ -112,7 +112,7 @@ async function ensureWorker(id){
   const fits=()=>workers.size<maxWorkers && (!strictHeavyLock || !(workers.size&&(heavy.has(id)||[...workers.keys()].some(k=>heavy.has(k)))));
   if(!fits()){
     for(const w of occupied.sort((a,b)=>a.touched-b.touched)){
-      if(w.connections||!w.port||Date.now()-w.touched<15000)continue;
+      if(w.connections||!w.port||Date.now()-w.touched<2000)continue;
       retire(w);await w.exited;
       if(fits())break;
     }
@@ -630,6 +630,7 @@ server.on('upgrade',async(req,socket,head)=>{
   try{
     const w=await ensureWorker(match[1]);if(socket.destroyed)return;
     w.connections++;w.touched=Date.now();w.directoryRead=null;const upstream=net.connect(w.port,'127.0.0.1');
+    try { socket.setNoDelay(true); upstream.setNoDelay(true); } catch {}
     socket.once('close',()=>{w.connections--;w.touched=Date.now();w.directoryRead=null;upstream.destroy();});
     upstream.on('error',()=>socket.destroy());upstream.on('close',()=>socket.destroy());socket.on('error',()=>upstream.destroy());
     upstream.once('connect',()=>{

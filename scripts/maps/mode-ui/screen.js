@@ -356,7 +356,7 @@ function remember() {
 function imageURL(file) {
   if (typeof file !== 'string' || !/^[a-z0-9][a-z0-9_.-]*\.(webp|avif|jpe?g|png)$/i.test(file) || failedFiles.has(file)) return null;
   const base = staticUrl('mode-previews/' + file);
-  return RT ? base : base + '?v=pbr2';
+  return RT ? base : base + '?v=pbr3';
 }
 
 /* 6. Dual-Layer Crossfade Living Map Stage */

@@ -15,8 +15,8 @@ test('room directory does not simulate a room; join existing replaces bots and c
  const visitor=await peer(),rooms=(await request(visitor,{type:'listRooms'},'rooms')).rooms;assert.equal(rooms.length,1);assert.equal(rooms[0].humans,1);assert.equal(rooms[0].bots,9);assert.equal(rooms[0].joinable,true);
  const joined=await request(visitor,{type:'join',room:welcome.room,existing:true,team:'auto'},'welcome');assert.equal(joined.room,welcome.room);assert.equal(app.rooms.get(welcome.room).players.size,10);assert.equal(app.rooms.get(welcome.room).humanCount,2);
  app.rooms.get(welcome.room).match.status='ended';
- const late=await peer(),ended=(await request(late,{type:'listRooms'},'rooms')).rooms[0];
- assert.equal(ended.full,false);assert.equal(ended.joinable,false);
+ const late=await peer(),endedRooms=(await request(late,{type:'listRooms'},'rooms')).rooms;
+ assert.equal(endedRooms.length,0);
  assert.equal((await request(late,{type:'join',room:welcome.room,existing:true},'error')).code,'ROOM_UNAVAILABLE');late.close();
  host.close();visitor.close();await Promise.all([once(host,'close'),once(visitor,'close')]);
  const stale=await peer();const error=await request(stale,{type:'join',room:welcome.room,existing:true},'error');assert.equal(error.code,'ROOM_GONE');assert.equal(app.rooms.size,0);stale.close();

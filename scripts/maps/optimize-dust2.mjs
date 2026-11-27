@@ -276,7 +276,8 @@ function resolveWorldZFighting(tris, { preserveAll = false } = {}) {
     const t = tris[i];
     if (t.area < 1e-4) continue;
     let snx = t.nx, sny = t.ny, snz = t.nz;
-    if (snx < -1e-4 || (Math.abs(snx) <= 1e-4 && (sny < -1e-4 || (Math.abs(sny) <= 1e-4 && snz < 0)))) {
+    const axn = Math.abs(snx), ayn = Math.abs(sny), azn = Math.abs(snz);
+    if ((axn >= ayn && axn >= azn && snx < 0) || (ayn > axn && ayn >= azn && sny < 0) || (azn > axn && azn > ayn && snz < 0)) {
       snx = -snx; sny = -sny; snz = -snz;
     }
     const d = snx * t.ax + sny * t.ay + snz * t.az;
