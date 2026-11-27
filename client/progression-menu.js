@@ -77,7 +77,7 @@ export class ProgressionMenu {
                 <small data-prog-uid>ID · ----</small>
                 <div class="prog-xp-bar"><i data-prog-xp-fill style="width:0%"></i></div>
                 <div class="prog-xp-meta">
-                  <span data-prog-xp-text>经验 0 / 150</span>
+                  <span data-prog-xp-text>经验 0 / 600</span>
                   <span data-prog-cloud-badge>本地存档</span>
                 </div>
               </div>
@@ -128,7 +128,7 @@ export class ProgressionMenu {
 
           <section class="prog-section">
             <div class="prog-section-head">
-              <h3>实战成长解锁路线（击杀 &amp; 完成局数）</h3>
+              <h3>实战成长解锁路线（武器专精 &amp; 生涯战绩）</h3>
               <small data-prog-unlock-summary>已解锁 36 / 216 皮肤 · 2 / 10 探员</small>
             </div>
             <div class="prog-roadmap" data-prog-roadmap></div>
@@ -136,7 +136,7 @@ export class ProgressionMenu {
         </div>
 
         <footer class="prog-footer">
-          <div class="prog-status" role="status" aria-live="polite" data-prog-status>开局仅配备原厂基础枪械与默认匕首，实战击杀/完成对局或完成 Toy 互动即可逐步解锁全部藏品。</div>
+          <div class="prog-status" role="status" aria-live="polite" data-prog-status>开局仅配备原厂基础枪械与默认匕首；使用对应武器累计击杀可解锁专属涂装，累计生涯战绩可解锁匕首与探员。</div>
           <div class="prog-footer-links">
             <button type="button" class="prog-btn-subtle" data-jump-agents>前往探员仓库</button>
             <button type="button" class="prog-btn-subtle" data-jump-skins>前往皮肤库</button>

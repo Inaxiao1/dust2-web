@@ -79,32 +79,51 @@ test('every skin and agent has a valid unlock rule covering starter, growth, toy
   assert.deepEqual([...agentTypes].sort(), ['growth', 'starter', 'toy_follow', 'toy_triple']);
 });
 
-test('combat kills and completed matches gradually unlock growth skins, knives, and agents', () => {
+test('combat kills and completed matches gradually unlock growth skins, knives, and agents without single-match floods', () => {
   const p0 = createEmptyProgress('toy_grow_1');
   assert.equal(isSkinUnlocked('ak47-slate-1035', p0), false);
   assert.equal(isAgentUnlocked('ct-operator', p0), false);
 
-  const p1 = { ...p0, kills: 15, matches: 2 };
-  assert.equal(isSkinUnlocked('ak47-slate-1035', p1), true);
-  assert.equal(isSkinUnlocked('navaja-vanilla', p1), true);
-  assert.equal(isAgentUnlocked('ct-operator', p1), true);
-  assert.equal(isSkinUnlocked('awp-dragon-lore', p1), false);
-  assert.equal(isAgentUnlocked('t-silent-darryl', p1), false);
+  // One strong match (20 AK-47 kills + 1 match) must NOT flood dozens of untouched weapons!
+  const pOneMatch = { ...p0, kills: 20, matches: 1, rounds: 16, weaponKills: { ak47: 20 } };
+  const oneMatchDiff = diffNewUnlocks(p0, pOneMatch);
+  assert.equal(isSkinUnlocked('ak47-slate-1035', pOneMatch), true);
+  assert.equal(isSkinUnlocked('m4a4-tooth-fairy-971', pOneMatch), false, 'AK kills must not unlock M4A4 skins');
+  assert.equal(isSkinUnlocked('mp9-food-chain-1037', pOneMatch), false, 'AK kills must not unlock untouched SMG skins');
+  assert.equal(oneMatchDiff.skins.length, 1, 'a single 20-kill AK match should unlock only 1 AK skin, not dozens');
+  assert.equal(oneMatchDiff.agents.length, 0);
 
-  const p2 = { ...p0, kills: 200, headshots: 60, matches: 16, rounds: 180, wins: 10 };
-  assert.equal(isSkinUnlocked('awp-dragon-lore', p2), true);
-  assert.equal(isSkinUnlocked('karambit-sapphire', p2), true);
-  assert.equal(isAgentUnlocked('ct-syfers', p2), true);
-  assert.equal(isAgentUnlocked('t-silent-darryl', p2), true);
+  // Early career (~60 kills, 3 matches) unlocks first knife & first growth agent cleanly
+  const pEarly = { ...p0, kills: 60, matches: 3, rounds: 48, weaponKills: { ak47: 55, usp: 5 } };
+  assert.equal(isSkinUnlocked('ak47-nightwish-1141', pEarly), true);
+  assert.equal(isSkinUnlocked('navaja-vanilla', pEarly), true);
+  assert.equal(isAgentUnlocked('ct-operator', pEarly), true);
+  assert.equal(isSkinUnlocked('awp-dragon-lore', pEarly), false);
+  assert.equal(isAgentUnlocked('t-silent-darryl', pEarly), false);
+
+  // Veteran career unlocks chase skins, sapphire karambit, and all growth agents
+  const pVet = {
+    ...p0,
+    kills: 2000,
+    headshots: 650,
+    matches: 80,
+    rounds: 1200,
+    wins: 45,
+    weaponKills: { ak47: 450, awp: 500, m4a4: 360 },
+  };
+  assert.equal(isSkinUnlocked('awp-dragon-lore', pVet), true);
+  assert.equal(isSkinUnlocked('karambit-sapphire', pVet), true);
+  assert.equal(isAgentUnlocked('ct-syfers', pVet), true);
+  assert.equal(isAgentUnlocked('t-silent-darryl', pVet), true);
   // Social-exclusive items still require follow/triple even at high kills
-  assert.equal(isAgentUnlocked('ct-ava', p2), false);
-  assert.equal(isAgentUnlocked('t-miami', p2), false);
-  assert.equal(isSkinUnlocked('butterfly-vanilla', p2), false);
+  assert.equal(isAgentUnlocked('ct-ava', pVet), false);
+  assert.equal(isAgentUnlocked('t-miami', pVet), false);
+  assert.equal(isSkinUnlocked('butterfly-vanilla', pVet), false);
 
-  const diff = diffNewUnlocks(p0, p1);
+  const diff = diffNewUnlocks(p0, pEarly);
   assert.ok(diff.skins.some((s) => s.id === 'ak47-slate-1035'));
   assert.ok(diff.agents.some((a) => a.id === 'ct-operator'));
-  assert.ok(computeCareerLevel(p2).level > computeCareerLevel(p1).level);
+  assert.ok(computeCareerLevel(pVet).level > computeCareerLevel(pEarly).level);
 });
 
 test('Toy SDK follow, triple, and cloud storage sync (with 307044 backoff & valid keys) work end-to-end', async () => {
@@ -173,10 +192,11 @@ test('Toy SDK follow, triple, and cloud storage sync (with 307044 backoff & vali
   assert.equal(store.identity.playerName, '沙城狙神');
 
   // Recording kills in combat MUST NOT spam Toy Cloud Storage!
-  for (let i = 0; i < 6; i++) store.recordKill({ weapon: 'ak47', headshot: i < 2 });
+  for (let i = 0; i < 20; i++) store.recordKill({ weapon: 'ak47', headshot: i < 4 });
   assert.equal(setCalls, 0);
-  assert.equal(store.progress.kills, 6);
-  assert.equal(store.progress.headshots, 2);
+  assert.equal(store.progress.kills, 20);
+  assert.equal(store.progress.headshots, 4);
+  assert.equal(store.progress.weaponKills.ak47, 20);
   assert.equal(isSkinUnlocked('ak47-slate-1035', store.progress), true);
 
   // Completing a match batches progress + loadout to Toy Cloud Storage!
@@ -235,7 +255,7 @@ test('Toy SDK follow, triple, and cloud storage sync (with 307044 backoff & vali
     now: () => now,
   });
   await secondDevice.init();
-  assert.equal(secondDevice.progress.kills, 7);
+  assert.equal(secondDevice.progress.kills, 21);
   assert.equal(secondDevice.progress.matches, 1);
   assert.equal(secondDevice.progress.social.followed, true);
   assert.equal(secondDevice.progress.social.tripled, true);

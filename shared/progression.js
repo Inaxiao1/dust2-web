@@ -81,86 +81,92 @@ const TRIPLE_SKIN_SET = new Set(TOY_TRIPLE_SKIN_IDS);
 const FOLLOW_AGENT_SET = new Set(TOY_FOLLOW_AGENT_IDS);
 const TRIPLE_AGENT_SET = new Set(TOY_TRIPLE_AGENT_IDS);
 
-/** Explicit prestige milestones for iconic knives & chase skins */
+/**
+ * Explicit prestige milestones for iconic knives & signature firearm skins.
+ * - Knives unlock along a long-term global career ladder (kills AND matches, staggered so
+ *   players earn ~1 knife every few matches rather than bursting dozens at once).
+ * - Firearm skins unlock via WEAPON-SPECIFIC mastery kills (and career matches on higher tiers),
+ *   so using AK-47 unlocks AK-47 skins rather than unlocking 30 untouched weapons simultaneously.
+ */
 const EXPLICIT_SKIN_TASKS = Object.freeze({
-  // Knives progression ladder (10 kills / 1 match -> 180 kills + 15 matches)
-  'navaja-vanilla':       { kills: 8,   matches: 1, mode: 'or',  tier: 1, label: '新兵磨刃' },
-  'gut-vanilla':          { kills: 15,  matches: 2, mode: 'or',  tier: 1, label: '近战初成' },
-  'falchion-vanilla':     { kills: 22,  matches: 2, mode: 'or',  tier: 2, label: '弯刀利刃' },
-  'push-vanilla':         { kills: 30,  matches: 3, mode: 'or',  tier: 2, label: '双匕突袭' },
-  'bowie-vanilla':        { kills: 38,  matches: 4, mode: 'and', tier: 3, label: '猎手之锋' },
-  'canis-vanilla':        { kills: 45,  matches: 4, mode: 'and', tier: 3, label: '荒野求生' },
-  'cord-vanilla':         { kills: 52,  matches: 5, mode: 'and', tier: 3, label: '战术系绳' },
-  'outdoor-vanilla':      { kills: 60,  matches: 5, mode: 'and', tier: 3, label: '孤狼巡猎' },
-  'ursus-vanilla':        { kills: 68,  matches: 6, mode: 'and', tier: 4, label: '巨熊撕裂' },
-  'stiletto-vanilla':     { kills: 75,  matches: 6, mode: 'and', tier: 4, label: '细剑刺客' },
-  'tactical-vanilla':     { kills: 82,  matches: 7, mode: 'and', tier: 4, label: '战术猎杀' },
-  'css-vanilla':          { kills: 90,  matches: 7, mode: 'and', tier: 4, label: '经典海豹' },
-  'kukri-vanilla':        { kills: 100, matches: 8, mode: 'and', tier: 5, label: '廓尔喀斩击' },
-  'talon-vanilla':        { kills: 112, matches: 9, mode: 'and', tier: 5, label: '锯齿爪锋' },
-  'skeleton-vanilla':     { kills: 125, matches: 10, mode: 'and', tier: 5, label: '镂空魅影' },
-  'm9-vanilla':           { kills: 140, matches: 11, mode: 'and', tier: 5, label: 'M9 战神刺刀' },
-  'karambit-black-pearl': { kills: 155, matches: 12, mode: 'and', tier: 6, label: '黑珍珠传世' },
-  'karambit-ruby':        { kills: 175, matches: 14, mode: 'and', tier: 6, label: '红宝石神话' },
-  'karambit-sapphire':    { kills: 200, matches: 16, mode: 'and', tier: 6, label: '蓝宝石巅峰' },
+  // Knives career ladder (35 kills & 2 matches -> 2000 kills & 80 matches)
+  'navaja-vanilla':       { kills: 35,   matches: 2,  mode: 'and', tier: 1, label: '新兵磨刃' },
+  'gut-vanilla':          { kills: 75,   matches: 4,  mode: 'and', tier: 1, label: '近战初成' },
+  'falchion-vanilla':     { kills: 115,  matches: 6,  mode: 'and', tier: 2, label: '弯刀利刃' },
+  'push-vanilla':         { kills: 165,  matches: 8,  mode: 'and', tier: 2, label: '双匕突袭' },
+  'bowie-vanilla':        { kills: 220,  matches: 11, mode: 'and', tier: 3, label: '猎手之锋' },
+  'canis-vanilla':        { kills: 280,  matches: 14, mode: 'and', tier: 3, label: '荒野求生' },
+  'cord-vanilla':         { kills: 350,  matches: 17, mode: 'and', tier: 3, label: '战术系绳' },
+  'outdoor-vanilla':      { kills: 420,  matches: 20, mode: 'and', tier: 3, label: '孤狼巡猎' },
+  'ursus-vanilla':        { kills: 500,  matches: 23, mode: 'and', tier: 4, label: '巨熊撕裂' },
+  'stiletto-vanilla':     { kills: 590,  matches: 27, mode: 'and', tier: 4, label: '细剑刺客' },
+  'tactical-vanilla':     { kills: 690,  matches: 31, mode: 'and', tier: 4, label: '战术猎杀' },
+  'css-vanilla':          { kills: 790,  matches: 35, mode: 'and', tier: 4, label: '经典海豹' },
+  'kukri-vanilla':        { kills: 900,  matches: 39, mode: 'and', tier: 5, label: '廓尔喀斩击' },
+  'talon-vanilla':        { kills: 1020, matches: 43, mode: 'and', tier: 5, label: '锯齿爪锋' },
+  'skeleton-vanilla':     { kills: 1150, matches: 48, mode: 'and', tier: 5, label: '镂空魅影' },
+  'm9-vanilla':           { kills: 1300, matches: 54, mode: 'and', tier: 5, label: 'M9 战神刺刀' },
+  'karambit-black-pearl': { kills: 1500, matches: 62, mode: 'and', tier: 6, label: '黑珍珠传世' },
+  'karambit-ruby':        { kills: 1750, matches: 70, mode: 'and', tier: 6, label: '红宝石神话' },
+  'karambit-sapphire':    { kills: 2000, matches: 80, mode: 'and', tier: 6, label: '蓝宝石巅峰' },
 
-  // Iconic flagship firearm skins
-  'ak47-slate-1035':      { kills: 5,   matches: 1, mode: 'or',  tier: 1, label: '步枪入门' },
-  'ak47-nightwish-1141':  { kills: 20,  matches: 2, mode: 'or',  tier: 2, label: '夜愿觉醒' },
-  'ak47-neon-rider':      { kills: 45,  matches: 4, mode: 'and', tier: 3, label: '霓虹突击' },
-  'ak47-fire-serpent':    { kills: 100, matches: 8, mode: 'and', tier: 5, label: '火蛇传奇' },
-  'ak47-wild-lotus':      { kills: 160, matches: 12, mode: 'and', tier: 6, label: '野荷巅峰' },
+  // Iconic flagship firearm skins (weapon-specific mastery + matches on tier 2+)
+  'ak47-slate-1035':         { weaponKills: 20,  matches: 0,  mode: 'and', tier: 1, label: '步枪入门' },
+  'ak47-nightwish-1141':     { weaponKills: 55,  matches: 3,  mode: 'and', tier: 2, label: '夜愿觉醒' },
+  'ak47-neon-rider':         { weaponKills: 120, matches: 7,  mode: 'and', tier: 3, label: '霓虹突击' },
+  'ak47-fire-serpent':       { weaponKills: 240, matches: 14, mode: 'and', tier: 5, label: '火蛇传奇' },
+  'ak47-wild-lotus':         { weaponKills: 420, matches: 24, mode: 'and', tier: 6, label: '野荷巅峰' },
 
-  'm4a4-tooth-fairy-971': { kills: 8,   matches: 1, mode: 'or',  tier: 1, label: '防线新星' },
-  'm4a4-desolate-space-588': { kills: 28, matches: 3, mode: 'or', tier: 2, label: '深空守卫' },
-  'm4a4-poseidon':        { kills: 75,  matches: 6, mode: 'and', tier: 4, label: '海神之怒' },
-  'm4a4-howl':            { kills: 140, matches: 11, mode: 'and', tier: 6, label: '违禁咆哮' },
+  'm4a4-tooth-fairy-971':    { weaponKills: 20,  matches: 0,  mode: 'and', tier: 1, label: '防线新星' },
+  'm4a4-desolate-space-588': { weaponKills: 60,  matches: 3,  mode: 'and', tier: 2, label: '深空守卫' },
+  'm4a4-poseidon':           { weaponKills: 150, matches: 9,  mode: 'and', tier: 4, label: '海神之怒' },
+  'm4a4-howl':               { weaponKills: 340, matches: 20, mode: 'and', tier: 6, label: '违禁咆哮' },
 
-  'm4a1-night-terror-1130': { kills: 6, matches: 1, mode: 'or',  tier: 1, label: '静默初试' },
-  'm4a1-emphorosaur-s-1223': { kills: 22, matches: 2, mode: 'or', tier: 2, label: '隐伏猎手' },
-  'm4a1-nightmare':       { kills: 40,  matches: 4, mode: 'and', tier: 3, label: '梦魇潜行' },
-  'm4a1-golden-coil':     { kills: 70,  matches: 6, mode: 'and', tier: 4, label: '金蛇缠绕' },
-  'm4a1-blue-phosphor':   { kills: 115, matches: 9, mode: 'and', tier: 5, label: '澜磷微光' },
+  'm4a1-night-terror-1130':  { weaponKills: 20,  matches: 0,  mode: 'and', tier: 1, label: '静默初试' },
+  'm4a1-emphorosaur-s-1223': { weaponKills: 55,  matches: 3,  mode: 'and', tier: 2, label: '隐伏猎手' },
+  'm4a1-nightmare':          { weaponKills: 115, matches: 7,  mode: 'and', tier: 3, label: '梦魇潜行' },
+  'm4a1-golden-coil':        { weaponKills: 210, matches: 12, mode: 'and', tier: 4, label: '金蛇缠绕' },
+  'm4a1-blue-phosphor':      { weaponKills: 360, matches: 20, mode: 'and', tier: 5, label: '澜磷微光' },
 
-  'awp-duality-1222':     { kills: 10,  matches: 1, mode: 'or',  tier: 1, label: '狙击首秀' },
-  'awp-wildfire-917':     { kills: 35,  matches: 3, mode: 'and', tier: 3, label: '野火燎原' },
-  'awp-oni-taiji':        { kills: 80,  matches: 6, mode: 'and', tier: 4, label: '鬼退治狙神' },
-  'awp-gungnir':          { kills: 145, matches: 11, mode: 'and', tier: 6, label: '永恒之枪' },
-  'awp-dragon-lore':      { kills: 185, matches: 15, mode: 'and', tier: 6, label: '巨龙传说' },
+  'awp-duality-1222':        { weaponKills: 20,  matches: 0,  mode: 'and', tier: 1, label: '狙击首秀' },
+  'awp-wildfire-917':        { weaponKills: 60,  matches: 4,  mode: 'and', tier: 3, label: '野火燎原' },
+  'awp-oni-taiji':           { weaponKills: 140, matches: 9,  mode: 'and', tier: 4, label: '鬼退治狙神' },
+  'awp-gungnir':             { weaponKills: 280, matches: 17, mode: 'and', tier: 6, label: '永恒之枪' },
+  'awp-dragon-lore':         { weaponKills: 480, matches: 28, mode: 'and', tier: 6, label: '巨龙传说' },
 
-  'usp-ticket-to-hell-1136': { kills: 5, matches: 1, mode: 'or', tier: 1, label: '手枪热身' },
-  'usp-cyrex-637':        { kills: 18,  matches: 2, mode: 'or',  tier: 2, label: '精确点射' },
-  'usp-orion':            { kills: 36,  matches: 3, mode: 'and', tier: 3, label: '猎户射手' },
-  'usp-neo-noir':         { kills: 60,  matches: 5, mode: 'and', tier: 4, label: '黑色魅影' },
-  'usp-kill-confirmed':   { kills: 95,  matches: 8, mode: 'and', tier: 5, label: '确认击杀' },
+  'usp-ticket-to-hell-1136': { weaponKills: 12,  matches: 0,  mode: 'and', tier: 1, label: '手枪热身' },
+  'usp-cyrex-637':           { weaponKills: 35,  matches: 3,  mode: 'and', tier: 2, label: '精确点射' },
+  'usp-orion':               { weaponKills: 75,  matches: 7,  mode: 'and', tier: 3, label: '猎户射手' },
+  'usp-neo-noir':            { weaponKills: 135, matches: 12, mode: 'and', tier: 4, label: '黑色魅影' },
+  'usp-kill-confirmed':      { weaponKills: 220, matches: 18, mode: 'and', tier: 5, label: '确认击杀' },
 
-  'pistol-vogue-963':     { kills: 5,   matches: 1, mode: 'or',  tier: 1, label: '冲锋起步' },
-  'pistol-umbral-rabbit-1227': { kills: 18, matches: 2, mode: 'or', tier: 2, label: '月影快枪' },
-  'glock-neo-noir':       { kills: 38,  matches: 3, mode: 'and', tier: 3, label: '魅影连发' },
-  'glock-bullet-queen':   { kills: 65,  matches: 5, mode: 'and', tier: 4, label: '子弹皇后' },
-  'glock-emerald':        { kills: 110, matches: 9, mode: 'and', tier: 5, label: '绿宝石传说' },
+  'pistol-vogue-963':        { weaponKills: 12,  matches: 0,  mode: 'and', tier: 1, label: '冲锋起步' },
+  'pistol-umbral-rabbit-1227': { weaponKills: 35, matches: 3, mode: 'and', tier: 2, label: '月影快枪' },
+  'glock-neo-noir':          { weaponKills: 75,  matches: 7,  mode: 'and', tier: 3, label: '魅影连发' },
+  'glock-bullet-queen':      { weaponKills: 135, matches: 12, mode: 'and', tier: 4, label: '子弹皇后' },
+  'glock-emerald':           { weaponKills: 220, matches: 18, mode: 'and', tier: 5, label: '绿宝石传说' },
 
-  'deagle-blue-ply-945':  { kills: 6,   matches: 1, mode: 'or',  tier: 1, label: '重炮初鸣' },
-  'deagle-light-rail-841': { kills: 24, matches: 2, mode: 'or',  tier: 2, label: '电磁一击' },
-  'deagle-conspiracy':    { kills: 55,  matches: 5, mode: 'and', tier: 4, label: '暗影阴谋' },
+  'deagle-blue-ply-945':     { weaponKills: 15,  matches: 0,  mode: 'and', tier: 1, label: '重炮初鸣' },
+  'deagle-light-rail-841':   { weaponKills: 50,  matches: 4,  mode: 'and', tier: 2, label: '电磁一击' },
+  'deagle-conspiracy':       { weaponKills: 120, matches: 10, mode: 'and', tier: 4, label: '暗影阴谋' },
 });
 
-/** Agent growth tasks (4 non-starter, non-social agents) */
+/** Agent growth tasks (4 non-starter, non-social agents, staggered between knives) */
 const EXPLICIT_AGENT_TASKS = Object.freeze({
-  'ct-operator':     { kills: 15, matches: 2, mode: 'or',  tier: 2, label: 'FBI 特警晋升' },
-  't-number-k':      { kills: 25, matches: 3, mode: 'or',  tier: 2, label: '专业人士合约' },
-  'ct-syfers':       { kills: 50, matches: 5, mode: 'and', tier: 4, label: '神枪手认证' },
-  't-silent-darryl': { kills: 80, matches: 8, mode: 'and', tier: 5, label: '沉默爵士传说' },
+  'ct-operator':     { kills: 55,  matches: 3,  mode: 'and', tier: 2, label: 'FBI 特警晋升' },
+  't-number-k':      { kills: 140, matches: 7,  mode: 'and', tier: 3, label: '专业人士合约' },
+  'ct-syfers':       { kills: 320, matches: 15, mode: 'and', tier: 4, label: '神枪手认证' },
+  't-silent-darryl': { kills: 560, matches: 25, mode: 'and', tier: 5, label: '沉默爵士传说' },
 });
 
-/** Auto-generated smooth ladder for remaining firearm skins per weapon */
+/** Per-weapon mastery ladder for remaining firearm skins (strictly weapon-specific kills) */
 const GENERIC_TIERS = [
-  { kills: 5,   matches: 1, weaponKills: 2,  mode: 'or',  tier: 1, label: '战场初捷' },
-  { kills: 16,  matches: 2, weaponKills: 5,  mode: 'or',  tier: 2, label: '熟练干员' },
-  { kills: 32,  matches: 3, weaponKills: 10, mode: 'or',  tier: 3, label: '武器专精' },
-  { kills: 55,  matches: 5, weaponKills: 18, mode: 'and', tier: 4, label: '精英涂装' },
-  { kills: 85,  matches: 7, weaponKills: 25, mode: 'and', tier: 5, label: '王牌收藏' },
-  { kills: 120, matches: 10, weaponKills: 35, mode: 'and', tier: 6, label: '传奇臻品' },
+  { kills: 0, matches: 0,  weaponKills: 15,  mode: 'and', tier: 1, label: '战场初捷' },
+  { kills: 0, matches: 3,  weaponKills: 45,  mode: 'and', tier: 2, label: '熟练干员' },
+  { kills: 0, matches: 6,  weaponKills: 95,  mode: 'and', tier: 3, label: '武器专精' },
+  { kills: 0, matches: 11, weaponKills: 170, mode: 'and', tier: 4, label: '精英涂装' },
+  { kills: 0, matches: 16, weaponKills: 270, mode: 'and', tier: 5, label: '王牌收藏' },
+  { kills: 0, matches: 22, weaponKills: 400, mode: 'and', tier: 6, label: '传奇臻品' },
 ];
 
 // Build deterministic requirement table once for every skin and agent
@@ -275,12 +281,12 @@ for (const agent of AGENT_CATALOG) {
 
 function formatGrowthSummary(cfg, weaponId = null) {
   const parts = [];
-  if (cfg.kills > 0) parts.push(`累计 ${cfg.kills} 击杀`);
-  if (cfg.matches > 0) parts.push(`完成 ${cfg.matches} 局对战`);
-  if (cfg.weaponKills > 0 && weaponId && cfg.mode === 'or') {
+  if (cfg.weaponKills > 0 && weaponId) {
     const wName = getWeapon(weaponId)?.name || weaponId;
     parts.push(`${wName} ${cfg.weaponKills} 杀`);
   }
+  if (cfg.kills > 0) parts.push(`累计 ${cfg.kills} 击杀`);
+  if (cfg.matches > 0) parts.push(`完成 ${cfg.matches} 局对战`);
   const joiner = cfg.mode === 'and' ? ' 且 ' : ' 或 ';
   return parts.join(joiner);
 }
@@ -416,6 +422,15 @@ export function evaluateRequirement(req, progressRaw) {
 
   // Growth task evaluation
   const checks = [];
+  if (req.weaponKills > 0 && req.weapon) {
+    const wk = p.weaponKills[req.weapon] || 0;
+    const wName = getWeapon(req.weapon)?.name || req.weapon;
+    checks.push({
+      done: wk >= req.weaponKills,
+      ratio: Math.min(1, wk / req.weaponKills),
+      text: `${wName} ${Math.min(wk, req.weaponKills)}/${req.weaponKills}`,
+    });
+  }
   if (req.kills > 0) {
     checks.push({
       done: p.kills >= req.kills,
@@ -428,15 +443,6 @@ export function evaluateRequirement(req, progressRaw) {
       done: p.matches >= req.matches,
       ratio: Math.min(1, p.matches / req.matches),
       text: `局数 ${Math.min(p.matches, req.matches)}/${req.matches}`,
-    });
-  }
-  if (req.weaponKills > 0 && req.weapon && req.mode === 'or') {
-    const wk = p.weaponKills[req.weapon] || 0;
-    const wName = getWeapon(req.weapon)?.name || req.weapon;
-    checks.push({
-      done: wk >= req.weaponKills,
-      ratio: Math.min(1, wk / req.weaponKills),
-      text: `${wName} ${Math.min(wk, req.weaponKills)}/${req.weaponKills}`,
     });
   }
 
@@ -520,11 +526,11 @@ export function computeCareerLevel(progressRaw) {
   const xp = p.kills * 25 + p.headshots * 15 + p.rounds * 20 + p.matches * 120 + p.wins * 80;
   let level = 1;
   let floorXp = 0;
-  let stepXp = 150;
+  let stepXp = 600;
   while (level < 30 && xp >= floorXp + stepXp) {
     floorXp += stepXp;
     level++;
-    stepXp = Math.round(150 + (level - 1) * 95);
+    stepXp = Math.round(600 + (level - 1) * 260);
   }
   const intoLevel = xp - floorXp;
   const pct = level >= 30 ? 100 : Math.min(100, Math.round((intoLevel / stepXp) * 100));
