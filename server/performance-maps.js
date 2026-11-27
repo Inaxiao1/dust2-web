@@ -226,7 +226,7 @@ async function performanceRooms() {
   if (controlPlaneUrl) {
     const { ok, data } = await fetchControlPlane('/api/v1/rooms');
     if (!ok || !Array.isArray(data.rooms)) throw Error('控制面房间目录暂时不可用');
-    const rooms = data.rooms.filter(r => maps.has(r.mapId)).map(decorateClusterRoom);
+    const rooms = data.rooms.filter(r => maps.has(r.mapId) && r.phase !== 'matchEnded').map(decorateClusterRoom);
     rooms.sort((a,b) => Number(b.joinable)-Number(a.joinable) || b.humans-a.humans || a.id.localeCompare(b.id));
     const totalHumans = rooms.reduce((sum, r) => sum + r.humans, 0);
     const joinableRooms = rooms.filter(r => r.joinable && r.humans < r.capacity).length;
@@ -242,6 +242,7 @@ async function performanceRooms() {
     if (results[index].status === 'rejected') { unavailable++; continue; }
     responding++;
     for (const row of results[index].value) {
+      if (row?.phase === 'matchEnded') continue;
       rooms.push({...row, id:map.id+':'+row.code, mapId:map.id, mapName:map.name, mapNameZh:map.nameZh, qualityAvailable:qualityPacks.has(map.id)});
     }
   }

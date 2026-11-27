@@ -150,6 +150,7 @@ export class GameRoom {
     this.privateBots=privateMap?.createBots(this)||null;
     this.disconnectedSessions=new Map();
     this.emptyExpiresAt=0;
+    this.matchEndedWallAt=0;
   }
 
   emptyBomb() { return { state: 'none', carrierId: null, x: 0, y: 0, z: 0, site: null, plantedAt: 0, explodesAt: 0, planterId: null, actorId: null, action: null, progress: 0, remaining: 0 }; }
@@ -658,6 +659,7 @@ export class GameRoom {
 
   endMatch(winnerTeamId,reason){
     if(this.match.status==='ended')return;
+    this.matchEndedWallAt=Date.now();
     Object.assign(this.match,{status:'ended',winnerTeamId,reason,endedAt:this.clock(),mvp:matchMvp(this,winnerTeamId)});
     Object.assign(this.round,{phase:'matchEnded',phaseEndsAt:0,winner:this.teamSides[winnerTeamId],reason});
     this.pendingTransition=null;this.grenades.clear();this.defuseKits=[];

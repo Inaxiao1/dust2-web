@@ -63,7 +63,9 @@ test('all human rooms show map, mode, names, replaceable bot seats and map-speci
   assert.equal(requests[0].options.cache, 'no-store');
   requests[0].respond({rooms:[
     room, {...room, mapId:'de_nuke', mapNameZh:'核子危机', qualityAvailable:false},
-    {...room, code:'FULL', humans:5, capacity:5, bots:5, joinable:false}, {...room, humans:0},
+    {...room, code:'FULL', humans:5, capacity:5, bots:5, joinable:false},
+    {...room, code:'DONE', humans:1, capacity:10, bots:9, joinable:false, phase:'matchEnded'},
+    {...room, humans:0},
   ]});
   await flush();
   const [, status, list] = section.children;

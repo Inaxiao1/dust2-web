@@ -321,3 +321,43 @@ test('battle worker exposes Prometheus /metrics with tick quantiles and token re
     await app.close();
   }
 });
+
+test('ended matches are immediately hidden from room directory and deleted when closed', async () => {
+  const app = await startGameServer({
+    port: 0,
+    host: '127.0.0.1',
+    logicOnly: true,
+    performanceDirectory: true,
+    reconnectGraceMs: 30000,
+  });
+  let ws;
+  try {
+    const base = `http://127.0.0.1:${app.port}`;
+    ws = new WebSocket(`ws://127.0.0.1:${app.port}/ws`);
+    await once(ws, 'open');
+    const welcomeP = waitForMessage(ws, m => m.type === 'welcome');
+    ws.send(JSON.stringify({ type: 'join', name: 'Finisher', bots: 0, rulesVersion: RULES_VERSION, assetVersion: ASSET_VERSION }));
+    const welcome = await welcomeP;
+
+    const liveDir = await (await fetch(base + '/room-directory.json')).json();
+    assert.equal(liveDir.length, 1);
+    assert.equal(liveDir[0].code, welcome.room);
+
+    const room = app.rooms.get(welcome.room);
+    room.endMatch('A', 'test complete');
+    assert.ok(room.matchEndedWallAt > 0);
+
+    const endedDir = await (await fetch(base + '/room-directory.json')).json();
+    assert.equal(endedDir.length, 0);
+
+    // Closing socket on an ended room deletes it immediately instead of waiting reconnectGraceMs.
+    const closedP = once(ws, 'close');
+    ws.terminate();
+    await closedP;
+    await new Promise(r => setTimeout(r, 30));
+    assert.equal(app.rooms.has(welcome.room), false);
+  } finally {
+    if (ws && ws.readyState === WebSocket.OPEN) ws.terminate();
+    await app.close();
+  }
+});

@@ -77,6 +77,7 @@ function publicRoomDirectory(rooms, includeNames = false, draining = false) {
   const rows = [];
   for (const room of rooms.values()) {
     if (room.visibility !== 'public') continue;
+    if (room.match?.status === 'ended' || room.round?.phase === 'matchEnded') continue;
     const players = [];
     for (const [id, socket] of room.clients) {
       if (socket.readyState === WebSocket.OPEN) players.push(room.players.get(id).name);
@@ -150,6 +151,7 @@ export async function startGameServer({
   workerPublicWsUrl = process.env.DUST2_WORKER_WS_URL || null,
   heartbeatIntervalMs = Number(process.env.DUST2_HEARTBEAT_MS) || 3000,
   reconnectGraceMs = Math.max(0, Math.min(120000, Number(process.env.DUST2_RECONNECT_GRACE_MS ?? 30000))),
+  matchEndCleanupMs = Math.max(0, Math.min(600000, Number(process.env.DUST2_MATCH_END_CLEANUP_MS ?? 60000))),
 } = {}) {
   if(MAP.private&&(!privateMap||privateMap.mapSignature!==MAP.mapSignature))throw Error('A fixed private-map process cannot start a different map server');
   if(!privateMap)await loadPhysics();
@@ -518,8 +520,9 @@ export async function startGameServer({
     });
     socket.on('close', (code) => {
       const room = rooms.get(socket.roomCode); if (!room) return;
-      const abnormalDrop = socket.reconnectOptIn && code !== 1000 && reconnectGraceMs > 0;
-      if (reconnectGraceMs > 0 && (room.humanCount > 1 || abnormalDrop)) {
+      const matchEnded = room.match?.status === 'ended' || room.round?.phase === 'matchEnded';
+      const abnormalDrop = !matchEnded && socket.reconnectOptIn && code !== 1000 && reconnectGraceMs > 0;
+      if (!matchEnded && reconnectGraceMs > 0 && (room.humanCount > 1 || abnormalDrop)) {
         room.saveReconnectSession(socket.playerId, reconnectGraceMs);
       }
       room.removePlayer(socket.playerId);
@@ -593,6 +596,14 @@ export async function startGameServer({
     }
     for (const [code, room] of rooms) {
       room.pruneDisconnectedSessions(nowMs);
+      if (matchEndCleanupMs > 0 && room.match?.status === 'ended' && room.matchEndedWallAt > 0 && nowMs - room.matchEndedWallAt >= matchEndCleanupMs) {
+        rooms.delete(code);
+        for (const sock of room.clients.values()) {
+          try { if (sock.readyState === WebSocket.OPEN) sock.close(1000, 'Match ended'); } catch {}
+        }
+        reporter?.reportNow();
+        continue;
+      }
       if (!room.humanCount && room.emptyExpiresAt && nowMs >= room.emptyExpiresAt) {
         rooms.delete(code);
         reporter?.reportNow();
@@ -620,7 +631,9 @@ export async function startGameServer({
       getState: () => ({
         draining,
         tickP99Ms: performanceMetrics.snapshot().tickP99Ms || performanceMetrics.snapshot().tickP95Ms || 0,
-        rooms: [...rooms.values()].map(r => {
+        rooms: [...rooms.values()]
+          .filter(r => r.match?.status !== 'ended' && r.round?.phase !== 'matchEnded')
+          .map(r => {
           const playerNames = [];
           for (const [pid, sock] of r.clients) {
             if (sock.readyState === WebSocket.OPEN) {

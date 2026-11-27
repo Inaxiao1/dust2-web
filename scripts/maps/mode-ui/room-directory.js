@@ -15,7 +15,8 @@ function apiUrl(pathAndQuery) {
 
 function availableRooms(rooms) {
   return rooms.filter(room => room && mapId.test(room.mapId) && roomCode.test(room.code)
-    && Object.hasOwn(modeLabels, room.mode) && Number.isInteger(room.capacity) && room.capacity > 0
+    && Object.hasOwn(modeLabels, room.mode) && room.phase !== 'matchEnded'
+    && Number.isInteger(room.capacity) && room.capacity > 0
     && Number.isInteger(room.humans) && room.humans > 0 && room.humans <= room.capacity
     && Number.isInteger(room.bots) && room.bots >= 0 && Array.isArray(room.players));
 }
