@@ -81,7 +81,7 @@ export class HUD {
     if (element && element.textContent !== content) element.textContent = content;
   }
 
-  update(snapshot, self, { ping = 0, fps = 0, spectating = null, equippedSkins = null, interactKey='E',canTakeBot=false,touch=false, scoreboardKey = 'Tab', menuKey = 'Esc', nextSpectatorKey = '左键', previousSpectatorKey = '右键' } = {}) {
+  update(snapshot, self, { ping = 0, fps = 0, transport = null, spectating = null, equippedSkins = null, interactKey='E',canTakeBot=false,touch=false, scoreboardKey = 'Tab', menuKey = 'Esc', nextSpectatorKey = '左键', previousSpectatorKey = '右键' } = {}) {
     if (!snapshot || !self) return;
     const time = now();
     if (this.snapshotTime !== snapshot.time || this.lastSnapshot?.room !== snapshot.room) {
@@ -112,7 +112,8 @@ export class HUD {
     this.text('mode-label', mode === 'defuse' ? '经典爆破' : '团队死斗');
     this.text('room-label', snapshot.room || '------');
     this.text('board-room', `${snapshot.room || ''} · ${mode === 'defuse' ? '经典爆破' : '团队死斗'}`);
-    this.text('network-status', `${Math.round(clamp(ping, 0, 9999))} ms · ${Math.round(clamp(fps, 0, 999))} FPS`);
+    const linkTag = transport === 'UDP' ? ' · UDP直连' : transport === 'WS' ? ' · WS' : '';
+    this.text('network-status', `${Math.round(clamp(ping, 0, 9999))} ms${linkTag} · ${Math.round(clamp(fps, 0, 999))} FPS`);
     const network = this.elements['network-status'];
     if (network) network.style.color = time - this.receivedAt > 2500 ? '#f09b83' : '';
     this.text('health', Math.ceil(clamp(self.health, 0, 999)));

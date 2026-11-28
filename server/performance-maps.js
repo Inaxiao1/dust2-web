@@ -7,6 +7,7 @@ import zlib from 'node:zlib';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {WebSocketServer, WebSocket} from 'ws';
+import {createRtcGateway} from './rtc-gateway.js';
 import {PERFORMANCE_MAPS, isPerformanceMap} from '../shared/performance-map-pool.js';
 import {findQualityPacks} from './performance-quality.js';
 import {SKINS} from '../shared/skins.js';
@@ -600,6 +601,23 @@ const server=http.createServer(async(req,res)=>{
   const url=new URL(req.url,'http://localhost');
   let p=url.pathname;
   if(req.method==='POST'){
+    const rtcMatch=/^\/perf\/(?:quality\/)?play\/(de_[a-z0-9]+)\/rtc-offer$/.exec(p);
+    if(rtcMatch){
+      if(draining){json(res,503,{ok:false,error:'SERVER_DRAINING'});return;}
+      if(allowedOrigins instanceof Set && req.headers.origin && !allowedOrigins.has(req.headers.origin)){
+        json(res,403,{ok:false,error:'ORIGIN_NOT_ALLOWED'});return;
+      }
+      const mapId=rtcMatch[1];
+      if(!maps.has(mapId)||(p.startsWith('/perf/quality/')&&!qualityPacks.has(mapId))){
+        json(res,404,{ok:false,error:'UNKNOWN_MAP'});return;
+      }
+      if(!rtcGateway){
+        json(res,404,{ok:false,error:'RTC_DISABLED'});return;
+      }
+      const body=await readJsonBody(req);
+      const {status,body:reply}=await rtcGateway.handleOffer(mapId,url.search||'',req,body);
+      json(res,status,reply);return;
+    }
     if(!controlPlaneUrl){json(res,404,{ok:false,code:'CONTROL_PLANE_DISABLED',message:'control plane mode is not enabled'});return;}
     const clientForwardHeaders={...(req.headers['x-forwarded-for']?{'X-Forwarded-For':req.headers['x-forwarded-for']}:{'X-Forwarded-For':req.socket?.remoteAddress||''})};
     if(p==='/perf/api/quick-join'){
@@ -694,7 +712,7 @@ const server=http.createServer(async(req,res)=>{
     file(req,res,catalogPath);return;
   }
   if(p==='/perf/ready'){json(res,draining?503:200,{ok:true,ready:!draining,draining,maps:maps.size,maxWorkers,workerMaxRooms:Number(workerMaxRooms),controlPlane:!!controlPlaneUrl,disableLocalAssets,logicGatewayOnly});return;}
-  if(p==='/perf/health'){json(res,200,{ok:true,ready:!draining,draining,disableLocalAssets,logicGatewayOnly,maxWorkers,workerMaxRooms:Number(workerMaxRooms),shardTargetRooms,controlPlane:!!controlPlaneUrl,maps:maps.size,workers:allWorkers().map(w=>({id:w.id,shard:w.shard,active:w.connections>0,connections:w.connections}))});return;}
+  if(p==='/perf/health'){json(res,200,{ok:true,ready:!draining,draining,disableLocalAssets,logicGatewayOnly,maxWorkers,workerMaxRooms:Number(workerMaxRooms),shardTargetRooms,controlPlane:!!controlPlaneUrl,maps:maps.size,rtc:rtcGateway?rtcGateway.status():{enabled:false},workers:allWorkers().map(w=>({id:w.id,shard:w.shard,active:w.connections>0,connections:w.connections}))});return;}
   if(p==='/perf/api/maps'){
     if(controlPlaneUrl){
       const {status,data}=await fetchControlPlane('/api/v1/maps');
@@ -791,14 +809,29 @@ const shardWss=new WebSocketServer({
   maxPayload:4096,
   perMessageDeflate:{serverNoContextTakeover:true,clientNoContextTakeover:true,threshold:1024,concurrencyLimit:8,zlibDeflateOptions:{level:1,memLevel:7}},
 });
+const rtcAdapters=new Set();
 const shardHeartbeat=setInterval(()=>{
   for(const ws of shardWss.clients){
     if(ws._cs2Alive===false){ws.terminate();continue;}
     ws._cs2Alive=false;
     try{ws.ping();}catch{}
   }
+  for(const adapter of rtcAdapters){
+    try{adapter.ping();}catch{}
+  }
 },15000);
 shardHeartbeat.unref();
+let rtcGateway=null;
+createRtcGateway({
+  onClientSocket:(mapId,query,req,adapter)=>{
+    rtcAdapters.add(adapter);
+    adapter.once('close',()=>rtcAdapters.delete(adapter));
+    routeShardedWebSocket(mapId,query,req,adapter);
+  },
+}).then(gw=>{
+  rtcGateway=gw;
+  if(gw)console.log(`WebRTC UDP DataChannel enabled on port ${gw.udpPort}`);
+}).catch(()=>{});
 function safeCloseWs(ws,code,reason){
   if(!ws||ws.readyState===WebSocket.CLOSED||ws.readyState===WebSocket.CLOSING)return;
   if(code&&code>=1000&&code<=4999&&code!==1004&&code!==1005&&code!==1006&&code!==1015){
@@ -972,6 +1005,6 @@ server.listen(port,host,()=>{
   }
 });
 process.on('SIGUSR2',()=>{draining=true;for(const w of allWorkers())if(!w.retiring)w.child.kill('SIGUSR2');});
-function shutdown(){clearInterval(reap);clearInterval(shardHeartbeat);for(const w of allWorkers())w.child.kill();server.close();}
+function shutdown(){clearInterval(reap);clearInterval(shardHeartbeat);rtcGateway?.close({cleanupNative:true});for(const w of allWorkers())w.child.kill();server.close();}
 for(const signal of ['SIGINT','SIGTERM'])process.once(signal,shutdown);
 if(process.send)process.once('disconnect',shutdown);

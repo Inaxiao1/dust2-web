@@ -113,7 +113,7 @@ export async function preloadRoomSkins(ids,{signal,onProgress=()=>{},saved=isAss
       onProgress({...stats});
     }
   }
-  const workers = Array.from({length:Math.min(2,items.length)},worker);
+  const workers = Array.from({length:Math.min(4,items.length)},worker);
   try {
     onProgress({...stats});
     await Promise.all(workers);
