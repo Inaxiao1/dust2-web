@@ -1,5 +1,8 @@
 import test from 'node:test';import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import {TouchInput,joystickVector,touchLookDelta,normalizeTouch,touchActionKind} from '../shared/touch-input.js';
+import {LAYOUT_IDS,buildTouchPresetLayout,layoutRect} from '../shared/touch-layout.js';
 import {GameControls} from '../client/controls.js';
 test('analog joystick deadzone, direction and diagonal speed remain bounded',()=>{
  assert.deepEqual(joystickVector(2,-3),{right:0,forward:0});assert.equal(joystickVector(0,-100).forward,1);
@@ -57,4 +60,32 @@ test('focusing another game button does not count as leaving the window',()=>{
  const target=new EventTarget(),c=new GameControls({target,storage:null});c.setVirtual('crouch',true,'toggle');
  c.handlers.blur({target:{tagName:'BUTTON'}});assert.equal(c.down('crouch'),true);
  target.dispatchEvent(new Event('blur'));assert.equal(c.down('crouch'),false);c.destroy();
+});
+
+test('touch control containers never set CSS transform that would break custom fixed-position weapon buttons',()=>{
+ const css=fs.readFileSync(path.resolve(import.meta.dirname,'../client/touch-controls.css'),'utf8');
+ // Match rule blocks targeting #touch-controls, .touch-weapons, .touch-combat, or .touch-toolbar (not child buttons)
+ for(const m of css.matchAll(/([^{}]+)\{([^{}]+)\}/g)){
+  const sel=m[1].trim(),body=m[2];
+  if(/(?:^|[\s,])(?:#touch-controls|\.touch-weapons|\.touch-combat|\.touch-toolbar)(?:\s|$|,)/.test(sel) && !/button\b/.test(sel)){
+   assert.equal(/\btransform\s*:/i.test(body),false,`selector "${sel}" must not use transform (breaks position:fixed custom layout buttons)`);
+  }
+ }
+ // Verify 2/3/4-finger presets position combat buttons inside viewport AND leave weapon/toolbar responsive!
+ const bases=new Map(LAYOUT_IDS.map((id,i)=>[id,{width:42,height:34,x:0.2+(i%6)*0.11,y:0.9}]));
+ for(const preset of ['two-finger','three-finger','four-finger']){
+  for(const [w,h] of [[844,390],[390,844]]){
+   const lay=buildTouchPresetLayout(preset,bases,w,h);
+   for(const id of ['move','fireLeft','fire','altFire','jump','crouch','reload','interact','walk']){
+    const btn=lay.buttons[id];
+    assert.ok(btn,`preset ${preset} missing combat button ${id}`);
+    assert.notEqual(btn.hidden,true,`preset ${preset} must not hide ${id}`);
+    const r=layoutRect(btn,bases.get(id),w,h);
+    assert.ok(r.left>=0 && r.left+r.width<=w && r.top>=0 && r.top+r.height<=h,`${preset} ${id} out of bounds on ${w}x${h}`);
+   }
+   for(const id of ['primary','secondary','knife','utility','bomb','drop','buy','room','scoreboard','menu']){
+    assert.equal(lay.buttons[id],undefined,`preset ${preset} should leave ${id} in responsive flex layout`);
+   }
+  }
+ }
 });

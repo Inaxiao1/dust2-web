@@ -19,6 +19,7 @@
 #touch-controls button {
   pointer-events: auto;
   touch-action: none;
+  z-index: 2;
   border: 1px solid rgba(216, 226, 231, 0.36);
   border-radius: 10px;
   background: rgba(20, 36, 46, 0.56);
@@ -48,6 +49,7 @@
   right: 0;
   top: 0;
   bottom: 0;
+  z-index: 1;
   pointer-events: auto;
   touch-action: none;
 }
@@ -59,6 +61,7 @@
   bottom: calc(var(--touch-bottom) + 42px);
   width: calc(114px * var(--touch-size));
   height: calc(114px * var(--touch-size));
+  z-index: 2;
   border: 1.5px solid rgba(237, 240, 228, 0.42);
   border-radius: 50%;
   background: radial-gradient(circle, rgba(216, 230, 213, 0.10) 30%, rgba(22, 38, 48, 0.42) 32%, rgba(22, 38, 48, 0.24));
@@ -119,6 +122,7 @@
   top: var(--touch-top);
   display: flex;
   gap: 4px;
+  pointer-events: none;
 }
 .touch-toolbar button {
   background: rgba(20, 34, 42, 0.72) !important;
@@ -136,7 +140,7 @@
   bottom: calc(var(--touch-bottom) + 44px);
   width: calc(206px * var(--touch-size));
   height: calc(136px * var(--touch-size));
-  transform-origin: bottom right;
+  pointer-events: none;
 }
 .touch-combat button {
   position: absolute;
@@ -160,14 +164,19 @@
 .touch-reload { right: calc(64px * var(--touch-size)); bottom: 0; }
 .touch-use { left: calc(10px * var(--touch-size)); bottom: 0; }
 
-/* Bottom-Center compact weapon strip (zero collision with left HP or right Ammo) */
+/* Bottom-Center compact weapon strip
+   IMPORTANT: Never set `transform` on .touch-weapons — any transform creates a
+   new containing block for descendant `position: fixed` buttons when players
+   save custom layouts, pushing weapon/knife/utility buttons off-screen! */
 .touch-weapons {
   position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0;
+  right: 0;
   bottom: var(--touch-bottom);
   display: flex;
+  justify-content: center;
   gap: 4px;
+  pointer-events: none;
 }
 .touch-weapons button {
   min-width: 36px !important;
@@ -240,8 +249,9 @@
   }
   .touch-device .touch-weapons {
     bottom: calc(var(--touch-bottom) + 42px);
-    left: 50%;
-    transform: translateX(-50%);
+    left: 0;
+    right: 0;
+    justify-content: center;
   }
   .touch-device .touch-weapons button { width: 46px; min-height: 34px !important; height: 34px; font-size: 10px !important; }
   .touch-device .touch-joystick {

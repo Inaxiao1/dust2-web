@@ -47,7 +47,7 @@
 
 ---
 
-## 二、前人踩过的 13 个血泪坑（避坑对照表）
+## 二、前人踩过的 14 个血泪坑（避坑对照表）
 
 | # | 踩坑现象 | 根因 | 永久修复与防回退约定 |
 |---|---|---|---|
@@ -64,3 +64,4 @@
 | 11 | `client/interface.css` 通用按钮样式意外覆盖新按钮的金色主题 | 过宽的通用 `button` 选择器优先级覆盖了模块类 | 通用选择器需显式排除特殊按钮（如 `:not(.touch-layout-open-btn)`），或提高组件样式作用域特异性 |
 | 12 | 房间目录新增字段导致旧单测 `global-room-directory` / `performance-room-directory` 失败 | 旧测试严格校验 `.directory-details` 首个子节点为 `<h3>` 且未加密房对象不含多余 false 字段 | 锁标放进 `<h3>` 内部；服务端目录按稀疏方式仅在加密房输出 `locked: true` |
 | 13 | B站 Toy 线上云存档大概率静默写失败 | Toy 官方单键上限为 **1,024 UTF-8 字节**（128 键/玩家），而旧 `cs_loadout_v1` 默认即占 `1,245` 字节，旧 `cs_prog_v1` 领几封邮件后也超 `1,024` 字节；且旧测试未校验字节上限 | 升级为 `v2` 自动分片编解码器（[shared/toy-cloud-codec.js](../../shared/toy-cloud-codec.js)），所有分片硬控 `≤ 960 B`、覆盖全量设置/触控布局/邮箱数据、无损迁移旧 `v1`，并在 [tests/toy-cloud-quota.mjs](../../tests/toy-cloud-quota.mjs) 强制执行 128×1024 B 平台红线断言 |
+| 14 | 手机保存自定义按键布局后，切枪/切刀/切道具整排按钮全部消失 | `.touch-weapons` 容器使用了 `left: 50%; transform: translateX(-50%)`，CSS 规范中带 `transform` 的祖先会劫持后代 `position: fixed` 的包含块，导致自定义布局给切枪按钮加的 `top: 350px` 被叠加在容器底部之外数百像素处；此外观战态 `.touch-spectator` 下打开布局编辑器会让 `measure()` 测出 `0×0` | 改用 `left: 0; right: 0; display: flex; justify-content: center;`（零 `transform`）居中 `.touch-weapons`，`measure()` 时临时移除 `touch-spectator`，并在 [tests/touch-controls.mjs](../../tests/touch-controls.mjs) 加入 CSS 回归断言防复发 |

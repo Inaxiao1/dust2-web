@@ -64,17 +64,15 @@ export function layoutRect(button,base,width,height) {
 
 /**
  * Build ergonomic 2/3/4-finger mobile FPS presets normalized to [0..1] viewport coordinates.
- * Works cleanly in both landscape (preferred) and portrait orientations.
+ * Only positions combat & movement controls so the top utility toolbar and bottom weapon
+ * strip keep their native responsive flex layout cleanly across portrait <-> landscape!
  */
 export function buildTouchPresetLayout(presetId,bases,width=844,height=390) {
   const portrait=height>width;
   const buttons={};
-  for(const [key,base] of bases){
-    buttons[key]={x:bound(base.x,0,1,.5),y:bound(base.y,0,1,.5),size:1,opacity:.82};
-  }
   const set=(key,patch)=>{
-    if(!buttons[key])return;
-    buttons[key]={...buttons[key],...patch};
+    if(bases&&bases.size&&!bases.has(key))return;
+    buttons[key]={x:.5,y:.5,size:1,opacity:.82,...patch};
     delete buttons[key].hidden;
   };
   if(presetId==='two-finger'){

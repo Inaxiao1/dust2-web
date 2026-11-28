@@ -35,7 +35,9 @@ export function mountTouchLayout(panel, modal, touch) {
     const { width, height } = viewportDims();
     const wasHidden = touch.element.hidden;
     const hadTouchBody = document.body.classList.contains('touch-device');
+    const hadSpectator = document.body.classList.contains('touch-spectator');
     if (!hadTouchBody) document.body.classList.add('touch-device');
+    if (hadSpectator) document.body.classList.remove('touch-spectator');
     touch.element.hidden = false;
     for (const el of controls) {
       for (const f of STYLE_FIELDS) el.style.removeProperty(f);
@@ -53,6 +55,7 @@ export function mountTouchLayout(panel, modal, touch) {
       }];
     }));
     touch.element.hidden = wasHidden;
+    if (hadSpectator) document.body.classList.add('touch-spectator');
     if (!hadTouchBody) document.body.classList.remove('touch-device');
   }
 
@@ -62,12 +65,13 @@ export function mountTouchLayout(panel, modal, touch) {
     for (const el of controls) {
       const key = idOf(el);
       const b = saved.buttons[key];
-      if (!b) continue;
+      const base = bases.get(key);
+      if (!b || !base) continue;
       if (b.hidden === true && !TOUCH_REQUIRED_IDS.has(key)) {
         el.style.setProperty('display', 'none', 'important');
         continue;
       }
-      const r = layoutRect(b, bases.get(key), width, height);
+      const r = layoutRect(b, base, width, height);
       for (const [k, v] of Object.entries({
         position: 'fixed',
         left: r.left + 'px',
@@ -134,8 +138,11 @@ export function mountTouchLayout(panel, modal, touch) {
   const stage = $('.layout-stage');
   const inspector = $('.layout-inspector');
 
+  let modifiedKeys = new Set();
+
   function syncDraftDefaults() {
     draft = normalizeLayout(saved);
+    modifiedKeys = new Set(Object.keys(draft.buttons));
     for (const [key, b] of bases) {
       draft.buttons[key] ??= { x: b.x, y: b.y, size: 1, opacity: 0.8 };
     }
@@ -179,7 +186,12 @@ export function mountTouchLayout(panel, modal, touch) {
 
   function applyPresetToDraft(presetId) {
     const { width, height } = viewportDims();
-    draft = buildTouchPresetLayout(presetId, bases, width, height);
+    const presetLayout = buildTouchPresetLayout(presetId, bases, width, height);
+    modifiedKeys = new Set(Object.keys(presetLayout.buttons));
+    draft = { version: 1, buttons: { ...presetLayout.buttons } };
+    for (const [key, b] of bases) {
+      draft.buttons[key] ??= { x: b.x, y: b.y, size: 1, opacity: 0.8 };
+    }
     const presetMeta = TOUCH_PRESETS.find((p) => p.id === presetId);
     if (presetMeta) {
       $('.layout-status').textContent = `已套用「${presetMeta.label}」：${presetMeta.hint}。仍可继续微调后点击保存。`;
@@ -207,6 +219,7 @@ export function mountTouchLayout(panel, modal, touch) {
     e.preventDefault();
     const { width, height } = viewportDims();
     const b = draft.buttons[drag.key];
+    modifiedKeys.add(drag.key);
     b.x = Math.min(1, Math.max(0, drag.start.x + (e.clientX - drag.x) / width));
     b.y = Math.min(1, Math.max(0, drag.start.y + (e.clientY - drag.y) / height));
     draw();
@@ -217,18 +230,21 @@ export function mountTouchLayout(panel, modal, touch) {
 
   $('[data-size]').oninput = (e) => {
     if (!selected || !draft?.buttons[selected]) return;
+    modifiedKeys.add(selected);
     draft.buttons[selected].size = Number(e.target.value);
     $('[data-size-out]').textContent = Math.round(draft.buttons[selected].size * 100) + '%';
     draw();
   };
   $('[data-opacity]').oninput = (e) => {
     if (!selected || !draft?.buttons[selected]) return;
+    modifiedKeys.add(selected);
     draft.buttons[selected].opacity = Number(e.target.value);
     $('[data-opacity-out]').textContent = Math.round(draft.buttons[selected].opacity * 100) + '%';
     draw();
   };
   $('[data-hidden-check]').onchange = (e) => {
     if (!selected || !draft?.buttons[selected] || TOUCH_REQUIRED_IDS.has(selected)) return;
+    modifiedKeys.add(selected);
     if (e.target.checked) draft.buttons[selected].hidden = true;
     else delete draft.buttons[selected].hidden;
     draw();
@@ -249,19 +265,28 @@ export function mountTouchLayout(panel, modal, touch) {
     openBtn.focus();
   }
 
+  function buildPersistableDraft() {
+    const out = { version: 1, buttons: {} };
+    for (const key of modifiedKeys) {
+      if (draft?.buttons?.[key]) out.buttons[key] = draft.buttons[key];
+    }
+    return normalizeLayout(out);
+  }
+
   $('[data-save]').onclick = () => {
-    saved = normalizeLayout(draft);
+    saved = buildPersistableDraft();
     const ok = touch.storage.setItem(LAYOUT_KEY, JSON.stringify(saved));
     apply();
     if (!ok) {
       $('.layout-status').textContent = '存储空间不足，本次布局已应用，请导出代码备份后再退出。';
       return;
     }
-    syncLauncherStatus('已保存自定义按键布局');
+    syncLauncherStatus(Object.keys(saved.buttons).length ? '已保存自定义按键布局' : '已恢复自适应默认布局');
     close();
   };
   $('[data-cancel]').onclick = close;
   $('[data-reset]').onclick = () => {
+    modifiedKeys = new Set();
     draft = {
       version: 1,
       buttons: Object.fromEntries([...bases].map(([key, b]) => [key, { x: b.x, y: b.y, size: 1, opacity: 0.8 }])),
@@ -275,12 +300,13 @@ export function mountTouchLayout(panel, modal, touch) {
     if (!share.hidden) {
       inspectorCollapsed = false;
       inspector.classList.remove('is-collapsed');
-      $('textarea').value = JSON.stringify(normalizeLayout(draft));
+      $('textarea').value = JSON.stringify(buildPersistableDraft());
     }
   };
   $('[data-import]').onclick = () => {
     try {
       const imported = parseLayout($('textarea').value);
+      for (const k of Object.keys(imported.buttons)) modifiedKeys.add(k);
       draft.buttons = { ...draft.buttons, ...imported.buttons };
       choose(selected);
       $('.layout-status').textContent = '布局代码已载入，点击「保存布局」立即生效。';
@@ -309,7 +335,12 @@ export function mountTouchLayout(panel, modal, touch) {
     syncDraftDefaults();
     if (initialPreset) {
       const { width, height } = viewportDims();
-      draft = buildTouchPresetLayout(initialPreset, bases, width, height);
+      const presetLayout = buildTouchPresetLayout(initialPreset, bases, width, height);
+      modifiedKeys = new Set(Object.keys(presetLayout.buttons));
+      draft = { version: 1, buttons: { ...presetLayout.buttons } };
+      for (const [key, b] of bases) {
+        draft.buttons[key] ??= { x: b.x, y: b.y, size: 1, opacity: 0.8 };
+      }
     }
     stage.replaceChildren();
     for (const el of controls) {
@@ -389,6 +420,10 @@ export function mountTouchLayout(panel, modal, touch) {
   panel.addEventListener('input', (e) => {
     if (e.target.id === 'touch-size') apply();
   });
+  touch._applyCustomLayout = () => {
+    saved = normalizeLayout(touch.storage.readJSON(LAYOUT_KEY));
+    apply();
+  };
   apply();
   return { openEditor, apply };
 }

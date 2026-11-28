@@ -86,7 +86,7 @@ export class TouchControls {
   this.element.hidden=!enabled||!this.active;
  }
  configure(values){this.settings=normalizeTouch({...this.settings,...values});this.storage.setItem('dust2.touch.v1',JSON.stringify(this.settings));this.refreshMode();}
- setActive(active){if(this.previewOnly){this.active=false;this.element.hidden=true;return;}active=!!active;if(this.active&&!active)this.clear();this.active=active;this.element.hidden=!this.enabled||!active;}
+ setActive(active){if(this.previewOnly){this.active=false;this.element.hidden=true;return;}active=!!active;if(this.active&&!active)this.clear();this.active=active;this.element.hidden=!this.enabled||!active;if(active&&this.enabled)this._applyCustomLayout?.();}
  clear(){this.input?.clear();this.drawStick();this.element?.querySelectorAll('.pressed').forEach(b=>b.classList.remove('pressed'));}
  drawStick(){if(!this.input)return;const {right,forward}=this.input.axes;const travel=Math.max(22,(this.stick?.offsetWidth||112)*0.3);this.knob.style.transform=`translate(${right*travel}px,${-forward*travel}px)`;}
  drawHeld(){this.buttons.forEach(b=>b.classList.toggle('pressed',this.controls.down(b.dataset.action)));}
