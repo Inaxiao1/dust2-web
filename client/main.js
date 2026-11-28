@@ -1099,7 +1099,8 @@ window.addEventListener('blur',()=>{suspendInput();mouseFire=false;resetScope();
 function resizeViewport(){
  const width=Math.max(1,Math.round(globalThis.visualViewport?.width||innerWidth)),height=Math.max(1,Math.round(globalThis.visualViewport?.height||innerHeight));
  document.body.style.setProperty('--app-height',height+'px');
- viewport=viewportSize(width,height,{...video,mobile:mobileDevice()&&!privateMap});camera.aspect=gunCamera.aspect=viewport.aspect;camera.updateProjectionMatrix();gunCamera.updateProjectionMatrix();
+ const isMobileViewport=mobileDevice()||Boolean(touchControls?.enabled);
+ viewport=viewportSize(width,height,{...video,mobile:isMobileViewport});camera.aspect=gunCamera.aspect=viewport.aspect;camera.updateProjectionMatrix();gunCamera.updateProjectionMatrix();
  const useFlatBuffer = flatMapSelected() && !isHighQualityTextured();
  const effectiveFlatScale = quality === 'high' && flatRenderScale <= 1 ? 1.25 : flatRenderScale;
  const buffer = useFlatBuffer
@@ -1113,7 +1114,14 @@ function resizeViewport(){
  crosshair.refreshLayout();
  for(const [key,value]of Object.entries({'--game-width':viewport.width+'px','--game-height':viewport.height+'px','--game-scale-x':viewport.displayWidth/viewport.width,'--game-scale-y':viewport.displayHeight/viewport.height}))document.body.style.setProperty(key,String(value));
 }
-window.addEventListener('resize',()=>{resizeViewport();if(touchControls?.enabled){clearGameInput();touchControls.clear();}});globalThis.visualViewport?.addEventListener('resize',resizeViewport);resizeViewport();
+let orientationResizeTimer=0;
+function onViewportResize(){
+ resizeViewport();
+ if(touchControls?.enabled){clearGameInput();touchControls.clear();}
+}
+window.addEventListener('resize',onViewportResize);
+window.addEventListener('orientationchange',()=>{clearTimeout(orientationResizeTimer);onViewportResize();orientationResizeTimer=setTimeout(onViewportResize,180);});
+globalThis.visualViewport?.addEventListener('resize',resizeViewport);resizeViewport();
 function syncTouchSurface(){touchControls?.setActive(touchPlaying&&gameSurfaceActive()&&snapshot?.match?.status!=='ended');}
 document.addEventListener('visibilitychange',()=>{if(document.hidden){suspendInput();touchControls?.clear();if(connected)$('pause-menu').hidden=false;syncTouchSurface();}});
 export function joinDirectoryRoom({code,mode}, directoryNavigation=false){
@@ -1181,7 +1189,16 @@ function frame(now){
   const viewed=spectating||self,renderZoom=spectating?(spectating.zoomLevel||0):zoomLevel,renderFov=getWeapon(viewed.weapon).zoomFovs?.[renderZoom]||CS2_BASE_FOV;
   hud.radarFrame(snapshot,self,{id:viewed.id,x:camera.position.x,z:camera.position.z,
     y:bombCamera?snapshot.bomb.y:viewed.y,yaw:camera.rotation.y},now,!!bombCamera,radarRotate);
-  const targetFov=cs2FovToVertical(renderFov);if(camera.fov!==targetFov){camera.fov=Math.abs(camera.fov-targetFov)<.1?targetFov:THREE.MathUtils.lerp(camera.fov,targetFov,Math.min(1,renderDt/.05));camera.updateProjectionMatrix();}
+  const baseVerticalFov=cs2FovToVertical(renderFov);
+  let targetFov=baseVerticalFov;
+  // On portrait phone screens (aspect < 1) while unscoped, gently expand vertical FOV so
+  // horizontal vision stays natural (~64 deg) without stretching pixels (camera.aspect stays native).
+  if(viewport.aspect>0&&viewport.aspect<1&&renderZoom===0){
+   const minHalfHFovRad=32*Math.PI/180;
+   const neededVFov=2*Math.atan(Math.tan(minHalfHFovRad)/Math.max(.35,viewport.aspect))*180/Math.PI;
+   targetFov=Math.min(98,Math.max(baseVerticalFov,neededVFov));
+  }
+  if(camera.fov!==targetFov){camera.fov=Math.abs(camera.fov-targetFov)<.1?targetFov:THREE.MathUtils.lerp(camera.fov,targetFov,Math.min(1,renderDt/.05));camera.updateProjectionMatrix();}
   const renderWeapon=getWeapon(viewed.weapon),fullScope=renderZoom>0&&renderWeapon.zoomStyle==='scope',optic=renderZoom>0&&renderWeapon.zoomStyle==='optic';
   const accuracy=accuracyForShot(renderWeapon,viewed,renderZoom).total;
   scopeOverlay.update({width:viewport.width,height:viewport.height,weapon:renderWeapon,zoomLevel:renderZoom,accuracy,verticalFov:camera.fov});

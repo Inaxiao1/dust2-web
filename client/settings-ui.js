@@ -157,8 +157,9 @@ export function mountSettings({
               <h4>显示、雷达与性能</h4>
               <span class="settings-badge badge-live">实时生效</span>
             </div>
-            <label class="config-row"><span><strong>屏幕比例</strong><small>4:3 经典竞技视野或 16:9 宽屏</small></span><select id="cs-aspect"><option value="16:9">16:9 · 宽屏</option><option value="4:3">4:3 · 经典</option></select></label>
-            <label class="config-row"><span><strong>显示模式</strong><small>4:3 在宽屏下选择黑边或全屏拉伸</small></span><select id="cs-display"><option value="bars">保持比例 · 黑边</option><option value="stretch">拉伸至全屏</option></select></label>
+            <label class="config-row" ${mobileDevice() ? 'hidden' : ''}><span><strong>屏幕比例</strong><small>4:3 经典竞技视野或 16:9 宽屏</small></span><select id="cs-aspect"><option value="16:9">16:9 · 宽屏</option><option value="4:3">4:3 · 经典</option></select></label>
+            <label class="config-row" ${mobileDevice() ? 'hidden' : ''}><span><strong>显示模式</strong><small>4:3 在宽屏下选择黑边或全屏拉伸</small></span><select id="cs-display"><option value="bars">保持比例 · 黑边</option><option value="stretch">拉伸至全屏</option></select></label>
+            <p class="group-hint" ${mobileDevice() ? '' : 'hidden'}>移动端自动适配原生屏幕比例（横屏/竖屏零拉伸），无需手动设置 4:3 拉伸。</p>
             <label class="config-row"><span><strong>雷达方向</strong><small>小地图随视角旋转或保持固定北向</small></span><select id="cs-radar-direction"><option value="view">跟随视角</option><option value="north">固定北方</option></select></label>
             <label class="config-row"><span><strong>渲染清晰度比例</strong><small>当前分辨率：<output id="cs-render-dimensions"></output></small></span><select id="cs-flat-render-scale" aria-label="渲染清晰度比例"><option value="0.75">75%</option><option value="1">100% · 原生优先</option><option value="1.25">125%</option><option value="1.5">150%</option></select></label>
             <label class="config-row" id="cs-mobile-clarity-row" ${mobileDevice() ? '' : 'hidden'}><span><strong>手机清晰度</strong><small>默认「清晰」兼顾细节与流畅，立即生效</small></span><select id="cs-mobile-clarity"><option value="performance">省电 · 降低分辨率</option><option value="clear">清晰 · 推荐</option><option value="sharp">高清 · 更精细</option></select></label>

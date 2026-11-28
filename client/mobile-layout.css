@@ -1,125 +1,284 @@
-/* Fit the visual viewport, including browser chrome and display cutouts. */
-.touch-device .loading-screen{height:var(--app-height,100dvh);min-height:0;bottom:auto;padding:max(0px,env(safe-area-inset-top)) max(0px,env(safe-area-inset-right)) max(0px,env(safe-area-inset-bottom)) max(0px,env(safe-area-inset-left))}
-.touch-device .loading-header{padding:10px 4vw;gap:12px;flex-shrink:0}
-.touch-device .loading-header .wordmark{font-size:21px}
-.touch-device .loading-header>span{font-size:9px;letter-spacing:1px}
-.touch-device .loading-header button{min-height:44px;padding:6px 12px}
-.touch-device .loading-main{min-height:0;padding:10px 5vw;gap:24px;flex:1 1 auto}
-.touch-device .loading-map-title h1{font-size:clamp(32px,7vw,62px);margin:0 0 7px}
-.touch-device .loading-location{font-size:12px;letter-spacing:4px}
-.touch-device .loading-map-title p{font-size:11px;margin:10px 0;line-height:1.5}
-.touch-device .loading-badges{margin-top:10px;flex-wrap:wrap;gap:5px}
-.touch-device .loading-badges span{padding:6px 9px;font-size:10px}
-.touch-device .loading-tactical{width:30vw;max-width:240px}
-.touch-device .loading-tactical img{max-height:130px;object-fit:contain}
-.touch-device .loading-tactical>div{margin-top:8px;padding-top:6px}
-.touch-device .loading-tactical p{font-size:10px;line-height:1.4;margin:6px 0}
-.touch-device .loading-footer{padding:12px 5vw 14px;flex-shrink:0}
-.touch-device .loading-stage-row{font-size:11px;gap:12px}
-.touch-device .loading-stage-row>span{min-width:0;gap:7px}
-.touch-device #load-label{overflow-wrap:anywhere}
-.touch-device .loading-stage-row strong{font-size:22px;white-space:nowrap}
-.touch-device .loading-stat-row{gap:10px;flex-wrap:wrap;font-size:10px}
-.touch-device .loading-step-row{gap:12px;margin-top:12px;padding-top:10px;font-size:9px;letter-spacing:0}
-.touch-device .menu-screen{height:var(--app-height,100dvh);min-height:0;overflow:auto}
-.touch-device .overlay{max-height:var(--app-height,100dvh)}
-.touch-device .death-screen-card{max-width:94vw;padding:10px 12px;gap:10px}
-.touch-device .death-screen-keys{color:#efd394;line-height:1.6}
-@media(orientation:landscape) and (max-height:480px){
- .touch-device .loading-header{padding-top:3px;padding-bottom:3px}
- .touch-device .loading-tactical img{display:none}
- .touch-device .loading-map-title p{display:none}
- .touch-device .loading-main{padding-top:5px;padding-bottom:5px}
- .touch-device .loading-step-row{margin-top:7px;padding-top:7px}
- .touch-device .loading-footer{padding-top:8px;padding-bottom:8px}
- .touch-device .loading-screen .load-track{margin:9px 0}
- .touch-device .death-screen-card{bottom:28%;font-size:10px}
+/* Mobile viewport, loading screen & clean non-overlapping HUD layout */
+.touch-device .loading-screen {
+  height: var(--app-height, 100dvh);
+  min-height: 0;
+  bottom: auto;
+  padding: max(0px, env(safe-area-inset-top)) max(0px, env(safe-area-inset-right)) max(0px, env(safe-area-inset-bottom)) max(0px, env(safe-area-inset-left));
 }
-@media(orientation:portrait){
- .touch-device .loading-main{flex-direction:column;justify-content:center;align-items:flex-start;gap:14px}
- .touch-device .loading-tactical{width:100%;max-width:none}
- .touch-device .loading-tactical img{display:none}
- .touch-device .loading-step-row{flex-wrap:wrap}
- .touch-device .loading-header>span{display:none}
- .touch-device .loading-stage-row strong{font-size:18px}
- .touch-device .death-screen-card{bottom:40%;flex-wrap:wrap}
-}
+.touch-device .loading-header { padding: 10px 4vw; gap: 12px; flex-shrink: 0; }
+.touch-device .loading-header .wordmark { font-size: 21px; }
+.touch-device .loading-header > span { font-size: 9px; letter-spacing: 1px; }
+.touch-device .loading-header button { min-height: 40px; padding: 6px 12px; }
+.touch-device .loading-main { min-height: 0; padding: 10px 5vw; gap: 20px; flex: 1 1 auto; }
+.touch-device .loading-map-title h1 { font-size: clamp(30px, 7vw, 58px); margin: 0 0 7px; }
+.touch-device .loading-location { font-size: 12px; letter-spacing: 4px; }
+.touch-device .loading-map-title p { font-size: 11px; margin: 10px 0; line-height: 1.5; }
+.touch-device .loading-badges { margin-top: 10px; flex-wrap: wrap; gap: 5px; }
+.touch-device .loading-badges span { padding: 6px 9px; font-size: 10px; }
+.touch-device .loading-tactical { width: 30vw; max-width: 240px; }
+.touch-device .loading-tactical img { max-height: 130px; object-fit: contain; }
+.touch-device .loading-tactical > div { margin-top: 8px; padding-top: 6px; }
+.touch-device .loading-tactical p { font-size: 10px; line-height: 1.4; margin: 6px 0; }
+.touch-device .loading-footer { padding: 12px 5vw 14px; flex-shrink: 0; }
+.touch-device .loading-stage-row { font-size: 11px; gap: 12px; }
+.touch-device .loading-stage-row > span { min-width: 0; gap: 7px; }
+.touch-device #load-label { overflow-wrap: anywhere; }
+.touch-device .loading-stage-row strong { font-size: 22px; white-space: nowrap; }
+.touch-device .loading-stat-row { gap: 10px; flex-wrap: wrap; font-size: 10px; }
+.touch-device .loading-step-row { gap: 12px; margin-top: 12px; padding-top: 10px; font-size: 9px; letter-spacing: 0; }
+.touch-device .menu-screen { height: var(--app-height, 100dvh); min-height: 0; overflow: auto; }
+.touch-device .overlay { max-height: var(--app-height, 100dvh); padding: 6px 8px; align-items: center; }
+.touch-device .death-screen-card { max-width: 94vw; padding: 10px 12px; gap: 10px; }
+.touch-device .death-screen-keys { color: #efd394; line-height: 1.6; }
 
-/* Compact combat HUD: keep the centre open and reserve the edges for controls. */
-.touch-device #touch-controls button{min-width:32px;min-height:32px;font-size:10px;padding:3px;border-color:#d8e2e74a;background:#172a3566;box-shadow:none}
-.touch-device #touch-controls .touch-toolbar{gap:3px;right:max(7px,env(safe-area-inset-right));top:max(5px,env(safe-area-inset-top))}
-.touch-device #touch-controls .touch-toolbar button{min-width:32px!important;min-height:30px!important;font-size:9px!important;border-radius:5px}
-.touch-device #touch-controls .touch-joystick{left:max(16px,env(safe-area-inset-left));bottom:48px;width:calc(92px * var(--touch-size));height:calc(92px * var(--touch-size));background:#172a353d}
-.touch-device #touch-controls .touch-joystick i{width:32px;height:32px}
-.touch-device #touch-controls .touch-joystick span{font-size:8px;bottom:8px}
-.touch-device #touch-controls .touch-combat{width:calc(176px * var(--touch-size));height:calc(111px * var(--touch-size));bottom:49px;right:max(10px,env(safe-area-inset-right))}
-.touch-device #touch-controls .touch-combat button{width:calc(42px * var(--touch-size));height:calc(42px * var(--touch-size))}
-.touch-device #touch-controls .touch-combat .touch-fire{width:calc(57px * var(--touch-size));height:calc(57px * var(--touch-size));right:calc(53px * var(--touch-size));font-size:12px!important;background:#d3ae573d!important;border-width:1px!important}
-.touch-device #touch-controls .touch-reload{right:calc(60px * var(--touch-size))}
-.touch-device #touch-controls .touch-weapons{gap:3px;bottom:max(6px,env(safe-area-inset-bottom));right:10px}
-.touch-device #touch-controls .touch-weapons button{min-width:32px!important;min-height:32px!important;width:35px;font-size:8px!important;border-radius:4px!important}
-.touch-device #touch-controls .touch-walk{left:16px;bottom:150px;min-height:30px}
-.touch-device .radar-block{left:8px!important;top:5px!important;width:70px!important}
-.touch-device #radar{width:70px!important;height:70px!important}
-.touch-device .location-label{margin-bottom:2px!important}
-.touch-device #location{font-size:8px!important}
-.touch-device .radar-info{display:none}
-.touch-device .team-rosters{display:none}
-.touch-device .top-score{transform:translateX(-50%) scale(.52)!important;top:4px!important;transform-origin:top center!important}
-.touch-device #kill-feed{top:41px!important;right:8px!important;max-width:210px!important}
-.touch-device .kill-entry{font-size:8px!important;padding:3px 5px!important;min-height:20px;gap:4px}
-.touch-device .kill-entry img{max-width:35px;max-height:14px}
-.touch-device .bottom-left{left:12px!important;bottom:6px!important;gap:7px!important}
-.touch-device .health-stat>b{font-size:20px!important}
-.touch-device .health-stat>small{font-size:8px!important;max-width:65px!important}
-.touch-device .money-stat{font-size:11px!important}
-.touch-device .bottom-right{left:190px!important;right:auto!important;bottom:5px!important}
-.touch-device .ammo-stat>b{font-size:20px!important}
-.touch-device .ammo-stat>span{font-size:10px!important}
-.touch-device #weapon-name{font-size:8px!important}
-.touch-device #toast{top:37px!important;font-size:9px!important;max-width:48vw;padding:4px 8px!important;white-space:normal;line-height:1.4;background:#182a3299!important;border:0!important}.touch-spectator #toast{display:none}
-.touch-device #kill-cards{transform:translateX(-50%) scale(.5)!important;bottom:46px!important}
-.touch-device .death-screen-card{top:58px!important;bottom:auto!important;width:min(350px,70vw)!important;max-width:70vw;padding:7px 10px!important;gap:8px!important;box-shadow:none;animation:none;background:#182a32b8}
-.touch-device .death-screen-shade{background:linear-gradient(0deg,#14232c16,transparent 50%)}
-.touch-device .death-screen-mark,.touch-device .death-screen-eyebrow,.touch-device .death-screen-weapon{display:none}
-.touch-device .death-screen-kill{flex:0 1 100px}
-.touch-device .death-screen-killer{font-size:10px!important}
-.touch-device .death-screen-status{padding-left:8px!important;gap:3px!important}
-.touch-device .death-screen-status>b{font-size:10px!important}
-.touch-device .death-screen-status>span{font-size:8px!important}
-.touch-device .death-screen-keys{font-size:8px!important;line-height:1.4}
-.touch-device .death-screen-clock strong{font-size:18px}
-.touch-spectator #touch-controls .touch-joystick,.touch-spectator #touch-controls .touch-walk,.touch-spectator #touch-controls .touch-weapons,.touch-spectator #touch-controls .touch-combat button:disabled,.touch-spectator .bottom-left,.touch-spectator .bottom-right,.touch-spectator #kill-cards{display:none!important}
-.touch-spectator #touch-controls .touch-combat{display:flex;gap:7px;width:auto;height:42px;bottom:16px}
-.touch-spectator #touch-controls .touch-combat button{position:static!important;border-radius:7px!important;width:54px!important;height:36px!important;font-size:10px!important}
-@media(orientation:portrait){
- .touch-device #touch-controls .touch-toolbar{top:84px}
- .touch-device #touch-controls .touch-combat{bottom:105px}
- .touch-device #touch-controls .touch-joystick{bottom:105px}
- .touch-device #touch-controls .touch-walk{bottom:207px}
- .touch-device #touch-controls .touch-weapons{bottom:40px;left:auto}
- .touch-device .bottom-right{left:auto!important;right:10px!important}
- .touch-device .top-score{left:50%!important;right:auto!important}
- .touch-device .death-screen-card{top:128px!important;max-width:94vw;width:94vw!important}
- .touch-spectator #touch-controls .touch-combat{bottom:16px}
+@media (orientation: landscape) and (max-height: 480px) {
+  .touch-device .loading-header { padding-top: 3px; padding-bottom: 3px; }
+  .touch-device .loading-tactical img { display: none; }
+  .touch-device .loading-map-title p { display: none; }
+  .touch-device .loading-main { padding-top: 5px; padding-bottom: 5px; }
+  .touch-device .loading-step-row { margin-top: 7px; padding-top: 7px; }
+  .touch-device .loading-footer { padding-top: 8px; padding-bottom: 8px; }
+  .touch-device .loading-screen .load-track { margin: 9px 0; }
+  .touch-device .death-screen-card { bottom: 28%; font-size: 10px; }
+}
+@media (orientation: portrait) {
+  .touch-device .loading-main { flex-direction: column; justify-content: center; align-items: flex-start; gap: 14px; }
+  .touch-device .loading-tactical { width: 100%; max-width: none; }
+  .touch-device .loading-tactical img { display: none; }
+  .touch-device .loading-step-row { flex-wrap: wrap; }
+  .touch-device .loading-header > span { display: none; }
+  .touch-device .loading-stage-row strong { font-size: 18px; }
+  .touch-device .death-screen-card { bottom: 40%; flex-wrap: wrap; }
 }
 
-.touch-device .touch-portrait-note{top:115px;font-size:9px;padding:4px 7px;opacity:.65}
+/* =========================================================================
+   Clean, Unstretched Mobile Combat HUD (Zero Overlap across 20:9 / 16:9 / Portrait)
+   ========================================================================= */
+.touch-device .radar-block {
+  position: fixed !important;
+  left: max(8px, env(safe-area-inset-left)) !important;
+  top: max(6px, env(safe-area-inset-top)) !important;
+  width: 74px !important;
+}
+.touch-device #radar {
+  width: 74px !important;
+  height: 74px !important;
+  aspect-ratio: 1;
+}
+.touch-device .location-label { display: block; white-space: nowrap; margin-bottom: 2px !important; }
+.touch-device #location { font-size: 9px !important; }
+.touch-device #network-status { display: none; }
+.touch-device .radar-info,
+.touch-device .team-rosters { display: none; }
 
-/* Keep the clarity control within reach on short landscape phone screens. */
-.touch-device #settings-menu .config-card{display:flex;flex-direction:column;width:min(760px,100%);height:calc(100dvh - 16px);max-height:calc(100dvh - 16px);padding:0;overflow:hidden}
-.touch-device #settings-menu .config-card>header{padding:10px 14px;gap:12px;flex-shrink:0}
-.touch-device #settings-menu h2{font-size:18px;margin:2px 0 0}
-.touch-device #settings-menu .eyebrow{font-size:9px}
-.touch-device #settings-menu .config-card>header button{min-height:36px;padding:0 12px;font-size:12px}
-.touch-device #settings-menu .config-body{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}
-.touch-device #settings-menu .config-tabs{flex-direction:row;align-items:center;border-right:0;border-bottom:1px solid rgba(148,174,201,.16);gap:8px;padding:6px 10px;overflow-x:auto;scrollbar-width:thin;scrollbar-color:#364a54 transparent}
-.touch-device #settings-menu .nav-section{flex-direction:row;align-items:center;gap:4px;flex-shrink:0}
-.touch-device #settings-menu .nav-section+.nav-section{padding-top:0;padding-left:8px;border-top:0;border-left:1px solid rgba(255,255,255,.12)}
-.touch-device #settings-menu .nav-section-title{display:none}
-.touch-device #settings-menu .config-tabs button{width:auto;flex:none;padding:6px 10px;min-height:36px;font-size:12px;border-left:0;border-bottom:2px solid transparent;white-space:nowrap}
-.touch-device #settings-menu .config-tabs button.selected{border-bottom-color:#e3bd6b}
-.touch-device #settings-menu .config-scroll{height:auto;flex:1;min-height:0;overflow:auto;padding:12px 14px;font-size:12px}
-.touch-device #settings-menu .config-scroll h3{font-size:15px;margin:0 0 4px}
-.touch-device #settings-menu .config-row{margin:0;padding:10px 0;gap:10px}
-.touch-device #settings-menu select{padding:6px 10px;min-height:36px}
+.touch-device .top-score {
+  position: fixed !important;
+  left: 50% !important;
+  right: auto !important;
+  top: max(5px, env(safe-area-inset-top)) !important;
+  transform: translateX(-50%) scale(0.58) !important;
+  transform-origin: top center !important;
+}
+
+.touch-device #kill-feed {
+  position: fixed !important;
+  top: calc(max(6px, env(safe-area-inset-top)) + 38px) !important;
+  right: max(10px, env(safe-area-inset-right)) !important;
+  max-width: 205px !important;
+}
+.touch-device .kill-entry {
+  font-size: 8.5px !important;
+  padding: 3px 6px !important;
+  min-height: 20px;
+  gap: 4px;
+}
+.touch-device .kill-entry img { max-width: 34px; max-height: 14px; }
+
+/* Bottom-Left: HP + Armor + Money (cleanly below joystick) */
+.touch-device .bottom-left {
+  position: fixed !important;
+  left: max(14px, env(safe-area-inset-left)) !important;
+  bottom: max(7px, env(safe-area-inset-bottom)) !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: baseline !important;
+  gap: 9px !important;
+}
+.touch-device .health-stat { display: flex; align-items: baseline; gap: 5px; }
+.touch-device .health-stat > b { font-size: 21px !important; min-width: 0 !important; line-height: 1; }
+.touch-device .health-stat > span { display: none !important; }
+.touch-device .health-stat > small { font-size: 9px !important; padding-left: 4px; max-width: 72px !important; }
+.touch-device .money-stat { font-size: 12px !important; font-weight: 700; color: #b7e2a8; }
+
+/* Bottom-Right: Ammo + Weapon Name (cleanly anchored right, below combat cluster!) */
+.touch-device .bottom-right {
+  position: fixed !important;
+  left: auto !important;
+  right: max(14px, env(safe-area-inset-right)) !important;
+  bottom: max(7px, env(safe-area-inset-bottom)) !important;
+  min-width: 82px;
+  text-align: right !important;
+}
+.touch-device .ammo-stat { display: flex; align-items: baseline; justify-content: flex-end; gap: 3px; }
+.touch-device .ammo-stat > b { font-size: 21px !important; line-height: 1; }
+.touch-device .ammo-stat > span { font-size: 11px !important; opacity: 0.82; }
+.touch-device #active-weapon-icon,
+.touch-device #weapon-skin { display: none !important; }
+.touch-device #weapon-name { font-size: 8.5px !important; opacity: 0.85; }
+.touch-device.touch-utility .bottom-right { display: none !important; }
+
+.touch-device #toast {
+  top: 42px !important;
+  font-size: 9.5px !important;
+  max-width: 48vw;
+  padding: 4px 8px !important;
+  white-space: normal;
+  line-height: 1.35;
+  background: rgba(24, 42, 50, 0.72) !important;
+  border: 0 !important;
+}
+.touch-spectator #toast { display: none; }
+.touch-device #kill-cards {
+  transform: translateX(-50%) scale(0.52) !important;
+  transform-origin: 50% 100%;
+  bottom: 44px !important;
+}
+.touch-device #hud #kill-confirm { bottom: 116px; }
+.touch-device #interact-prompt { bottom: 22%; max-width: 200px; }
+.touch-device #center-message { font-size: 12px; top: 24%; }
+
+.touch-device .death-screen-card {
+  top: 56px !important;
+  bottom: auto !important;
+  width: min(350px, 72vw) !important;
+  max-width: 72vw;
+  padding: 7px 10px !important;
+  gap: 8px !important;
+  box-shadow: none;
+  animation: none;
+  background: rgba(24, 42, 50, 0.78);
+}
+.touch-device .death-screen-shade { background: linear-gradient(0deg, rgba(20, 35, 44, 0.1), transparent 50%); }
+.touch-device .death-screen-mark,
+.touch-device .death-screen-eyebrow,
+.touch-device .death-screen-weapon { display: none; }
+.touch-device .death-screen-kill { flex: 0 1 100px; }
+.touch-device .death-screen-killer { font-size: 10px !important; }
+.touch-device .death-screen-status { padding-left: 8px !important; gap: 3px !important; }
+.touch-device .death-screen-status > b { font-size: 10px !important; }
+.touch-device .death-screen-status > span { font-size: 8px !important; }
+.touch-device .death-screen-keys { font-size: 8px !important; line-height: 1.4; }
+.touch-device .death-screen-clock strong { font-size: 18px; }
+
+/* Spectator mode: hide combat controls including left fire button */
+.touch-spectator #touch-controls .touch-joystick,
+.touch-spectator #touch-controls .touch-fire-left,
+.touch-spectator #touch-controls .touch-walk,
+.touch-spectator #touch-controls .touch-weapons,
+.touch-spectator #touch-controls .touch-combat button:disabled,
+.touch-spectator .bottom-left,
+.touch-spectator .bottom-right,
+.touch-spectator #kill-cards { display: none !important; }
+.touch-spectator #touch-controls .touch-combat {
+  display: flex;
+  gap: 8px;
+  width: auto;
+  height: 40px;
+  bottom: 16px;
+}
+.touch-spectator #touch-controls .touch-combat button {
+  position: static !important;
+  border-radius: 7px !important;
+  width: 60px !important;
+  height: 36px !important;
+  font-size: 11px !important;
+}
+
+@media (orientation: portrait) {
+  .touch-device #toast { top: calc(max(6px, env(safe-area-inset-top)) + 108px) !important; max-width: 82vw; }
+  .touch-device #kill-feed { top: calc(max(6px, env(safe-area-inset-top)) + 106px) !important; }
+  .touch-device .death-screen-card { top: 124px !important; max-width: 92vw; width: 92vw !important; }
+  .touch-spectator #touch-controls .touch-combat { bottom: 16px; }
+}
+
+/* Modals on mobile (Shop, Room, Pause, Settings) */
+.touch-device .config-card,
+.touch-device .pause-card,
+.touch-device .room-card,
+.touch-device .equipment-card {
+  max-height: calc(var(--app-height, 100dvh) - 16px);
+  margin: 8px auto;
+  overflow: auto;
+}
+.touch-device .pause-card { padding: 16px 20px; width: min(440px, 94vw); }
+.touch-device .pause-card h2 { font-size: 22px; margin: 6px 0; }
+.touch-device .pause-card p { font-size: 11px; }
+.touch-device .equipment-columns {
+  overflow-x: auto;
+  touch-action: pan-x pan-y;
+  grid-template-columns: repeat(5, minmax(130px, 1fr));
+}
+.touch-device .equipment-columns > section { min-width: 130px; }
+.touch-device .equipment-card > header { position: sticky; top: -1px; background: inherit; z-index: 2; }
+.touch-device .equipment-card #close-buy { min-height: 40px; }
+.touch-device .equipment-card footer { display: none; }
+.touch-device .equipment-card,
+.touch-device .room-card { width: 100%; }
+.touch-device .room-seat { min-height: 44px; }
+
+/* Settings modal compact layout on touch devices */
+.touch-device #settings-menu .config-card {
+  display: flex;
+  flex-direction: column;
+  width: min(760px, 100%);
+  height: calc(var(--app-height, 100dvh) - 16px);
+  max-height: calc(var(--app-height, 100dvh) - 16px);
+  padding: 0;
+  overflow: hidden;
+}
+.touch-device #settings-menu .config-card > header { padding: 10px 14px; gap: 10px; flex-shrink: 0; }
+.touch-device #settings-menu h2 { font-size: 18px; margin: 2px 0 0; }
+.touch-device #settings-menu .eyebrow { font-size: 9px; }
+.touch-device #settings-menu .config-card > header button { min-height: 36px; padding: 0 12px; font-size: 12px; }
+.touch-device #settings-menu .config-body { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
+.touch-device #settings-menu .config-tabs {
+  flex-direction: row;
+  align-items: center;
+  border-right: 0;
+  border-bottom: 1px solid rgba(148, 174, 201, 0.16);
+  gap: 6px;
+  padding: 6px 10px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #364a54 transparent;
+}
+.touch-device #settings-menu .nav-section { flex-direction: row; align-items: center; gap: 4px; flex-shrink: 0; }
+.touch-device #settings-menu .nav-section + .nav-section {
+  padding-top: 0;
+  padding-left: 8px;
+  border-top: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+}
+.touch-device #settings-menu .nav-section-title { display: none; }
+.touch-device #settings-menu .config-tabs button {
+  width: auto;
+  flex: none;
+  padding: 6px 10px;
+  min-height: 36px;
+  font-size: 12px;
+  border-left: 0;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+}
+.touch-device #settings-menu .config-tabs button.selected { border-bottom-color: #e3bd6b; }
+.touch-device #settings-menu .config-scroll {
+  height: auto;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 14px;
+  font-size: 12px;
+}
+.touch-device #settings-menu .config-scroll h3 { font-size: 15px; margin: 0 0 4px; }
+.touch-device #settings-menu .config-row { margin: 0; padding: 10px 0; gap: 10px; }
+.touch-device #settings-menu select { padding: 6px 10px; min-height: 36px; }

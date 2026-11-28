@@ -493,7 +493,7 @@
   padding-left: 11px;
   border-left: 2px solid rgba(133, 191, 217, 0.35);
 }
-#settings-menu .config-card button:not(.config-tabs button):not(#close-settings):not(.step-btn):not(.preset-chip):not(.dpi-pill):not(.color-swatch):not(.controls-button):not(.preview-bg-switch button):not(.tac-opt):not(.tac-step-btn):not(.tac-quick-chip):not(.visual-style-card) {
+#settings-menu .config-card button:not(.config-tabs button):not(#close-settings):not(.step-btn):not(.preset-chip):not(.dpi-pill):not(.color-swatch):not(.controls-button):not(.preview-bg-switch button):not(.tac-opt):not(.tac-step-btn):not(.tac-quick-chip):not(.visual-style-card):not(.touch-layout-open-btn) {
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 0;
   background: #22323a;
@@ -506,7 +506,7 @@
   transition: background 0.14s, border-color 0.14s;
 }
 #settings-menu .config-card button.btn-subtle:hover,
-#settings-menu .config-card button:not(.config-tabs button):not(#close-settings):not(.step-btn):not(.preset-chip):not(.dpi-pill):not(.color-swatch):not(.controls-button):not(.preview-bg-switch button):not(.tac-opt):not(.tac-step-btn):not(.tac-quick-chip):not(.visual-style-card):hover:not(:disabled) {
+#settings-menu .config-card button:not(.config-tabs button):not(#close-settings):not(.step-btn):not(.preset-chip):not(.dpi-pill):not(.color-swatch):not(.controls-button):not(.preview-bg-switch button):not(.tac-opt):not(.tac-step-btn):not(.tac-quick-chip):not(.visual-style-card):not(.touch-layout-open-btn):hover:not(:disabled) {
   background: #30424b;
   border-color: #e3bd6b;
   color: #f5dfac;

@@ -4,6 +4,8 @@ import agentsCss from './agents.css?inline';
 import loadoutCss from './loadout-menu.css?inline';
 import skinsCss from './skins.css?inline';
 import progressionCss from './progression.css?inline';
+import touchControlsCss from './touch-controls.css?inline';
+import touchLayoutEditorCss from './touch-layout-editor.css?inline';
 import { preferences } from './persistence.js';
 import { getSharedToyProgress } from './toy-cloud-progress.js';
 import { initDownloadOrigin } from './download-origin.js';
@@ -16,6 +18,7 @@ import { Crosshair } from './crosshair.js';
 import { mountSettings } from './settings-ui.js';
 import { mountBotSettings } from './bot-settings.js';
 import { mountFrameSettings } from './frame-settings.js';
+import { TouchControls, mountTouchSettings } from './touch-controls.js';
 import { GameAudio } from './audio.js';
 import { MatchAudio, mountMusicSettings } from './match-audio.js';
 import { AgentMenu } from './agent-menu.js';
@@ -33,7 +36,7 @@ function createHub() {
     if (!document.getElementById('lobbyHubInlineStyles')) {
       const style = document.createElement('style');
       style.id = 'lobbyHubInlineStyles';
-      style.textContent = [interfaceCss, controlsCss, agentsCss, loadoutCss, skinsCss, progressionCss].join('\n');
+      style.textContent = [interfaceCss, controlsCss, agentsCss, loadoutCss, skinsCss, progressionCss, touchControlsCss, touchLayoutEditorCss].join('\n');
       document.head.append(style);
     }
     try {
@@ -161,6 +164,13 @@ function createHub() {
 
     mountFrameSettings(settingsUI);
 
+    const lobbyTouch = new TouchControls({
+      controls,
+      storage: preferences,
+      previewOnly: true,
+    });
+    mountTouchSettings(settingsUI, lobbyTouch);
+
     upgradeAllSelects(settingsUI.element, {
       'cs-aspect': { variant: 'pills' },
       'cs-display': { variant: 'pills' },
@@ -172,6 +182,7 @@ function createHub() {
       'bot-difficulty': { variant: 'cards' },
       'music-kit': { variant: 'grid' },
       'music-preview-cue': { variant: 'grid', compact: true },
+      'touch-mode': { variant: 'pills' },
     });
 
     const progressStore = getSharedToyProgress(globalThis[Symbol.for('cs2.toyIdentity')] || null);

@@ -1,34 +1,318 @@
-#touch-controls{position:fixed;inset:0;z-index:35;pointer-events:none;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;font-family:inherit;--touch-size:1;--touch-edge:max(12px,env(safe-area-inset-right));--touch-bottom:max(10px,env(safe-area-inset-bottom));--touch-left:max(16px,env(safe-area-inset-left))}
-#touch-controls[hidden]{display:none!important}
-#touch-controls button{pointer-events:auto;touch-action:none;border:1px solid #d8e2e760;border-radius:10px;background:#172a35a6;color:#f4f5ed;min-width:44px;min-height:44px;font-family:inherit;font-weight:600;font-size:12px;line-height:1.1;text-shadow:0 1px 2px #000;box-shadow:0 2px 8px #0003;padding:5px}
-#touch-controls button:disabled{opacity:.28}#touch-controls button.pressed,#touch-controls button.selected{background:#ba934dd1;border-color:#ffe2a2;color:#fff}
-.touch-look{position:absolute;left:40%;right:0;top:0;bottom:0;pointer-events:auto;touch-action:none}
-.touch-joystick{position:absolute;left:calc(var(--touch-left) + 16px);bottom:calc(var(--touch-bottom) + 35px);width:calc(128px * var(--touch-size));height:calc(128px * var(--touch-size));border:1px solid #edf0e47a;border-radius:50%;background:radial-gradient(circle,#d8e6d515 30%,#18283272 32%,#19293645);pointer-events:auto;touch-action:none;display:grid;place-items:center}
-.touch-joystick i{width:48px;height:48px;border-radius:50%;background:#ecf1dc54;border:1px solid #fff8;box-shadow:0 2px 8px #0006;pointer-events:none}.touch-joystick span{position:absolute;bottom:13px;font-size:10px;letter-spacing:3px;color:#fff9;pointer-events:none}
-.touch-toolbar{position:absolute;right:var(--touch-edge);top:max(7px,env(safe-area-inset-top));display:flex;gap:5px}.touch-toolbar button{background:#18272bbf!important;min-width:42px!important;font-size:11px!important}
-.touch-combat{position:absolute;right:var(--touch-edge);bottom:calc(var(--touch-bottom) + 58px);width:calc(224px * var(--touch-size));height:calc(144px * var(--touch-size));transform-origin:bottom right}
-.touch-combat button{position:absolute;width:calc(54px * var(--touch-size));height:calc(54px * var(--touch-size));border-radius:50%!important}
-.touch-combat .touch-fire{width:calc(76px * var(--touch-size));height:calc(76px * var(--touch-size));right:calc(67px * var(--touch-size));top:0;background:#d3ae5766!important;border:2px solid #fff4cbad!important;font-size:16px!important}
-.touch-alt{left:0;top:10px}.touch-jump{right:0;top:10px}.touch-reload{right:calc(78px * var(--touch-size));bottom:0}.touch-crouch{right:0;bottom:0}.touch-use{left:0;bottom:0}
-.touch-weapons{position:absolute;right:var(--touch-edge);bottom:var(--touch-bottom);display:flex;gap:3px}.touch-weapons button{min-width:40px!important;width:44px;font-size:10px!important;min-height:44px!important;border-radius:7px!important}
-.touch-walk{position:absolute;left:var(--touch-left);bottom:calc(var(--touch-bottom) + 190px);border-radius:50%!important}
-.touch-throw{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(var(--touch-bottom) + 6px);display:flex;gap:3px;max-width:220px;flex-wrap:wrap;justify-content:center}.touch-throw span{width:100%;text-align:center;font-size:10px;color:#fff;letter-spacing:1px;text-shadow:0 1px 2px #000}.touch-throw button{min-width:42px!important;font-size:11px!important}.touch-throw[hidden]{display:none}
-.touch-portrait-note{display:none;position:absolute;top:75px;left:50%;transform:translateX(-50%);white-space:nowrap;background:#182b33be;color:#f0dcaa;padding:6px 12px;font-size:11px;border-radius:5px}
-.touch-device{overscroll-behavior:none}.touch-device #game-canvas{touch-action:none}.touch-device input,.touch-device select{font-size:16px}.touch-device .overlay{overscroll-behavior:contain;touch-action:pan-y}.touch-device .config-tabs{overflow-x:auto;flex-shrink:0}.touch-device .config-tabs button{white-space:nowrap;min-height:44px}
-.touch-device .main-nav{flex-wrap:wrap;gap:4px}.touch-device .menu-header{height:auto;flex-wrap:wrap}.touch-device .main-nav button{min-height:44px;font-size:12px}.touch-device .menu-profile{display:none}.touch-device .menu-footer{padding-bottom:max(14px,env(safe-area-inset-bottom))}
-.touch-device .hint-bar,.touch-device .bottom-center,.touch-device #reload-label{display:none}.touch-device .room-label{display:none}
-@media(max-width:1100px){
- .touch-device .radar-block{position:fixed;left:10px;top:10px;width:96px}.touch-device .location-label{display:block;white-space:nowrap;margin-bottom:4px}.touch-device #network-status{display:none}.touch-device #radar{width:96px;height:96px}.touch-device #location{font-size:10px}.touch-device .radar-info{font-size:8px}
- .touch-device .team-rosters{transform:translateX(-50%) scale(.65);transform-origin:top center;top:7px}.touch-device .top-score{transform:translateX(-50%) scale(.67);transform-origin:top center;top:7px}
- .touch-device .bottom-left{position:fixed;left:max(16px,env(safe-area-inset-left));bottom:8px;display:flex;flex-direction:row;gap:12px;align-items:center}.touch-device .health-stat>b{font-size:24px;min-width:0}.touch-device .health-stat>span{display:none}.touch-device .health-stat>small{font-size:9px;padding-left:7px;max-width:90px}.touch-device .money-stat{font-size:14px}
- .touch-device .bottom-right{position:fixed;left:260px;right:auto;bottom:10px;min-width:75px;text-align:right}.touch-device .ammo-stat>b{font-size:25px}.touch-device .ammo-stat>span{font-size:12px}.touch-device #active-weapon-icon,.touch-device #weapon-skin{display:none}.touch-device #weapon-name{font-size:9px}
- .touch-device #kill-feed{position:fixed;top:58px;right:12px;max-width:250px;font-size:10px}.touch-device .kill-entry{font-size:10px;padding:4px 7px}.touch-device #kill-cards{bottom:68px;transform:translateX(-50%) scale(.65);transform-origin:50% 100%}.touch-device #hud #kill-confirm{bottom:133px}.touch-device.touch-utility .bottom-right{display:none}.touch-device #interact-prompt{bottom:24%;max-width:200px}
- .touch-device .death-card{width:min(430px,60vw);bottom:13%;padding:12px;font-size:10px}.touch-device .death-card small{display:none}.touch-device #center-message{font-size:12px;top:26%}
- .touch-device .config-card,.touch-device .pause-card,.touch-device .room-card,.touch-device .equipment-card{max-height:calc(100dvh - 16px);margin:8px auto;overflow:auto}.touch-device .overlay{padding:0 8px;align-items:center}.touch-device .config-scroll{min-height:0}.touch-device .pause-card{padding:16px 24px}.touch-device .pause-card h2{font-size:23px;margin:8px 0}.touch-device .pause-card p{font-size:11px}
- .touch-device .equipment-columns{overflow-x:auto;touch-action:pan-x pan-y;grid-template-columns:repeat(5,minmax(130px,1fr))}.touch-device .equipment-columns>section{min-width:130px}.touch-device .equipment-card>header{position:sticky;top:-1px;background:inherit;z-index:2}.touch-device .equipment-card #close-buy{min-height:44px}.touch-device .equipment-card footer{display:none}.touch-device .equipment-card{width:100%}.touch-device .room-card{width:100%}.touch-device .room-seat{min-height:46px}
+/* Base mobile touch controls — clean, spacious, zero-overlap default layout */
+#touch-controls {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  pointer-events: none;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  font-family: inherit;
+  --touch-size: 1;
+  --touch-edge: max(12px, env(safe-area-inset-right));
+  --touch-bottom: max(8px, env(safe-area-inset-bottom));
+  --touch-left: max(14px, env(safe-area-inset-left));
+  --touch-top: max(6px, env(safe-area-inset-top));
 }
-@media(orientation:portrait){
- .touch-device .touch-portrait-note{display:block}.touch-device .touch-toolbar{top:110px}.touch-device .touch-combat{width:190px;height:142px}.touch-device .touch-combat .touch-fire{right:58px}.touch-device .touch-reload{right:69px}
- .touch-device .touch-joystick{left:18px;width:112px;height:112px;bottom:96px}.touch-device .touch-weapons{left:12px;right:12px;bottom:38px;justify-content:flex-end}.touch-device .touch-walk{bottom:220px}.touch-device .touch-combat{bottom:96px}.touch-device .touch-throw{bottom:260px;left:65%;width:190px}.touch-device .bottom-right{left:auto;right:16px;bottom:4px}.touch-device .bottom-left{bottom:8px}.touch-device .team-rosters{display:none}.touch-device .top-score{left:auto;right:10px;transform:scale(.7);transform-origin:top right}.touch-device .death-card{max-width:92vw;width:92vw;bottom:39%}
+#touch-controls[hidden] { display: none !important; }
+#touch-controls button {
+  pointer-events: auto;
+  touch-action: none;
+  border: 1px solid rgba(216, 226, 231, 0.36);
+  border-radius: 10px;
+  background: rgba(20, 36, 46, 0.56);
+  color: #f4f5ed;
+  min-width: 38px;
+  min-height: 36px;
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 11px;
+  line-height: 1.05;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  padding: 4px;
 }
-@media(orientation:landscape) and (max-height:420px){.touch-device .room-card header,.touch-device .equipment-card .board-heading{padding:7px 12px}.touch-device .room-description{font-size:10px;margin:4px}.touch-device .room-seat{min-height:38px;padding:4px 8px}.touch-device .room-card footer{padding:8px}.touch-device .config-card header{padding:10px}.touch-device .touch-toolbar button{min-height:44px}.touch-device .touch-throw{left:44%;bottom:6px}.touch-device .menu-content{padding:10px 0}}
+#touch-controls button:disabled { opacity: 0.26; }
+#touch-controls button.pressed,
+#touch-controls button.selected {
+  background: rgba(196, 152, 72, 0.82) !important;
+  border-color: #ffe3a3 !important;
+  color: #fff;
+}
+
+/* Right half (62% of screen) dedicated to smooth look/aim drag */
+.touch-look {
+  position: absolute;
+  left: 38%;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+/* Left movement joystick (bottom-left, cleanly above bottom HP bar) */
+.touch-joystick {
+  position: absolute;
+  left: calc(var(--touch-left) + 8px);
+  bottom: calc(var(--touch-bottom) + 42px);
+  width: calc(114px * var(--touch-size));
+  height: calc(114px * var(--touch-size));
+  border: 1.5px solid rgba(237, 240, 228, 0.42);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(216, 230, 213, 0.10) 30%, rgba(22, 38, 48, 0.42) 32%, rgba(22, 38, 48, 0.24));
+  pointer-events: auto;
+  touch-action: none;
+  display: grid;
+  place-items: center;
+}
+.touch-joystick i {
+  width: calc(42px * var(--touch-size));
+  height: calc(42px * var(--touch-size));
+  border-radius: 50%;
+  background: rgba(236, 241, 220, 0.38);
+  border: 1.5px solid rgba(255, 255, 255, 0.55);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
+.touch-joystick span {
+  position: absolute;
+  bottom: 10px;
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: rgba(255, 255, 255, 0.65);
+  pointer-events: none;
+}
+
+/* Left dedicated Fire button directly above Left Movement Joystick (2-finger left tap & 3/4-finger claw!) */
+.touch-fire-left {
+  position: absolute;
+  left: calc(var(--touch-left) + 14px);
+  bottom: calc(var(--touch-bottom) + 42px + (114px * var(--touch-size)) + 14px);
+  width: calc(56px * var(--touch-size));
+  height: calc(56px * var(--touch-size));
+  border-radius: 50% !important;
+  background: rgba(211, 166, 74, 0.36) !important;
+  border: 2px solid rgba(255, 232, 174, 0.72) !important;
+  font-size: 13px !important;
+  letter-spacing: 0.5px;
+}
+
+/* Walk button neatly beside Left Fire (zero overlap) */
+.touch-walk {
+  position: absolute;
+  left: calc(var(--touch-left) + 14px + (56px * var(--touch-size)) + 12px);
+  bottom: calc(var(--touch-bottom) + 42px + (114px * var(--touch-size)) + 20px);
+  width: calc(40px * var(--touch-size));
+  height: calc(40px * var(--touch-size));
+  min-width: 36px !important;
+  min-height: 36px !important;
+  border-radius: 50% !important;
+  font-size: 10px !important;
+}
+
+/* Top-Right compact utility toolbar (cleanly above kill-feed) */
+.touch-toolbar {
+  position: absolute;
+  right: var(--touch-edge);
+  top: var(--touch-top);
+  display: flex;
+  gap: 4px;
+}
+.touch-toolbar button {
+  background: rgba(20, 34, 42, 0.72) !important;
+  min-width: 36px !important;
+  min-height: 30px !important;
+  padding: 3px 6px !important;
+  border-radius: 6px !important;
+  font-size: 10px !important;
+}
+
+/* Right ergonomic combat cluster (cleanly above bottom-right Ammo) */
+.touch-combat {
+  position: absolute;
+  right: var(--touch-edge);
+  bottom: calc(var(--touch-bottom) + 44px);
+  width: calc(206px * var(--touch-size));
+  height: calc(136px * var(--touch-size));
+  transform-origin: bottom right;
+}
+.touch-combat button {
+  position: absolute;
+  width: calc(46px * var(--touch-size));
+  height: calc(46px * var(--touch-size));
+  border-radius: 50% !important;
+  font-size: 11px !important;
+}
+.touch-combat .touch-fire {
+  width: calc(64px * var(--touch-size));
+  height: calc(64px * var(--touch-size));
+  right: calc(58px * var(--touch-size));
+  top: calc(6px * var(--touch-size));
+  background: rgba(211, 166, 74, 0.38) !important;
+  border: 2px solid rgba(255, 232, 174, 0.72) !important;
+  font-size: 14px !important;
+}
+.touch-alt { left: calc(10px * var(--touch-size)); top: calc(16px * var(--touch-size)); }
+.touch-jump { right: 0; top: 0; }
+.touch-crouch { right: 0; bottom: 0; }
+.touch-reload { right: calc(64px * var(--touch-size)); bottom: 0; }
+.touch-use { left: calc(10px * var(--touch-size)); bottom: 0; }
+
+/* Bottom-Center compact weapon strip (zero collision with left HP or right Ammo) */
+.touch-weapons {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: var(--touch-bottom);
+  display: flex;
+  gap: 4px;
+}
+.touch-weapons button {
+  min-width: 36px !important;
+  width: 40px;
+  min-height: 32px !important;
+  height: 32px;
+  padding: 2px !important;
+  font-size: 9.5px !important;
+  border-radius: 6px !important;
+}
+
+.touch-throw {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(var(--touch-bottom) + 42px);
+  display: flex;
+  gap: 4px;
+  max-width: 240px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.touch-throw span {
+  width: 100%;
+  text-align: center;
+  font-size: 10px;
+  color: #fff;
+  letter-spacing: 0.5px;
+  text-shadow: 0 1px 2px #000;
+}
+.touch-throw button { min-width: 42px !important; min-height: 32px !important; font-size: 10.5px !important; }
+.touch-throw[hidden] { display: none; }
+
+.touch-portrait-note {
+  display: none;
+  position: absolute;
+  top: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  background: rgba(20, 36, 44, 0.72);
+  color: #f0dcaa;
+  padding: 3px 9px;
+  font-size: 10px;
+  border-radius: 4px;
+}
+
+.touch-device { overscroll-behavior: none; }
+.touch-device #game-canvas { touch-action: none; }
+.touch-device input, .touch-device select { font-size: 16px; }
+.touch-device .overlay { overscroll-behavior: contain; touch-action: pan-y; }
+.touch-device .config-tabs { overflow-x: auto; flex-shrink: 0; }
+.touch-device .config-tabs button { white-space: nowrap; min-height: 40px; }
+.touch-device .main-nav { flex-wrap: wrap; gap: 4px; }
+.touch-device .menu-header { height: auto; flex-wrap: wrap; }
+.touch-device .main-nav button { min-height: 44px; font-size: 12px; }
+.touch-device .menu-profile { display: none; }
+.touch-device .menu-footer { padding-bottom: max(14px, env(safe-area-inset-bottom)); }
+.touch-device .hint-bar,
+.touch-device .bottom-center,
+.touch-device #reload-label,
+.touch-device .room-label { display: none; }
+
+/* Portrait phone layout: cleanly stacked with generous breathing room */
+@media (orientation: portrait) {
+  .touch-device .touch-portrait-note { display: block; top: 82px; }
+  .touch-device .touch-toolbar {
+    top: calc(var(--touch-top) + 46px);
+    right: var(--touch-edge);
+  }
+  .touch-device .touch-weapons {
+    bottom: calc(var(--touch-bottom) + 42px);
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  .touch-device .touch-weapons button { width: 46px; min-height: 34px !important; height: 34px; font-size: 10px !important; }
+  .touch-device .touch-joystick {
+    left: var(--touch-left);
+    bottom: calc(var(--touch-bottom) + 96px);
+    width: calc(108px * var(--touch-size));
+    height: calc(108px * var(--touch-size));
+  }
+  .touch-device .touch-fire-left {
+    left: calc(var(--touch-left) + 6px);
+    bottom: calc(var(--touch-bottom) + 96px + (108px * var(--touch-size)) + 16px);
+  }
+  .touch-device .touch-walk {
+    left: calc(var(--touch-left) + 6px + (56px * var(--touch-size)) + 12px);
+    bottom: calc(var(--touch-bottom) + 96px + (108px * var(--touch-size)) + 22px);
+  }
+  .touch-device .touch-combat {
+    right: var(--touch-edge);
+    bottom: calc(var(--touch-bottom) + 96px);
+    width: calc(184px * var(--touch-size));
+    height: calc(134px * var(--touch-size));
+  }
+  .touch-device .touch-combat .touch-fire {
+    width: calc(60px * var(--touch-size));
+    height: calc(60px * var(--touch-size));
+    right: calc(52px * var(--touch-size));
+  }
+  .touch-device .touch-reload { right: calc(56px * var(--touch-size)); }
+  .touch-device .touch-alt { left: 0; }
+  .touch-device .touch-use { left: 0; }
+  .touch-device .touch-throw { bottom: calc(var(--touch-bottom) + 244px); }
+}
+
+/* Short landscape phones (e.g. 667x375, 844x390) */
+@media (orientation: landscape) and (max-height: 430px) {
+  .touch-device .touch-joystick {
+    width: calc(100px * var(--touch-size));
+    height: calc(100px * var(--touch-size));
+    bottom: calc(var(--touch-bottom) + 38px);
+  }
+  .touch-device .touch-joystick i { width: calc(36px * var(--touch-size)); height: calc(36px * var(--touch-size)); }
+  .touch-device .touch-fire-left {
+    width: calc(52px * var(--touch-size));
+    height: calc(52px * var(--touch-size));
+    bottom: calc(var(--touch-bottom) + 38px + (100px * var(--touch-size)) + 12px);
+    font-size: 12px !important;
+  }
+  .touch-device .touch-walk {
+    width: calc(38px * var(--touch-size));
+    height: calc(38px * var(--touch-size));
+    left: calc(var(--touch-left) + 14px + (52px * var(--touch-size)) + 10px);
+    bottom: calc(var(--touch-bottom) + 38px + (100px * var(--touch-size)) + 18px);
+  }
+  .touch-device .touch-combat {
+    bottom: calc(var(--touch-bottom) + 38px);
+    width: calc(192px * var(--touch-size));
+    height: calc(124px * var(--touch-size));
+  }
+  .touch-device .touch-combat button { width: calc(44px * var(--touch-size)); height: calc(44px * var(--touch-size)); font-size: 10.5px !important; }
+  .touch-device .touch-combat .touch-fire {
+    width: calc(60px * var(--touch-size));
+    height: calc(60px * var(--touch-size));
+    right: calc(54px * var(--touch-size));
+    font-size: 13px !important;
+  }
+  .touch-device .touch-reload { right: calc(58px * var(--touch-size)); }
+  .touch-device .touch-weapons button { width: 37px; min-width: 34px !important; height: 30px; min-height: 30px !important; font-size: 9px !important; }
+  .touch-device .room-card header, .touch-device .equipment-card .board-heading { padding: 7px 12px; }
+  .touch-device .room-description { font-size: 10px; margin: 4px; }
+  .touch-device .room-seat { min-height: 38px; padding: 4px 8px; }
+  .touch-device .room-card footer { padding: 8px; }
+  .touch-device .config-card header { padding: 10px; }
+  .touch-device .menu-content { padding: 10px 0; }
+}
