@@ -199,6 +199,26 @@ export async function startGameServer({
       res.end(req.method === 'HEAD' ? undefined : JSON.stringify(publicRoomDirectory(rooms, true, draining)));
       return;
     }
+    if (performanceDirectory && requestPath === '/internal-rooms.json') {
+      res.writeHead(200, {'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});
+      if (req.method === 'HEAD') { res.end(); return; }
+      let humans = 0, bots = 0;
+      const codes = [];
+      for (const [code, room] of rooms) {
+        codes.push(code);
+        humans += room.humanCount;
+        bots += room.botCount;
+      }
+      res.end(JSON.stringify({
+        rooms: codes,
+        totalRooms: rooms.size,
+        maxRooms,
+        humans,
+        bots,
+        tickP95Ms: performanceMetrics.snapshot().tickP95Ms,
+      }));
+      return;
+    }
     if((serveMapFiles || requestPath === '/private-map.json') && privateMap?.handleRequest(req,res,requestPath))return;
     if (requestPath === '/ready') {
       const ready = !draining;

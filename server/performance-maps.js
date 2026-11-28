@@ -6,6 +6,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
+import {WebSocketServer, WebSocket} from 'ws';
 import {PERFORMANCE_MAPS, isPerformanceMap} from '../shared/performance-map-pool.js';
 import {findQualityPacks} from './performance-quality.js';
 import {SKINS} from '../shared/skins.js';
@@ -46,12 +47,41 @@ const qualityPacks=disableLocalAssets?new Map():findQualityPacks(root,maps,
   path.resolve(process.env.PERF_QUALITY_MAP_LIBRARY || path.join(root,'..','quality-library')),
   path.resolve(process.env.PERF_QUALITY_TRANSPORT || path.join(root,'..','quality-transport')));
 const workers=new Map();
+const roomToWorker=new Map();
 const idleMs=Math.max(1000,Number(process.env.PERF_IDLE_MS)||120000);
 const maxWorkers=Math.max(1,Math.min(32,Number(process.env.PERF_MAX_WORKERS)||4));
+const defaultMaxShardsPerMap=Math.max(1,Math.min(maxWorkers,Number(process.env.PERF_MAX_SHARDS_PER_MAP)||1));
+const shardTargetRooms=Math.max(1,Math.min(Number(workerMaxRooms),Number(process.env.PERF_SHARD_TARGET_ROOMS)||3));
+const shardMapLimits=(()=>{
+  const result=new Map();
+  for(const part of (process.env.PERF_SHARD_MAPS||'').split(',').map(v=>v.trim()).filter(Boolean)){
+    const [rawId,rawCount]=part.split(':').map(v=>v.trim());
+    const count=Math.max(1,Math.min(maxWorkers,Number(rawCount)||2));
+    if(maps.has(rawId))result.set(rawId,count);
+  }
+  return result;
+})();
+const maxShardsForMap=id=>shardMapLimits.get(id)??defaultMaxShardsPerMap;
 const strictHeavyLock=process.env.PERF_STRICT_HEAVY_LOCK!==undefined?process.env.PERF_STRICT_HEAVY_LOCK==='1':maxWorkers<=2;
 const heavy=new Set(['de_inferno','de_cache','de_ancient','de_train']);
-const warmMaps=(process.env.PERF_WARM_MAPS||'').split(',').map(v=>v.trim()).filter(id=>maps.has(id)).slice(0,maxWorkers);
+const warmShardTargets=(()=>{
+  const targets=new Map();
+  let remaining=maxWorkers;
+  for(const part of (process.env.PERF_WARM_MAPS||'').split(',').map(v=>v.trim()).filter(Boolean)){
+    const [rawId,rawCount]=part.split(':').map(v=>v.trim());
+    if(!maps.has(rawId)||remaining<=0)continue;
+    const count=Math.max(1,Math.min(maxShardsForMap(rawId),remaining,Number(rawCount)||1));
+    targets.set(rawId,count);
+    remaining-=count;
+  }
+  return targets;
+})();
 let draining=false;
+const allWorkers=()=>{const list=[];for(const arr of workers.values())for(const w of arr)list.push(w);return list;};
+const mapWorkers=id=>workers.get(id)||[];
+const isLiveWorker=w=>!!(w&&!w.retiring&&!w.child.killed&&w.child.exitCode===null&&w.child.signalCode===null);
+const isReadyWorker=w=>!!(w?.port&&isLiveWorker(w));
+const totalWorkerCount=()=>allWorkers().length;
 const types={'.js':'text/javascript','.mjs':'text/javascript','.css':'text/css','.html':'text/html; charset=utf-8','.json':'application/json','.gltf':'model/gltf+json','.glb':'model/gltf-binary','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.avif':'image/avif','.webp':'image/webp','.svg':'image/svg+xml','.hdr':'application/octet-stream','.ogg':'audio/ogg','.mp3':'audio/mpeg','.woff2':'font/woff2','.ttf':'font/ttf'};
 const json=(res,code,data)=>res.writeHead(code,{'Content-Type':'application/json','Cache-Control':'no-store'}).end(JSON.stringify(data));
 function file(req,res,location,immutable=false){
@@ -103,23 +133,37 @@ function retire(worker){
   if(worker.connections || worker.retiring)return;
   worker.retiring=true;worker.child.kill();
 }
-async function ensureWorker(id){
-  const existing=workers.get(id);
-  if(existing&&!existing.retiring){existing.touched=Date.now();return existing.ready;}
-  if(existing)throw Error('地图服务正在释放，请稍后重试');
-  // High-memory maps get an exclusive slot on the small server. Active players always keep their worker.
-  const occupied=[...workers.values()];
-  const fits=()=>workers.size<maxWorkers && (!strictHeavyLock || !(workers.size&&(heavy.has(id)||[...workers.keys()].some(k=>heavy.has(k)))));
-  if(!fits()){
-    for(const w of occupied.sort((a,b)=>a.touched-b.touched)){
+function evictOneIdleFor(id){
+  const list=allWorkers();
+  const fits=()=>totalWorkerCount()<maxWorkers && (!strictHeavyLock || !(list.length&&(heavy.has(id)||list.some(w=>heavy.has(w.id)))));
+  if(fits())return Promise.resolve(true);
+  return (async()=>{
+    for(const w of allWorkers().sort((a,b)=>a.touched-b.touched)){
       if(w.connections||!w.port||Date.now()-w.touched<2000)continue;
+      if(w.shard<(warmShardTargets.get(w.id)||0))continue;
       retire(w);await w.exited;
-      if(fits())break;
+      const cur=allWorkers();
+      if(cur.length<maxWorkers && (!strictHeavyLock || !(cur.length&&(heavy.has(id)||cur.some(x=>heavy.has(x.id))))))return true;
     }
-    if(!fits())throw Error('当前地图服务已满，请稍后再进入');
+    const cur=allWorkers();
+    return cur.length<maxWorkers && (!strictHeavyLock || !(cur.length&&(heavy.has(id)||cur.some(x=>heavy.has(x.id)))));
+  })();
+}
+async function spawnWorker(id){
+  const existingList=mapWorkers(id);
+  if(existingList.filter(w=>!w.retiring).length>=maxShardsForMap(id)){
+    const live=existingList.find(w=>!w.retiring);
+    if(live)return live.ready;
   }
-  // A simultaneous request may have started the same worker while awaiting an eviction.
-  if(workers.has(id))return workers.get(id).ready;
+  const ok=await evictOneIdleFor(id);
+  if(!ok)throw Error('当前地图服务已满，请稍后再进入');
+  const afterEvict=mapWorkers(id).filter(w=>!w.retiring);
+  if(afterEvict.length>=maxShardsForMap(id))return afterEvict[0].ready;
+  const list=workers.get(id)||[];
+  if(!workers.has(id))workers.set(id,list);
+  const usedShards=new Set(list.map(w=>w.shard));
+  let shard=0;
+  while(usedShards.has(shard))shard++;
   const workerEnv={
     ...process.env,
     PORT:'0',
@@ -138,8 +182,20 @@ async function ensureWorker(id){
   const child=spawn(process.execPath,['server/private-map-server.js'],{cwd:repo,windowsHide:true,
     env:workerEnv,
     stdio:['ignore','pipe','inherit']});
-  const w={child,port:0,connections:0,touched:Date.now(),retiring:false};
-  w.exited=new Promise(resolve=>child.once('close',()=>{if(workers.get(id)===w)workers.delete(id);resolve();}));
+  const w={id,shard,child,port:0,connections:0,touched:Date.now(),retiring:false,knownRooms:new Set(),lastLoad:null};
+  w.exited=new Promise(resolve=>child.once('close',()=>{
+    const arr=workers.get(id);
+    if(arr){
+      const idx=arr.indexOf(w);
+      if(idx>=0)arr.splice(idx,1);
+      if(!arr.length)workers.delete(id);
+    }
+    for(const code of w.knownRooms){
+      if(roomToWorker.get(id+':'+code)===w)roomToWorker.delete(id+':'+code);
+    }
+    w.knownRooms.clear();
+    resolve();
+  }));
   w.ready=new Promise((resolve,reject)=>{
     const timer=setTimeout(()=>{reject(Error('地图启动超时'));child.kill();},75000);
     let log='';
@@ -151,9 +207,24 @@ async function ensureWorker(id){
       }}catch{}}
     });
   });
-  workers.set(id,w);return w.ready;
+  list.push(w);return w.ready;
 }
-const reap=setInterval(()=>{for(const w of workers.values())if(w.port&&!w.connections&&Date.now()-w.touched>idleMs)retire(w);},15000);
+async function ensureWorker(id){
+  const list=mapWorkers(id);
+  const ready=list.find(w=>isReadyWorker(w));
+  if(ready){ready.touched=Date.now();return ready;}
+  const starting=list.find(w=>isLiveWorker(w));
+  if(starting){starting.touched=Date.now();return starting.ready;}
+  if(list.some(w=>w.retiring))throw Error('地图服务正在释放，请稍后重试');
+  return spawnWorker(id);
+}
+const reap=setInterval(()=>{
+  const now=Date.now();
+  for(const w of allWorkers()){
+    if(w.shard<(warmShardTargets.get(w.id)||0))continue;
+    if(w.port&&!w.connections&&now-w.touched>idleMs)retire(w);
+  }
+},15000);
 reap.unref();
 
 // Lobby visitors never acquire a map slot or renew the idle timeout. A burst of
@@ -170,6 +241,91 @@ function readWorkerRooms(worker) {
     worker.directoryRead = read;
   }
   return worker.directoryRead.result;
+}
+function readWorkerInternal(worker) {
+  if (!worker.internalRead || worker.internalRead.expires <= Date.now()) {
+    const read = {expires: Infinity};
+    read.result = fetch('http://127.0.0.1:' + worker.port + '/internal-rooms.json', {signal:AbortSignal.timeout(1500)})
+      .then(response => {
+        if (!response.ok) throw Error('内部房间状态暂时不可用');
+        return response.json();
+      })
+      .then(info => {
+        const nextCodes = new Set(Array.isArray(info.rooms) ? info.rooms : []);
+        for (const oldCode of worker.knownRooms) {
+          if (!nextCodes.has(oldCode) && roomToWorker.get(worker.id + ':' + oldCode) === worker) {
+            roomToWorker.delete(worker.id + ':' + oldCode);
+          }
+        }
+        worker.knownRooms = nextCodes;
+        for (const code of nextCodes) roomToWorker.set(worker.id + ':' + code, worker);
+        worker.lastLoad = info;
+        return info;
+      })
+      .finally(() => { read.expires = Date.now() + 250; });
+    worker.internalRead = read;
+  }
+  return worker.internalRead.result;
+}
+function normalizeRoomCode(raw) {
+  if (typeof raw !== 'string') return '';
+  const code = raw.trim().toUpperCase();
+  return /^[A-Z0-9]{4,12}$/.test(code) ? code : '';
+}
+async function findWorkerForRoom(mapId, code) {
+  if (!code) return null;
+  const cached = roomToWorker.get(mapId + ':' + code);
+  if (cached && isReadyWorker(cached)) {
+    const info = await readWorkerInternal(cached).catch(() => null);
+    if (info?.rooms?.includes(code)) return cached;
+  }
+  const ready = mapWorkers(mapId).filter(isReadyWorker);
+  if (!ready.length) return null;
+  const results = await Promise.allSettled(ready.map(w => readWorkerInternal(w)));
+  for (let i = 0; i < ready.length; i++) {
+    if (results[i].status === 'fulfilled' && results[i].value.rooms?.includes(code)) {
+      return ready[i];
+    }
+  }
+  return null;
+}
+async function selectWorkerForNewRoom(mapId) {
+  const live = mapWorkers(mapId).filter(isLiveWorker);
+  if (!live.length) return spawnWorker(mapId);
+  const ready = [];
+  for (const w of live) {
+    if (w.port) ready.push(w);
+    else {
+      try { ready.push(await w.ready); } catch {}
+    }
+  }
+  if (!ready.length) return spawnWorker(mapId);
+  const states = await Promise.allSettled(ready.map(w => readWorkerInternal(w)));
+  let best = null, bestScore = Infinity, bestRooms = Infinity, bestTick = Infinity;
+  for (let i = 0; i < ready.length; i++) {
+    const w = ready[i];
+    const info = states[i].status === 'fulfilled' ? states[i].value : (w.lastLoad || { totalRooms: 0, maxRooms: Number(workerMaxRooms), humans: w.connections, bots: 0, tickP95Ms: 0 });
+    const full = info.totalRooms >= (info.maxRooms || Number(workerMaxRooms));
+    const score = (full ? 100000 : 0) + info.totalRooms * 10 + (info.bots || 0) + (info.humans || 0) * 0.5 + ((info.tickP95Ms || 0) > 22 ? 25 : 0);
+    if (score < bestScore) {
+      best = w; bestScore = score; bestRooms = info.totalRooms || 0; bestTick = info.tickP95Ms || 0;
+    }
+  }
+  const limit = maxShardsForMap(mapId);
+  const currentLive = mapWorkers(mapId).filter(isLiveWorker).length;
+  const needsScale = bestRooms >= shardTargetRooms || bestTick >= 25 || bestScore >= 100000;
+  if (needsScale && currentLive < limit) {
+    try {
+      return await spawnWorker(mapId);
+    } catch {
+      // Fall back to least-loaded existing shard if global worker cap is reached.
+    }
+  } else if (bestRooms + 1 >= shardTargetRooms && currentLive < limit && totalWorkerCount() < maxWorkers) {
+    // Proactively warm the next shard in background so subsequent room creates have zero cold start.
+    spawnWorker(mapId).catch(() => {});
+  }
+  best.touched = Date.now();
+  return best;
 }
 
 const mapInfoById = new Map(PERFORMANCE_MAPS.map(m => [m.id, m]));
@@ -232,17 +388,24 @@ async function performanceRooms() {
     const joinableRooms = rooms.filter(r => r.joinable && r.humans < r.capacity).length;
     return {rooms, totalRooms: rooms.length, totalHumans, joinableRooms, controlPlane: true};
   }
-  const active = worker => worker?.port && worker.connections && !worker.retiring && !worker.child.killed && worker.child.exitCode === null && worker.child.signalCode === null;
-  const occupied = PERFORMANCE_MAPS.map(map => ({map, worker:workers.get(map.id)})).filter(({worker}) => active(worker));
+  const active = worker => isReadyWorker(worker) && worker.connections > 0;
+  const occupied = [];
+  for (const map of PERFORMANCE_MAPS) {
+    for (const worker of mapWorkers(map.id)) {
+      if (active(worker)) occupied.push({map, worker});
+    }
+  }
   const results = await Promise.allSettled(occupied.map(({worker}) => readWorkerRooms(worker)));
   const rooms = [];
   let unavailable = 0, responding = 0;
   for (const [index, {map, worker}] of occupied.entries()) {
-    if (!active(worker) || workers.get(map.id) !== worker) continue;
+    if (!active(worker) || !mapWorkers(map.id).includes(worker)) continue;
     if (results[index].status === 'rejected') { unavailable++; continue; }
     responding++;
     for (const row of results[index].value) {
       if (row?.phase === 'matchEnded') continue;
+      roomToWorker.set(map.id + ':' + row.code, worker);
+      worker.knownRooms.add(row.code);
       rooms.push({...row, id:map.id+':'+row.code, mapId:map.id, mapName:map.name, mapNameZh:map.nameZh, qualityAvailable:qualityPacks.has(map.id)});
     }
   }
@@ -531,22 +694,25 @@ const server=http.createServer(async(req,res)=>{
     file(req,res,catalogPath);return;
   }
   if(p==='/perf/ready'){json(res,draining?503:200,{ok:true,ready:!draining,draining,maps:maps.size,maxWorkers,workerMaxRooms:Number(workerMaxRooms),controlPlane:!!controlPlaneUrl,disableLocalAssets,logicGatewayOnly});return;}
-  if(p==='/perf/health'){json(res,200,{ok:true,ready:!draining,draining,disableLocalAssets,logicGatewayOnly,maxWorkers,workerMaxRooms:Number(workerMaxRooms),controlPlane:!!controlPlaneUrl,maps:maps.size,workers:[...workers].map(([id,w])=>({id,active:w.connections>0,connections:w.connections}))});return;}
+  if(p==='/perf/health'){json(res,200,{ok:true,ready:!draining,draining,disableLocalAssets,logicGatewayOnly,maxWorkers,workerMaxRooms:Number(workerMaxRooms),shardTargetRooms,controlPlane:!!controlPlaneUrl,maps:maps.size,workers:allWorkers().map(w=>({id:w.id,shard:w.shard,active:w.connections>0,connections:w.connections}))});return;}
   if(p==='/perf/api/maps'){
     if(controlPlaneUrl){
       const {status,data}=await fetchControlPlane('/api/v1/maps');
       json(res,status,data);return;
     }
     const localPools=PERFORMANCE_MAPS.filter(({id})=>maps.has(id)).map(({id})=>{
-      const w=workers.get(id);
-      return {mapId:id,status:w?'ready':'warm',activeWorkers:w?1:0,drainingWorkers:0,rooms:w?1:0,maxRooms:Number(workerMaxRooms),availableSlots:Number(workerMaxRooms),humans:w?.connections||0,bestTickP99Ms:0};
+      const list=mapWorkers(id).filter(isLiveWorker);
+      const humans=list.reduce((n,w)=>n+(w.connections||0),0);
+      const limit=maxShardsForMap(id);
+      return {mapId:id,status:list.length?'ready':'warm',activeWorkers:list.length,maxShards:limit,drainingWorkers:0,rooms:list.reduce((n,w)=>n+(w.lastLoad?.totalRooms||0),0),maxRooms:Number(workerMaxRooms)*limit,availableSlots:Math.max(0,Number(workerMaxRooms)*limit-list.reduce((n,w)=>n+(w.lastLoad?.totalRooms||0),0)),humans,bestTickP99Ms:0};
     });
     json(res,200,{ok:true,maps:localPools,totalMaps:localPools.length,federated:false});return;
   }
   if(p==='/perf/metrics'){
     res.writeHead(200,{'Content-Type':'text/plain; version=0.0.4; charset=utf-8','Cache-Control':'no-store'});
     if(req.method==='HEAD'){res.end();return;}
-    let localConns=0;for(const w of workers.values())localConns+=w.connections||0;
+    const list=allWorkers();
+    let localConns=0;for(const w of list)localConns+=w.connections||0;
     res.end([
       '# HELP cs2_gateway_up Lobby gateway availability.',
       '# TYPE cs2_gateway_up gauge',
@@ -559,7 +725,7 @@ const server=http.createServer(async(req,res)=>{
       `cs2_gateway_maps ${maps.size}`,
       '# HELP cs2_gateway_local_workers Running local map worker child processes.',
       '# TYPE cs2_gateway_local_workers gauge',
-      `cs2_gateway_local_workers ${workers.size}`,
+      `cs2_gateway_local_workers ${list.length}`,
       '# HELP cs2_gateway_local_ws_connections Active proxied WebSocket connections in local mode.',
       '# TYPE cs2_gateway_local_ws_connections gauge',
       `cs2_gateway_local_ws_connections ${localConns}`,
@@ -620,21 +786,180 @@ const server=http.createServer(async(req,res)=>{
   res.writeHead(404).end();
  }catch(error){if(!res.headersSent)json(res,503,{error:error.message});else res.destroy();}
 });
+const shardWss=new WebSocketServer({
+  noServer:true,
+  maxPayload:4096,
+  perMessageDeflate:{serverNoContextTakeover:true,clientNoContextTakeover:true,threshold:1024,concurrencyLimit:8,zlibDeflateOptions:{level:1,memLevel:7}},
+});
+const shardHeartbeat=setInterval(()=>{
+  for(const ws of shardWss.clients){
+    if(ws._cs2Alive===false){ws.terminate();continue;}
+    ws._cs2Alive=false;
+    try{ws.ping();}catch{}
+  }
+},15000);
+shardHeartbeat.unref();
+function safeCloseWs(ws,code,reason){
+  if(!ws||ws.readyState===WebSocket.CLOSED||ws.readyState===WebSocket.CLOSING)return;
+  if(code&&code>=1000&&code<=4999&&code!==1004&&code!==1005&&code!==1006&&code!==1015){
+    try{ws.close(code,reason);}catch{try{ws.close();}catch{}}
+  }else{
+    try{ws.close();}catch{}
+  }
+}
+function sendWsJson(ws,payload){
+  if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify(payload));
+}
+async function listMapRoomsForWs(mapId){
+  const ready=mapWorkers(mapId).filter(w=>isReadyWorker(w)&&w.connections>0);
+  if(!ready.length)return [];
+  const results=await Promise.allSettled(ready.map(w=>readWorkerRooms(w)));
+  const merged=[];
+  for(const r of results)if(r.status==='fulfilled'&&Array.isArray(r.value))merged.push(...r.value);
+  merged.sort((a,b)=>Number(b.joinable)-Number(a.joinable)||b.humans-a.humans||a.code.localeCompare(b.code));
+  return merged;
+}
+function routeShardedWebSocket(mapId,query,req,clientWs){
+  try{clientWs._socket?.setNoDelay?.(true);}catch{}
+  clientWs._cs2Alive=true;
+  clientWs.on('pong',()=>{clientWs._cs2Alive=true;});
+  let state='unbound',boundWorker=null,upstreamWs=null,released=false,welcomed=false;
+  const pending=[];
+  const idleTimer=setTimeout(()=>{if(state==='unbound')safeCloseWs(clientWs,1008,'Handshake timeout');},20000);
+  idleTimer.unref?.();
+  const cleanup=(code,reason)=>{
+    if(state==='closed')return;
+    state='closed';
+    clearTimeout(idleTimer);
+    if(boundWorker&&!released){
+      released=true;
+      boundWorker.connections=Math.max(0,boundWorker.connections-1);
+      boundWorker.touched=Date.now();
+      boundWorker.directoryRead=null;
+      boundWorker.internalRead=null;
+    }
+    safeCloseWs(upstreamWs,code,reason);
+    safeCloseWs(clientWs,code,reason);
+  };
+  clientWs.on('error',()=>cleanup());
+  clientWs.on('close',(code,reason)=>cleanup(code,reason));
+  clientWs.on('message',async(data,isBinary)=>{
+    if(state==='closed')return;
+    if(state==='bound'){
+      if(upstreamWs?.readyState===WebSocket.OPEN)upstreamWs.send(data,{binary:isBinary});
+      return;
+    }
+    if(state==='connecting'){
+      if(pending.length<64)pending.push({data,isBinary});
+      return;
+    }
+    let msg;
+    try{
+      if(isBinary)throw Error('binary');
+      msg=JSON.parse(data.toString());
+      if(!msg||typeof msg!=='object'||Array.isArray(msg))throw Error('object');
+    }catch{
+      sendWsJson(clientWs,{type:'error',code:'BAD_MESSAGE',message:'消息格式无效。'});
+      safeCloseWs(clientWs,1008,'Bad message');
+      return;
+    }
+    if(msg.type==='ping'){
+      sendWsJson(clientWs,{type:'pong',time:typeof msg.time==='number'?msg.time:null,serverTime:Date.now()});
+      return;
+    }
+    if(msg.type==='listRooms'){
+      const rooms=await listMapRoomsForWs(mapId).catch(()=>[]);
+      if(state==='unbound')sendWsJson(clientWs,{type:'rooms',mapId,rooms});
+      return;
+    }
+    state='connecting';
+    clearTimeout(idleTimer);
+    pending.push({data,isBinary});
+    try{
+      let target=null;
+      const code=normalizeRoomCode(msg.room);
+      if(msg.type==='roomCosmetics'){
+        target=(code&&await findWorkerForRoom(mapId,code))||await ensureWorker(mapId);
+      }else if(msg.type==='join'){
+        if(code){
+          target=await findWorkerForRoom(mapId,code);
+          if(!target)target=msg.existing===true?await ensureWorker(mapId):await selectWorkerForNewRoom(mapId);
+        }else{
+          target=await selectWorkerForNewRoom(mapId);
+        }
+      }else{
+        target=await ensureWorker(mapId);
+      }
+      if(state==='closed')return;
+      boundWorker=target;
+      boundWorker.connections++;
+      boundWorker.touched=Date.now();
+      boundWorker.directoryRead=null;
+      boundWorker.internalRead=null;
+      const forwardHeaders={};
+      if(req.headers.origin)forwardHeaders.origin=req.headers.origin;
+      if(req.headers['x-forwarded-for'])forwardHeaders['x-forwarded-for']=req.headers['x-forwarded-for'];
+      const up=new WebSocket('ws://127.0.0.1:'+boundWorker.port+'/ws'+(query||''),{perMessageDeflate:false,headers:forwardHeaders});
+      upstreamWs=up;
+      up.on('error',()=>cleanup(1011,'Upstream error'));
+      up.on('close',(c,r)=>cleanup(c,r));
+      up.on('open',()=>{
+        try{up._socket?.setNoDelay?.(true);}catch{}
+        if(state==='closed'){safeCloseWs(up);return;}
+        state='bound';
+        for(const frame of pending){
+          if(up.readyState===WebSocket.OPEN)up.send(frame.data,{binary:frame.isBinary});
+        }
+        pending.length=0;
+      });
+      up.on('message',(uData,uBinary)=>{
+        if(state==='closed')return;
+        if(!welcomed&&!uBinary&&uData.length<8192){
+          const text=uData.toString();
+          if(text.startsWith('{"type":"welcome"')){
+            try{
+              const parsed=JSON.parse(text);
+              if(parsed.type==='welcome'&&parsed.room){
+                welcomed=true;
+                roomToWorker.set(mapId+':'+parsed.room,boundWorker);
+                boundWorker.knownRooms.add(parsed.room);
+                boundWorker.directoryRead=null;
+                boundWorker.internalRead=null;
+              }
+            }catch{}
+          }
+        }
+        if(clientWs.readyState===WebSocket.OPEN){
+          if(clientWs.bufferedAmount>1024*1024){cleanup(1008,'Client too slow');return;}
+          clientWs.send(uData,{binary:uBinary});
+        }
+      });
+    }catch{
+      sendWsJson(clientWs,{type:'error',code:'SERVER_BUSY',message:'当前地图服务繁忙，请稍后重试。'});
+      cleanup(1013,'Server busy');
+    }
+  });
+}
 server.on('upgrade',async(req,socket,head)=>{
   if(draining){socket.end('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n');return;}
   if(allowedOrigins instanceof Set && req.headers.origin && !allowedOrigins.has(req.headers.origin)){
     socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');return;
   }
-  const match=/^\/perf\/(?:quality\/)?play\/(de_[a-z0-9]+)\/ws$/.exec(req.url);
+  const match=/^\/perf\/(?:quality\/)?play\/(de_[a-z0-9]+)\/ws(\?.*)?$/.exec(req.url);
   if(!match||!maps.has(match[1])||(req.url.startsWith('/perf/quality/')&&!qualityPacks.has(match[1]))){socket.destroy();return;}
+  const mapId=match[1],query=match[2]||'';
+  if(maxShardsForMap(mapId)>1||mapWorkers(mapId).length>1){
+    shardWss.handleUpgrade(req,socket,head,clientWs=>routeShardedWebSocket(mapId,query,req,clientWs));
+    return;
+  }
   try{
-    const w=await ensureWorker(match[1]);if(socket.destroyed)return;
-    w.connections++;w.touched=Date.now();w.directoryRead=null;const upstream=net.connect(w.port,'127.0.0.1');
+    const w=await ensureWorker(mapId);if(socket.destroyed)return;
+    w.connections++;w.touched=Date.now();w.directoryRead=null;w.internalRead=null;const upstream=net.connect(w.port,'127.0.0.1');
     try { socket.setNoDelay(true); upstream.setNoDelay(true); } catch {}
-    socket.once('close',()=>{w.connections--;w.touched=Date.now();w.directoryRead=null;upstream.destroy();});
+    socket.once('close',()=>{w.connections=Math.max(0,w.connections-1);w.touched=Date.now();w.directoryRead=null;w.internalRead=null;upstream.destroy();});
     upstream.on('error',()=>socket.destroy());upstream.on('close',()=>socket.destroy());socket.on('error',()=>upstream.destroy());
     upstream.once('connect',()=>{
-      const headers=['GET /ws HTTP/1.1'];
+      const headers=['GET /ws'+query+' HTTP/1.1'];
       for(let i=0;i<req.rawHeaders.length;i+=2)headers.push(req.rawHeaders[i]+': '+req.rawHeaders[i+1]);
       upstream.write(headers.join('\r\n')+'\r\n\r\n');if(head.length)upstream.write(head);socket.pipe(upstream).pipe(socket);
     });
@@ -642,9 +967,11 @@ server.on('upgrade',async(req,socket,head)=>{
 });
 server.listen(port,host,()=>{
   console.log('Performance map pool: http://127.0.0.1:'+server.address().port+'/perf/');
-  for(const id of warmMaps)ensureWorker(id).catch(()=>{});
+  for(const [id,count] of warmShardTargets){
+    for(let i=0;i<count;i++)spawnWorker(id).catch(()=>{});
+  }
 });
-process.on('SIGUSR2',()=>{draining=true;for(const w of workers.values())if(!w.retiring)w.child.kill('SIGUSR2');});
-function shutdown(){clearInterval(reap);for(const w of workers.values())w.child.kill();server.close();}
+process.on('SIGUSR2',()=>{draining=true;for(const w of allWorkers())if(!w.retiring)w.child.kill('SIGUSR2');});
+function shutdown(){clearInterval(reap);clearInterval(shardHeartbeat);for(const w of allWorkers())w.child.kill();server.close();}
 for(const signal of ['SIGINT','SIGTERM'])process.once(signal,shutdown);
 if(process.send)process.once('disconnect',shutdown);
