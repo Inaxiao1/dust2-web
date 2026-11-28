@@ -871,7 +871,8 @@ function buildLiveNetworkSummary(){
       else wsRtts.push(sample.ms);
     }
   }
-  // Also collect gateway-measured WS ping/pong RTTs for legacy clients that do not report RTT in JSON pings.
+  // Also collect gateway-measured WS ping/pong RTTs and native WebRTC ICE/SCTP RTTs
+  // so legacy clients that do not report RTT in JSON pings are measured accurately too.
   const gwWsRtts=[];
   for(const sock of shardWss.clients){
     if(Number.isFinite(sock._cs2LastRtt)&&sock._cs2LastRtt>=1&&sock._cs2LastRtt<=5000){
@@ -883,11 +884,24 @@ function buildLiveNetworkSummary(){
       }
     }
   }
+  const gwUdpRtts=[];
+  for(const adapter of rtcAdapters){
+    const rtt=adapter.rttMs;
+    if(Number.isFinite(rtt)&&rtt>=1&&rtt<=5000){
+      gwUdpRtts.push(rtt);
+      if(adapter._cs2MapId){
+        const m=ensureMap(adapter._cs2MapId);
+        if(!m.gwUdpRtts)m.gwUdpRtts=[];
+        m.gwUdpRtts.push(rtt);
+      }
+    }
+  }
+  const effectiveUdpRtts=udpRtts.length>=gwUdpRtts.length?udpRtts:gwUdpRtts;
   const effectiveWsRtts=wsRtts.length>=gwWsRtts.length?wsRtts:gwWsRtts;
-  const effectiveAllRtts=wsRtts.length>=gwWsRtts.length?allRtts:[...udpRtts,...gwWsRtts];
+  const effectiveAllRtts=[...effectiveUdpRtts,...effectiveWsRtts];
   const mapSummary={};
   for(const [id,m] of Object.entries(byMap)){
-    const rList=m.rtts.length?m.rtts:(m.gwWsRtts||[]);
+    const rList=m.rtts.length?m.rtts:[...(m.gwUdpRtts||[]),...(m.gwWsRtts||[])];
     const p=percentiles(rList);
     mapSummary[id]={humans:m.humans,udp:m.udp,ws:m.ws,...(p?{p50:p.p50,p95:p.p95,samples:p.n}:{})};
   }
@@ -897,8 +911,9 @@ function buildLiveNetworkSummary(){
     ws,
     udpPct:humans?Math.round((udp/humans)*100):0,
     rttAll:percentiles(effectiveAllRtts),
-    rttUdp:percentiles(udpRtts),
+    rttUdp:percentiles(effectiveUdpRtts),
     rttWs:percentiles(effectiveWsRtts),
+    gwUdpRtt:percentiles(gwUdpRtts),
     gwWsRtt:percentiles(gwWsRtts),
     byMap:mapSummary,
   };

@@ -20,6 +20,10 @@ export function resetRtcBackoff() {
   rtcBackoffUntil = 0;
 }
 
+export function markRtcBackoff(durationMs = RTC_BACKOFF_MS) {
+  rtcBackoffUntil = Math.max(rtcBackoffUntil, Date.now() + Math.max(1000, Number(durationMs) || RTC_BACKOFF_MS));
+}
+
 export function rtcOfferUrlForSocket(wsUrl) {
   try {
     const parsed = new URL(wsUrl);
@@ -33,8 +37,9 @@ export function rtcOfferUrlForSocket(wsUrl) {
 }
 
 export function createGameSocket(wsUrl, {
-  rtcTimeoutMs = 1800,
+  rtcTimeoutMs = 2500,
   enableRtc = true,
+  onStatus = null,
   WebSocketCtor = globalThis.WebSocket,
   PeerConnectionCtor = globalThis.RTCPeerConnection,
   fetchFn = globalThis.fetch,
@@ -44,8 +49,10 @@ export function createGameSocket(wsUrl, {
     : null;
 
   if (!offerUrl) {
+    onStatus?.({ phase: 'ws-direct', reason: enableRtc ? 'backoff-or-unsupported' : 'forced-ws' });
     const ws = new WebSocketCtor(wsUrl);
     ws.transportMode = 'WS';
+    ws.addEventListener?.('open', () => onStatus?.({ phase: 'ws-open', reason: 'direct' }), { once: true });
     return ws;
   }
 
@@ -57,12 +64,23 @@ export function createGameSocket(wsUrl, {
   let dc = null;
   let abortController = new AbortController();
   let fallbackTimer = null;
+  let wsCloseGuardTimer = null;
   let closedByUser = false;
   let fellBack = false;
+  let closeDispatched = false;
 
   const dispatch = (type, detail = {}) => {
     const ev = Object.assign(new Event(type), detail);
     target.dispatchEvent(ev);
+  };
+
+  const dispatchCloseOnce = (detail, { async = false } = {}) => {
+    if (closeDispatched) return;
+    closeDispatched = true;
+    if (wsCloseGuardTimer) { clearTimeout(wsCloseGuardTimer); wsCloseGuardTimer = null; }
+    const emit = () => dispatch('close', detail);
+    if (async) queueMicrotask(emit);
+    else emit();
   };
 
   const cleanupRtc = () => {
@@ -81,17 +99,19 @@ export function createGameSocket(wsUrl, {
     }
   };
 
-  const switchToWebSocket = (markBackoff = false) => {
+  const switchToWebSocket = (markBackoff = false, reason = 'rtc-fallback') => {
     if (fellBack || closedByUser || state === WS_OPEN || state === WS_CLOSED) return;
     fellBack = true;
-    if (markBackoff) rtcBackoffUntil = Date.now() + RTC_BACKOFF_MS;
+    if (markBackoff) markRtcBackoff();
     cleanupRtc();
     transportMode = 'WS';
+    onStatus?.({ phase: 'ws-fallback', reason });
     const ws = new WebSocketCtor(wsUrl);
     activeWs = ws;
     ws.addEventListener('open', () => {
       if (closedByUser) { try { ws.close(1000, 'closed'); } catch {} return; }
       state = WS_OPEN;
+      onStatus?.({ phase: 'ws-open', reason });
       dispatch('open');
     });
     ws.addEventListener('message', (e) => {
@@ -103,14 +123,17 @@ export function createGameSocket(wsUrl, {
       dispatch('error');
     });
     ws.addEventListener('close', (e) => {
-      if (state === WS_CLOSED) return;
+      if (state === WS_CLOSED && closeDispatched) return;
       state = WS_CLOSED;
-      dispatch('close', { code: e.code, reason: e.reason || '', wasClean: !!e.wasClean });
+      dispatchCloseOnce({ code: e.code, reason: e.reason || '', wasClean: !!e.wasClean });
     });
   };
 
   const handle = {
-    get readyState() { return activeWs ? activeWs.readyState : state; },
+    get readyState() {
+      if (state === WS_CLOSED) return WS_CLOSED;
+      return activeWs ? activeWs.readyState : state;
+    },
     get transportMode() { return transportMode; },
     get url() { return wsUrl; },
     get bufferedAmount() {
@@ -133,13 +156,22 @@ export function createGameSocket(wsUrl, {
       closedByUser = true;
       if (activeWs) {
         try { activeWs.close(code, reason); } catch {}
+        // Guard against a stalled CONNECTING WebSocket that delays or skips its native close event.
+        if (!closeDispatched && !wsCloseGuardTimer) {
+          wsCloseGuardTimer = setTimeout(() => {
+            wsCloseGuardTimer = null;
+            state = WS_CLOSED;
+            dispatchCloseOnce({ code, reason, wasClean: code === 1000 });
+          }, 1500);
+        }
         return;
       }
       const wasOpen = state === WS_OPEN;
       state = WS_CLOSED;
       cleanupRtc();
+      // Match native WebSocket semantics: never fire 'close' synchronously inside close().
       if (wasOpen || !fellBack) {
-        dispatch('close', { code, reason, wasClean: code === 1000 });
+        dispatchCloseOnce({ code, reason, wasClean: code === 1000 }, { async: true });
       }
     },
   };
@@ -147,7 +179,8 @@ export function createGameSocket(wsUrl, {
   // Start fast WebRTC UDP negotiation with automatic fallback to WS.
   (async () => {
     try {
-      fallbackTimer = setTimeout(() => switchToWebSocket(true), rtcTimeoutMs);
+      onStatus?.({ phase: 'udp-connecting', reason: 'offer' });
+      fallbackTimer = setTimeout(() => switchToWebSocket(true, 'timeout'), rtcTimeoutMs);
       pc = new PeerConnectionCtor({ iceServers: [] });
       dc = pc.createDataChannel('cs2', { ordered: true });
 
@@ -156,6 +189,7 @@ export function createGameSocket(wsUrl, {
         if (fallbackTimer) { clearTimeout(fallbackTimer); fallbackTimer = null; }
         state = WS_OPEN;
         transportMode = 'UDP';
+        onStatus?.({ phase: 'udp-open', reason: 'connected' });
         dispatch('open');
       };
       dc.onmessage = (e) => {
@@ -167,33 +201,33 @@ export function createGameSocket(wsUrl, {
         if (state === WS_OPEN) {
           state = WS_CLOSED;
           cleanupRtc();
-          dispatch('close', { code: 1006, reason: 'UDP channel closed', wasClean: false });
+          dispatchCloseOnce({ code: 1006, reason: 'UDP channel closed', wasClean: false });
         } else {
-          switchToWebSocket(true);
+          switchToWebSocket(true, 'dc-closed');
         }
       };
       dc.onerror = () => {
-        if (state === WS_CONNECTING) switchToWebSocket(true);
+        if (state === WS_CONNECTING) switchToWebSocket(true, 'dc-error');
       };
       pc.onconnectionstatechange = () => {
         const s = pc?.connectionState;
         if (s === 'failed' || s === 'closed') {
-          if (state === WS_CONNECTING) switchToWebSocket(true);
+          if (state === WS_CONNECTING) switchToWebSocket(true, `pc-${s}`);
           else if (state === WS_OPEN) {
             state = WS_CLOSED;
             cleanupRtc();
-            dispatch('close', { code: 1006, reason: `UDP ${s}`, wasClean: false });
+            dispatchCloseOnce({ code: 1006, reason: `UDP ${s}`, wasClean: false });
           }
         }
       };
       pc.oniceconnectionstatechange = () => {
         const s = pc?.iceConnectionState;
-        if (s === 'failed') {
-          if (state === WS_CONNECTING) switchToWebSocket(true);
+        if (s === 'failed' || (s === 'disconnected' && state === WS_CONNECTING)) {
+          if (state === WS_CONNECTING) switchToWebSocket(true, `ice-${s}`);
           else if (state === WS_OPEN) {
             state = WS_CLOSED;
             cleanupRtc();
-            dispatch('close', { code: 1006, reason: 'UDP ICE failed', wasClean: false });
+            dispatchCloseOnce({ code: 1006, reason: 'UDP ICE failed', wasClean: false });
           }
         }
       };
@@ -219,28 +253,29 @@ export function createGameSocket(wsUrl, {
       }
       if (fellBack || closedByUser) return;
 
+      // Use text/plain so cross-origin Toy clients avoid an extra CORS OPTIONS preflight round-trip.
       const res = await fetchFn(offerUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
         body: JSON.stringify({ type: 'offer', sdp: pc.localDescription.sdp }),
         signal: abortController.signal,
       });
       if (fellBack || closedByUser) return;
       if (!res.ok) {
         // Server does not have WebRTC enabled (404/503) -> fall back immediately without penalizing UDP.
-        switchToWebSocket(res.status === 404);
+        switchToWebSocket(res.status === 404, `offer-${res.status}`);
         return;
       }
       const answer = await res.json();
       if (fellBack || closedByUser) return;
       if (!answer?.ok || answer.type !== 'answer' || typeof answer.sdp !== 'string') {
-        switchToWebSocket(false);
+        switchToWebSocket(false, 'bad-answer');
         return;
       }
       await pc.setRemoteDescription({ type: 'answer', sdp: answer.sdp });
     } catch {
       if (!closedByUser && state === WS_CONNECTING) {
-        switchToWebSocket(false);
+        switchToWebSocket(false, 'rtc-exception');
       }
     }
   })();

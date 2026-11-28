@@ -7,7 +7,7 @@ import dgram from 'node:dgram';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
-import { createGameSocket, resetRtcBackoff, rtcOfferUrlForSocket } from '../client/rtc-transport.js';
+import { createGameSocket, markRtcBackoff, resetRtcBackoff, rtcOfferUrlForSocket } from '../client/rtc-transport.js';
 
 const repo = fileURLToPath(new URL('../', import.meta.url));
 const packs = process.env.PERF_MAP_ROOT || path.join(repo, 'artifacts/performance-maps/maps-v1');
@@ -110,12 +110,15 @@ test('createGameSocket opens direct UDP DataChannel when offer succeeds and neve
     close() { this.connectionState = 'closed'; }
   }
 
+  const phases = [];
   const sock = createGameSocket('wss://cs2-ws.apikeygame.top/perf/play/de_dust2/ws', {
+    onStatus: ({ phase }) => phases.push(phase),
     WebSocketCtor: MockWebSocket,
     PeerConnectionCtor: MockPeerConnection,
     fetchFn: async (url, init) => {
       assert.equal(url, 'https://cs2-ws.apikeygame.top/perf/play/de_dust2/rtc-offer');
       assert.equal(init.method, 'POST');
+      assert.equal(init.headers['Content-Type'], 'text/plain;charset=UTF-8');
       return { ok: true, status: 200, async json() { return { ok: true, type: 'answer', sdp: 'v=0\r\nanswer\r\n' }; } };
     },
   });
@@ -123,12 +126,22 @@ test('createGameSocket opens direct UDP DataChannel when offer succeeds and neve
   await new Promise((resolve) => sock.addEventListener('open', resolve, { once: true }));
   assert.equal(sock.transportMode, 'UDP');
   assert.equal(wsConstructed, 0);
+  assert.deepEqual(phases, ['udp-connecting', 'udp-open']);
 
   const echoed = new Promise((resolve) => sock.addEventListener('message', (e) => resolve(e.data), { once: true }));
   sock.send('hello-udp');
   assert.equal(await echoed, 'udp-echo:hello-udp');
-  sock.close(1000, 'done');
+
+  // Regression guard for the roomCosmeticsChanged Stage-03 hang:
+  // close() must set readyState === 3 immediately AND emit 'close' asynchronously
+  // so code running right after close() (like settle(newAppearance)) always wins the race.
+  const order = [];
+  const closed = new Promise((resolve) => sock.addEventListener('close', () => { order.push('close-event'); resolve(); }, { once: true }));
+  sock.close(1000, 'cosmetics');
+  order.push('after-close-call');
   assert.equal(sock.readyState, 3);
+  await closed;
+  assert.deepEqual(order, ['after-close-call', 'close-event']);
 });
 
 test('createGameSocket transparently falls back to WebSocket on RTC timeout or non-200 offer', async () => {
@@ -168,16 +181,33 @@ test('createGameSocket transparently falls back to WebSocket on RTC timeout or n
   assert.equal(fetchCalled, 0);
   sock2.close();
 
-  // Non-200 (503) fallback after backoff reset
+  // Non-200 (503) fallback after backoff reset + status callback verification
   resetRtcBackoff();
+  const fallbackPhases = [];
   const sock3 = createGameSocket('wss://cs2-ws.apikeygame.top/perf/play/de_dust2/ws', {
+    onStatus: ({ phase }) => fallbackPhases.push(phase),
     WebSocketCtor: FakeWebSocket,
     PeerConnectionCtor: StalledPeerConnection,
     fetchFn: async () => ({ ok: false, status: 503, async json() { return { ok: false }; } }),
   });
   await new Promise((resolve) => sock3.addEventListener('open', resolve, { once: true }));
   assert.equal(sock3.transportMode, 'WS');
+  assert.deepEqual(fallbackPhases, ['udp-connecting', 'ws-fallback', 'ws-open']);
   sock3.close();
+
+  // Explicit markRtcBackoff (used by half-open UDP welcome watchdog) bypasses RTC immediately
+  resetRtcBackoff();
+  markRtcBackoff(60000);
+  let fetchCalled4 = 0;
+  const sock4 = createGameSocket('wss://cs2-ws.apikeygame.top/perf/play/de_dust2/ws', {
+    WebSocketCtor: FakeWebSocket,
+    PeerConnectionCtor: StalledPeerConnection,
+    fetchFn: async () => { fetchCalled4++; throw new Error('should skip rtc after markRtcBackoff'); },
+  });
+  await new Promise((resolve) => sock4.addEventListener('open', resolve, { once: true }));
+  assert.equal(sock4.transportMode, 'WS');
+  assert.equal(fetchCalled4, 0);
+  sock4.close();
   resetRtcBackoff();
 });
 
@@ -255,7 +285,7 @@ test('WebRTC UDP DataChannel end-to-end join, delta snapshots, and multi-shard r
     const offerSdp = localSdp.trimEnd() + '\r\n' + candidates.map((c) => (c.startsWith('a=') ? c : `a=${c}`)).join('\r\n') + '\r\n';
     const res = await fetch(origin + '/perf/play/de_dust2/rtc-offer', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
       body: JSON.stringify({ type: 'offer', sdp: offerSdp }),
       signal: AbortSignal.timeout(5000),
     });
@@ -323,15 +353,17 @@ test('WebRTC UDP DataChannel end-to-end join, delta snapshots, and multi-shard r
   const snap1 = await c1.nextMsg((m) => m.type === 'snapshot' || m.type === 'snapshotDelta');
   assert.ok(snap1.players?.length >= 1 || snap1.type === 'snapshotDelta');
 
-  // Client 2: join existing room RTC101 via UDP and land in the exact same room
+  // Client 2 (legacy UDP without rtcAsyncClose): stale appearanceRevision must still welcome immediately
+  // so existing published Toy builds cannot hit the synchronous-close Stage-03 hang.
   const c2 = await openRtcClient();
   c2.send({
     type: 'join',
     mapId: config.id,
     mapSignature: config.mapSignature,
-    name: 'RtcGuest',
+    name: 'RtcLegacyGuest',
     room: 'RTC101',
     existing: true,
+    appearanceRevision: '000000000000000000000000',
     mode: 'deathmatch',
     bots: 0,
     snapshotDelta: 1,
@@ -339,9 +371,28 @@ test('WebRTC UDP DataChannel end-to-end join, delta snapshots, and multi-shard r
   const w2 = await c2.nextMsg((m) => m.type === 'welcome');
   assert.equal(w2.room, 'RTC101');
 
+  // Client 3 (updated UDP with rtcAsyncClose: 1): stale appearanceRevision receives roomCosmeticsChanged as designed.
+  const c3 = await openRtcClient();
+  c3.send({
+    type: 'join',
+    mapId: config.id,
+    mapSignature: config.mapSignature,
+    name: 'RtcUpdatedGuest',
+    room: 'RTC101',
+    existing: true,
+    rtcAsyncClose: 1,
+    appearanceRevision: '000000000000000000000000',
+    mode: 'deathmatch',
+    bots: 0,
+    snapshotDelta: 1,
+  });
+  const changed = await c3.nextMsg((m) => m.type === 'roomCosmeticsChanged');
+  assert.equal(changed.room, 'RTC101');
+  c3.close();
+
   const midHealth = await (await fetch(origin + '/perf/health')).json();
-  assert.equal(midHealth.rtc.activePeers, 2);
-  assert.ok(midHealth.rtc.opened >= 2);
+  assert.ok(midHealth.rtc.activePeers >= 2);
+  assert.ok(midHealth.rtc.opened >= 3);
 
   c1.close();
   c2.close();

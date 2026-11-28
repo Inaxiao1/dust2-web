@@ -44,7 +44,7 @@ function rewriteSdpCandidates(rawSdp, candidates, { localIp, publicIp }) {
  * allowing WebRTC direct UDP clients to reuse the exact same map & multi-shard router.
  */
 class RtcSocketAdapter extends EventEmitter {
-  constructor(pc, dc, onDispose) {
+  constructor(pc, dc, onDispose, { bindMessage = true } = {}) {
     super();
     this.pc = pc;
     this.dc = dc;
@@ -55,14 +55,9 @@ class RtcSocketAdapter extends EventEmitter {
     this._closed = false;
     this._disconnectTimer = null;
 
-    dc.onMessage((msg) => {
-      if (this._closed) return;
-      this._cs2Alive = true;
-      this._lastMessageAt = Date.now();
-      const isBinary = typeof msg !== 'string';
-      const payload = isBinary ? Buffer.from(msg) : Buffer.from(msg, 'utf8');
-      this.emit('message', payload, isBinary);
-    });
+    if (bindMessage) {
+      dc.onMessage((msg) => this._onDataChannelMessage(msg));
+    }
     dc.onClosed(() => this._finalize(1000, 'DataChannel closed'));
     dc.onError((err) => {
       this.emit('error', new Error(String(err || 'DataChannel error')));
@@ -86,9 +81,28 @@ class RtcSocketAdapter extends EventEmitter {
     });
   }
 
+  _onDataChannelMessage(msg) {
+    if (this._closed) return;
+    this._cs2Alive = true;
+    this._lastMessageAt = Date.now();
+    const isBinary = typeof msg !== 'string';
+    const payload = isBinary ? Buffer.from(msg) : Buffer.from(msg, 'utf8');
+    this.emit('message', payload, isBinary);
+  }
+
   get bufferedAmount() {
     if (this._closed) return 0;
     try { return this.dc.bufferedAmount(); } catch { return 0; }
+  }
+
+  get rttMs() {
+    if (this._closed) return null;
+    try {
+      const val = Number(this.pc.rtt?.());
+      return Number.isFinite(val) && val >= 1 && val <= 5000 ? Math.round(val) : null;
+    } catch {
+      return null;
+    }
   }
 
   send(data, opts = {}) {
@@ -109,8 +123,8 @@ class RtcSocketAdapter extends EventEmitter {
 
   ping() {
     if (this._closed) return;
-    // WebRTC ICE consent freshness already validates UDP liveness; drop only silent dead peers.
-    if (Date.now() - this._lastMessageAt > 30000) {
+    // WebRTC ICE consent freshness already validates UDP liveness; drop only long-silent dead peers.
+    if (Date.now() - this._lastMessageAt > 90000) {
       this._finalize(1006, 'Idle timeout');
     } else {
       this._cs2Alive = true;
@@ -250,14 +264,28 @@ export async function createRtcGateway({
 
       pc.onDataChannel((dc) => {
         if (dcAttached || dc.getLabel() !== 'cs2') return;
+        let adapter = null;
+        const earlyMessages = [];
+        // Bind dc.onMessage exactly once so libdatachannel's initial mRecvQueue drain
+        // can never be dropped across a handler replacement.
+        dc.onMessage((msg) => {
+          if (adapter) {
+            adapter._onDataChannelMessage(msg);
+          } else if (earlyMessages.length < 32) {
+            earlyMessages.push(msg);
+          }
+        });
         const attach = () => {
           if (dcAttached || closed) return;
           dcAttached = true;
           clearTimeout(handshakeTimer);
           pendingPeers.delete(pc);
           stats.opened++;
-          const adapter = new RtcSocketAdapter(pc, dc, releasePeer);
+          adapter = new RtcSocketAdapter(pc, dc, releasePeer, { bindMessage: false });
           onClientSocket(mapId, query, req, adapter);
+          for (const msg of earlyMessages.splice(0)) {
+            adapter._onDataChannelMessage(msg);
+          }
         };
         if (dc.isOpen()) attach();
         else dc.onOpen(attach);

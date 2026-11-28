@@ -512,7 +512,8 @@ export async function startGameServer({
         if (room && effectiveMsg.existing === true && !room.joinable) {
           error(socket,'ROOM_UNAVAILABLE','房间已满或对局已结束，请在大厅重新选择。'); return;
         }
-        if(room && effectiveMsg.existing===true && typeof effectiveMsg.appearanceRevision==='string'){
+        const skipLegacyUdpCosmeticsBounce = socket.transport === 'udp' && effectiveMsg.rtcAsyncClose !== 1;
+        if(room && effectiveMsg.existing===true && typeof effectiveMsg.appearanceRevision==='string' && !skipLegacyUdpCosmeticsBounce){
           const appearance=roomAppearance(room);
           if(appearance.revision!==effectiveMsg.appearanceRevision){
             send(socket,{type:'roomCosmeticsChanged',...appearance});

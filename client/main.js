@@ -47,7 +47,7 @@ import { STARTER_SKINS } from '../shared/progression.js';
 import { warmRoomSkin, releaseRoomHands } from './skin-assets.js';
 import { selectedSkinIds, skinResources } from '../shared/room-cosmetics.js';
 import { queryRoomAppearance, readRoomAppearance, preloadRoomSkins, prepareRoomWeapons, reserveWarmIds } from './room-skin-preload.js';
-import { createGameSocket } from './rtc-transport.js';
+import { createGameSocket, markRtcBackoff } from './rtc-transport.js';
 import { mountOfflineMenu } from './offline-menu.js';
 import * as THREE from 'three';
 import { createWeaponLighting } from './weapon-lighting.js';
@@ -322,7 +322,7 @@ function setLoadStage(stage,label){
   $('load-label').textContent=label;
   const order=['download','scene','connect'];
   document.querySelectorAll('[data-load-step]').forEach(el=>{el.classList.toggle('active',el.dataset.loadStep===stage);el.classList.toggle('done',order.indexOf(el.dataset.loadStep)<order.indexOf(stage));});
-  $('cancel-load').disabled=stage!=='download'&&!(privateMap&&stage==='scene');
+  $('cancel-load').disabled=stage==='scene'&&!privateMap;
   if(stage!=='download'){$('load-percent').textContent=stage==='scene'?'准备中':'连接中';$('load-rate').textContent='';}
 }
 function downloadProgress(p){
@@ -548,12 +548,17 @@ async function start(joinExisting=false, directoryNavigation=false){
       $('load-files').textContent='自动兼容 WebSocket 线路';$('load-rate').textContent='';
       appearance=await connect(joinExisting,attempt===0&&joinExisting?appearance.revision:null);
     }
-    if(!connected)releaseRoomHands();
+    if(!connected){
+      releaseRoomHands();
+      if(!$('loading-screen').hidden&&$('loading-error').hidden&&!intentionalLeave){
+        loadError(new Error('未能建立战局连接，请重试'));
+      }
+    }
     downloadAbort=null;
   }
   catch(e){releaseRoomHands();downloadAbort=null;if(e.name==='AbortError'){$('loading-screen').hidden=true;loading=false;$('start-button').disabled=false;$('join-button').disabled=false;$('menu-status').textContent='已取消加载。';}else{console.error(e);loadError(e);}}
 }
-function connect(joinExisting,revision,resumeOpts=null){
+function connect(joinExisting,revision,resumeOpts=null,transportOpts=null){
   clearReconnect();
   if(socket){intentionalLeave=true;socket.close(1000,'reconnect');}
   intentionalLeave=false;
@@ -563,29 +568,74 @@ function connect(joinExisting,revision,resumeOpts=null){
   const wsTarget=new URL(baseWsUrl);
   if(ticket?.joinToken)wsTarget.searchParams.set('token',ticket.joinToken);
   const url=wsTarget.href;
-  socket=createGameSocket(url);const activeSocket=socket;
+  const forceWs=Boolean(transportOpts?.forceWs);
+  let activeSocket=null;
+  const onTransportStatus=({phase})=>{
+    if(socket!==activeSocket||connected||$('loading-screen').hidden)return;
+    if(phase==='ws-fallback'){
+      $('load-bytes').textContent='UDP 连接超时，自动切换 WebSocket 稳定线路…';
+      $('load-files').textContent='正在建立 WebSocket 加密连接';
+    }else if(phase==='ws-direct'){
+      $('load-bytes').textContent='使用 WebSocket 稳定线路连接中…';
+      $('load-files').textContent='正在同步对战房间';
+    }else if(phase==='udp-open'||phase==='ws-open'){
+      $('load-bytes').textContent=phase==='udp-open'?'UDP 直连已建立，正在进入战局…':'WebSocket 已连接，正在进入战局…';
+      $('load-files').textContent='正在同步房间与玩家状态';
+    }
+  };
+  socket=createGameSocket(url,{enableRtc:!forceWs,onStatus:onTransportStatus});activeSocket=socket;
   let settle;
   const outcome=new Promise(resolve=>{settle=resolve;});
-  let rejected=false;
+  let rejected=false,gotServerReply=false,handingOff=false,udpWelcomeTimer=null;
+  const clearConnectTimers=()=>{clearTimeout(timeout);if(udpWelcomeTimer){clearTimeout(udpWelcomeTimer);udpWelcomeTimer=null;}};
   const isResuming=!!resumeOpts?.resumeToken;
-  const timeout=setTimeout(()=>{if(!connected&&socket===activeSocket){$('menu-status').textContent='服务器连接超时，请确认游戏服务已启动。';socket.close();}},15000);
+  const timeout=setTimeout(()=>{
+    if(!connected&&socket===activeSocket){
+      clearConnectTimers();
+      rejected=true;
+      $('menu-status').textContent='服务器连接超时，请确认游戏服务已启动。';
+      if(!$('loading-screen').hidden)loadError(new Error('服务器连接超时，请检查网络后重试'));
+      settle(null);
+      activeSocket.close(1000,'timeout');
+    }
+  },12000);
   socket.addEventListener('open',()=>{if(socket!==activeSocket)return;const name=$('nickname').value.trim()||'Player';preferences.setItem('dust2.name',name);
     const reqRoom=resumeOpts?.room||ticket?.roomCode||(joinExisting?$('room-code').value.trim().toUpperCase():undefined);
     const reqExisting=isResuming?true:(ticket?.action==='join'?true:(ticket?.action==='create'?false:joinExisting));
     const storedResume=resumeOpts?.resumeToken||(reqExisting?readStoredResume(privateMap?.mapId||'de_dust2',reqRoom):null);
     lastFullSnapshot=null;
-    activeSocket.send(JSON.stringify({type:'join',clientBuild:CLIENT_BUILD,rulesVersion:RULES_VERSION,assetVersion:ASSET_VERSION,...(privateMap?{mapId:privateMap.mapId,mapSignature:privateMap.mapSignature,physicsSha256:privateMap.physicsSha256}:{}),existing:reqExisting,...(revision?{appearanceRevision:revision}:{}),...(ticket?.joinToken?{joinToken:ticket.joinToken}:{}),...(storedResume?{resumeToken:storedResume}:{}),playerUid:toyProgress.uid||getStoredOperatorUid(),reconnect:true,snapshotDelta:1,name,movementProtocol:1,shotProtocol:1,room:reqRoom,mode:ticket?.mode||$('mode').value,team:$('team').value,primary,skins:skins.loadout,weaponLoadout:armory.loadout,agents:agentsUI.loadout,musicKit:matchAudio.kit,bots:Number($('bots').value),botDifficulty:preferredBotDifficulty}));});
+    activeSocket.send(JSON.stringify({type:'join',clientBuild:CLIENT_BUILD,rulesVersion:RULES_VERSION,assetVersion:ASSET_VERSION,rtcAsyncClose:1,...(privateMap?{mapId:privateMap.mapId,mapSignature:privateMap.mapSignature,physicsSha256:privateMap.physicsSha256}:{}),existing:reqExisting,...(revision?{appearanceRevision:revision}:{}),...(ticket?.joinToken?{joinToken:ticket.joinToken}:{}),...(storedResume?{resumeToken:storedResume}:{}),playerUid:toyProgress.uid||getStoredOperatorUid(),reconnect:true,snapshotDelta:1,name,movementProtocol:1,shotProtocol:1,room:reqRoom,mode:ticket?.mode||$('mode').value,team:$('team').value,primary,skins:skins.loadout,weaponLoadout:armory.loadout,agents:agentsUI.loadout,musicKit:matchAudio.kit,bots:Number($('bots').value),botDifficulty:preferredBotDifficulty}));
+    // Watchdog for half-open UDP: if DataChannel opened but no server reply arrives within 3s,
+    // transparently fall back to WebSocket instead of leaving the player stuck on the loading screen.
+    if(!forceWs&&activeSocket.transportMode==='UDP'){
+      udpWelcomeTimer=setTimeout(()=>{
+        udpWelcomeTimer=null;
+        if(gotServerReply||connected||socket!==activeSocket)return;
+        clearConnectTimers();
+        markRtcBackoff();
+        if(!$('loading-screen').hidden){
+          $('load-bytes').textContent='UDP 同步超时，自动切换 WebSocket 稳定线路…';
+          $('load-files').textContent='正在重新连接对战房间';
+        }
+        handingOff=true;
+        socket=null;intentionalLeave=true;
+        activeSocket.close(1000,'udp-welcome-timeout');
+        connect(joinExisting,revision,resumeOpts,{forceWs:true}).then(settle);
+      },3000);
+    }
+  });
   socket.addEventListener('message',e=>{if(socket!==activeSocket)return;let data;try{data=JSON.parse(e.data);}catch{return;}
     if(data.type==='roomCosmeticsChanged' && revision && data.room===$('room-code').value.trim().toUpperCase()){
-      clearTimeout(timeout);socket=null;intentionalLeave=true;activeSocket.close(1000,'cosmetics');settle(readRoomAppearance(data));return;
+      gotServerReply=true;clearConnectTimers();socket=null;intentionalLeave=true;settle(readRoomAppearance(data));activeSocket.close(1000,'cosmetics');return;
     }
     if(data.type==='welcome'){
-      const incompatible=compatibilityError(data)||privateCompatibilityError(data,privateMap);if(incompatible){rejected=true;clearTimeout(timeout);loadError(new Error(incompatible));activeSocket.close();return;}
+      gotServerReply=true;
+      const incompatible=compatibilityError(data)||privateCompatibilityError(data,privateMap);if(incompatible){rejected=true;clearConnectTimers();loadError(new Error(incompatible));settle(null);activeSocket.close();return;}
       preferences.setItem('dust2.last-session',JSON.stringify({room:data.room,mode:data.mode,mapId:privateMap?.mapId||'de_dust2',at:Date.now()}));
       activeResumeToken=data.resumeToken||null;activeReconnectGraceMs=Number(data.reconnectGraceMs)||30000;reconnectAttempts=0;
       saveStoredResume(privateMap?.mapId||'de_dust2',data.room,activeResumeToken,activeReconnectGraceMs);
       movementSupported=data.movementProtocol===1;movementPrediction.reset();fixed=0;networkAcc=0;
-      clearTimeout(timeout);displayedHostBots=null;matchPresentation.reset();connectionId=myId=data.id;room=data.room;mode=data.mode;connected=true;seq=0;shotId=0;lastShotEvidence=null;shotPrediction.reset();remotePlayers.clear();frameSamples.length=0;jumpId=0;reloadId=0;resetScope();clearGameInput();lastSentInputSeq=-1;shotPrediction.pending=[];self=null;lastSnapshotAlive=false;previousHealth=100;handledEvents.clear();previousWeapon=null;previousReload=0;hud.reset();chat.reset();chat.element.hidden=false;matchView.reset();spectating=null;diagnostics.event(data.resumed?'reconnected':'connected');
+      clearConnectTimers();displayedHostBots=null;matchPresentation.reset();connectionId=myId=data.id;room=data.room;mode=data.mode;connected=true;seq=0;shotId=0;lastShotEvidence=null;shotPrediction.reset();remotePlayers.clear();frameSamples.length=0;jumpId=0;reloadId=0;resetScope();clearGameInput();lastSentInputSeq=-1;shotPrediction.pending=[];self=null;lastSnapshotAlive=false;previousHealth=100;handledEvents.clear();previousWeapon=null;previousReload=0;hud.reset();chat.reset();chat.element.hidden=false;matchView.reset();spectating=null;diagnostics.event(data.resumed?'reconnected':'connected');
       document.exitPointerLock?.();document.body.classList.remove('mouse-captured');$('loading-screen').hidden=true;
       $('menu').hidden=true;$('hud').hidden=false;document.body.classList.add('playing');
       $('pause-menu').dataset.entry='first';
@@ -604,7 +654,7 @@ function connect(joinExisting,revision,resumeOpts=null){
       if(!full)return;
       lastFullSnapshot=full;
       const mismatch=privateCompatibilityError(full,privateMap);
-      if(mismatch){rejected=true;clearTimeout(timeout);clearGameInput();document.exitPointerLock?.();loadError(new Error(mismatch));connected=false;activeSocket.close();return;}
+      if(mismatch){rejected=true;clearConnectTimers();clearGameInput();document.exitPointerLock?.();loadError(new Error(mismatch));connected=false;activeSocket.close();return;}
       handleSnapshot(full);
     }
     else if(data.type==='agentEquipped'){if(pendingAgentEquip?.id===data.agent)pendingAgentEquip.resolve();hud.toast(`已装备 ${getAgent(data.agent)?.name||'探员'}`);}
@@ -617,9 +667,9 @@ function connect(joinExisting,revision,resumeOpts=null){
     else if(data.type==='botsUpdated'){hud.toast(data.ok?'机器人数量已更新':data.message||'更新未完成');}
     else if(data.type==='weaponDropped'){if(data.ok)hud.toast('已丢弃 '+getWeapon(data.weaponId).name);}
     else if(data.type==='teamGear'){shop.message('已确认，请留意队伍聊天和地上的枪械。');}
-    else if(data.type==='error'){if(data.code==='CHAT_REJECTED')chat.error(data.message);if(data.code==='TEAM_GEAR_REJECTED')shop.message(data.message);if(data.code?.startsWith('BOT_DIFFICULTY'))botSettings.settle();if(data.code?.startsWith('AGENT'))pendingAgentEquip?.reject(data.message);if(data.code?.startsWith('SKIN'))pendingSkinEquip?.reject(data.message);if(data.code?.startsWith('LOADOUT'))pendingLoadout?.reject(data.message);if(/^(BUY|REFUND)/.test(data.code||''))shop.result({ok:false,message:data.message});hud.toast(data.message||'操作未完成');$('menu-status').textContent=data.message||'服务器拒绝连接';if(!connected){rejected=true;clearTimeout(timeout);loadError(new Error(data.message||'服务器拒绝连接'));activeSocket.close();}}
+    else if(data.type==='error'){gotServerReply=true;if(data.code==='CHAT_REJECTED')chat.error(data.message);if(data.code==='TEAM_GEAR_REJECTED')shop.message(data.message);if(data.code?.startsWith('BOT_DIFFICULTY'))botSettings.settle();if(data.code?.startsWith('AGENT'))pendingAgentEquip?.reject(data.message);if(data.code?.startsWith('SKIN'))pendingSkinEquip?.reject(data.message);if(data.code?.startsWith('LOADOUT'))pendingLoadout?.reject(data.message);if(/^(BUY|REFUND)/.test(data.code||''))shop.result({ok:false,message:data.message});hud.toast(data.message||'操作未完成');$('menu-status').textContent=data.message||'服务器拒绝连接';if(!connected){rejected=true;clearConnectTimers();loadError(new Error(data.message||'服务器拒绝连接'));settle(null);activeSocket.close();}}
   });
-  socket.addEventListener('close',event=>{clearTimeout(timeout);if(socket!==activeSocket)return;const wasConnected=connected;connected=false;loading=false;mouseFire=false;$('start-button').disabled=false;$('join-button').disabled=false;if(rejected||intentionalLeave)return;
+  socket.addEventListener('close',event=>{clearConnectTimers();if(socket!==activeSocket)return;const wasConnected=connected;connected=false;loading=false;mouseFire=false;$('start-button').disabled=false;$('join-button').disabled=false;if(rejected||intentionalLeave)return;
     const canAutoReconnect=(wasConnected||isResuming)&&event.code!==1000&&activeResumeToken&&room&&activeReconnectGraceMs>0&&reconnectAttempts<4;
     if(canAutoReconnect){
       const delayMs=Math.min(6000,1000*(2**reconnectAttempts));
@@ -632,7 +682,7 @@ function connect(joinExisting,revision,resumeOpts=null){
     }
     if(wasConnected||isResuming){clearReconnect();activeResumeToken=null;saveStoredResume(privateMap?.mapId||'de_dust2',room,null,0);diagnostics.event('disconnected',{code:event.code,reason:event.reason.slice(0,120),wasClean:event.wasClean});pendingLoadout?.reject('连接已断开');shop.cancel();pendingAgentEquip?.reject('连接已断开');pendingSkinEquip?.reject('连接已断开，请重新加入后装备。');if(snapshot?.match?.status==='ended'||snapshot?.round?.phase==='matchEnded')return;if(isPortalMatchRoute){showMenu();$('menu').hidden=true;loadError(new Error(disconnectMessage(event.code,event.reason)));return;}showMenu();$('menu-status').textContent=disconnectMessage(event.code,event.reason);}else if(!$('loading-screen').hidden)loadError(new Error('连接失败，请确认服务器地址和网络后重试')); });
   socket.addEventListener('error',()=>{if(socket!==activeSocket)return;if(!connected)$('menu-status').textContent='无法连接游戏服务器，请稍后重试。';});
-  activeSocket.addEventListener('close',()=>settle(null),{once:true});
+  activeSocket.addEventListener('close',()=>{if(!handingOff)settle(null);},{once:true});
   return outcome;
 }
 
@@ -922,7 +972,7 @@ $('mode').addEventListener('change',updateModeLabels);updateModeLabels();
 $('host-bots-apply')?.addEventListener('click',()=>{send({type:'setBots',bots:Number($('host-bots').value)});});
 $('menu-play-tab')?.addEventListener('click',()=>$('start-button').focus());
 const isPortalMatchRoute=Boolean(parseMatchRoute(location.href));
-$('cancel-load').addEventListener('click',()=>{if(downloadAbort)downloadAbort.abort();if(isPortalMatchRoute){location.assign(lobbyHref());return;}if(!loading)$('loading-screen').hidden=true;});
+$('cancel-load').addEventListener('click',()=>{if(downloadAbort)downloadAbort.abort();if(socket&&!connected){intentionalLeave=true;socket.close(1000,'cancel');socket=null;}if(isPortalMatchRoute){location.assign(lobbyHref());return;}loading=false;$('start-button').disabled=false;$('join-button').disabled=false;$('loading-screen').hidden=true;});
 $('back-load').addEventListener('click',()=>{if(isPortalMatchRoute){location.assign(lobbyHref());return;}$('loading-screen').hidden=true;});
 $('retry-load').addEventListener('click',()=>start(pendingJoin));
 
