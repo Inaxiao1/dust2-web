@@ -566,14 +566,22 @@ body[data-faction="T"] .stage-agent-plate { border-left-color: var(--portal-gold
   flex: none;
 }
 .lobby-offline-btn {
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-left: 2px solid var(--portal-blue);
-  background: rgba(29, 43, 50, 0.92);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(110, 217, 158, 0.72);
+  border-left: 3px solid #72e0a5;
+  background: linear-gradient(135deg, #2d7a57 0%, #1e5b41 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 4px 14px rgba(13, 46, 33, 0.42);
 }
-.lobby-offline-btn .lobby-action-head { color: #e2eef3; }
-.lobby-offline-btn .lobby-action-ico { color: var(--portal-blue); }
-.lobby-offline-btn small { font-size: 10.5px; color: var(--portal-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.lobby-offline-btn:hover { background: rgba(39, 57, 67, 0.98); border-color: rgba(133, 191, 217, 0.55); border-left-color: var(--portal-blue); }
+.lobby-offline-btn .lobby-action-head { color: #f4fdf8; font-weight: 750; }
+.lobby-offline-btn .lobby-action-ico { color: #9df3c3; }
+.lobby-offline-btn small { font-size: 10.5px; color: rgba(226, 248, 236, 0.88); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.lobby-offline-btn:hover {
+  background: linear-gradient(135deg, #358c65 0%, #246c4e 100%);
+  border-color: #8ee8b8;
+  border-left-color: #9bf0c2;
+  filter: brightness(1.04);
+}
 .lobby-create-btn {
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-left: 2px solid var(--portal-gold);
@@ -636,12 +644,13 @@ body[data-faction="T"] .stage-agent-plate { border-left-color: var(--portal-gold
   white-space: nowrap;
 }
 .command-offline-mobile {
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-left: 2px solid var(--portal-blue);
-  background: rgba(29, 43, 50, 0.92);
-  color: #e2eef3;
+  border: 1px solid rgba(110, 217, 158, 0.72);
+  border-left: 3px solid #72e0a5;
+  background: linear-gradient(135deg, #2d7a57 0%, #1e5b41 100%);
+  color: #f4fdf8;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
-.command-offline-mobile:hover { background: rgba(39, 57, 67, 0.98); border-color: var(--portal-blue); }
+.command-offline-mobile:hover { background: linear-gradient(135deg, #358c65 0%, #246c4e 100%); border-color: #8ee8b8; }
 .command-custom-mobile {
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-left: 2px solid var(--portal-gold);
