@@ -20,6 +20,7 @@ import { SKINS } from '../shared/skins.js';
 import { UTILITY_ASSETS } from '../shared/utility-assets.js';
 import { AGENT_ASSETS } from '../shared/agent-assets.js';
 import { AGENT_ARM_ASSETS } from '../shared/agent-arm-assets.js';
+import { buildOfflineMapManifests } from '../server/offline-map-manifests.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = path.join(ROOT, 'dist');
@@ -127,6 +128,9 @@ copyTreeToToy(MODE_UI, 'ui', (_s, name) => name !== 'index.html' && !name.endsWi
 copyTreeToToy(MODE_PREVIEWS, 'mode-previews');
 copyTreeToToy(path.join(MAPS_SRC, 'radars'), 'radars');
 copyToyFile(path.join(MAPS_SRC, 'catalog.json'), 'catalog.json');
+const offlineManifestsJson = Buffer.from(JSON.stringify(buildOfflineMapManifests(MAPS_SRC)), 'utf8');
+writeToyBuffer('offline-maps.json', offlineManifestsJson);
+fs.writeFileSync(path.join(CDN_OUT, 'offline-maps.json'), offlineManifestsJson);
 copyTreeToToy(path.join(DIST, 'icons'), 'icons');
 
 for (const e of fs.readdirSync(path.join(DIST, 'assets'), { withFileTypes: true })) {

@@ -23,7 +23,13 @@ import {combatSlot} from './bot-utility.js';
 import {tacticalGoal,shareSighting,botUtility,separateTeammates,coordinateFlash} from './bot-tactics.js';
 import {BotUtilityTimeline} from './bot-utility-timeline.js';
 import {syncChallengeRoster} from './bot-challenge.js';
-import {randomBytes} from 'node:crypto';
+function randomHex(byteLength) {
+  const bytes = new Uint8Array(byteLength);
+  globalThis.crypto.getRandomValues(bytes);
+  let out = '';
+  for (let i = 0; i < bytes.length; i++) out += bytes[i].toString(16).padStart(2, '0');
+  return out;
+}
 import { MAP } from '../shared/map-data.js';
 import {bombSiteAt,plantedBombPosition} from '../shared/bomb-zones.js';
 import {c4Damage} from './c4-blast.js';
@@ -292,9 +298,9 @@ export class GameRoom {
     const replaceable=[...this.players.values()].filter(p=>p.bot).sort((a,b)=>Number(!!a.controllerId)-Number(!!b.controllerId)||Number(a.alive)-Number(b.alive));
     const botToReplace=(this.count(assigned)>=5||this.players.size>=10)?replaceable.find(p=>p.team===assigned)||replaceable[0]:null;
     if (botToReplace) this.removePlayer(botToReplace.id);
-    const id = `p_${randomBytes(6).toString('hex')}`;
+    const id = `p_${randomHex(6)}`;
     const player = this.makePlayer(id, name, assigned, false, primary, weaponLoadout??null);
-    player.resumeToken = canResume ? saved.token : randomBytes(12).toString('hex');
+    player.resumeToken = canResume ? saved.token : randomHex(12);
     player.playerUid = typeof playerUid === 'string' && playerUid ? playerUid : (canResume ? saved.playerUid : null);
     player.resumed = canResume;
     player.shotProtocol=shotProtocol===1?1:0;player.shotCommands=player.shotProtocol===1;

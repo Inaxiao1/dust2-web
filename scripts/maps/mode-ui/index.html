@@ -59,6 +59,7 @@
       <div id="problem" class="lobby-toast lobby-toast-error" hidden role="alert">
         <span>服务器目录连接失败</span>
         <button id="retry" class="cs-btn" type="button">重试</button>
+        <button id="offlineFromError" class="cs-btn-gold" type="button">⚡ 玩本地人机</button>
       </div>
 
       <!-- Top-Left Open Stage Typography (Map Signature & Live Telemetry) -->
@@ -106,10 +107,16 @@
     <aside class="lobby-sidebar" aria-label="联机大厅">
       <section class="room-directory lobby-sidebar-dir" id="onlineRooms" aria-label="全部地图在线房间"></section>
       <div class="lobby-sidebar-foot">
-        <button type="button" id="openCustomModal" class="lobby-create-btn">
-          <span>＋ 自建房间</span>
-          <small>自定义地图 · 模式 · 人机</small>
-        </button>
+        <div class="lobby-sidebar-actions">
+          <button type="button" id="quickOfflineBtn" class="lobby-offline-btn">
+            <span>⚡ 本地人机</span>
+            <small>0ms 离线 · 网卡畅玩</small>
+          </button>
+          <button type="button" id="openCustomModal" class="lobby-create-btn">
+            <span>＋ 自建房间</span>
+            <small>联机 / 离线自定义</small>
+          </button>
+        </div>
       </div>
     </aside>
   </main>
@@ -127,6 +134,7 @@
       </div>
       <div class="command-meta">
         <span class="command-meta-tag" id="commandSelectedMap">首选地图：炙热沙城 II</span>
+        <button type="button" class="command-offline-mobile" id="quickOfflineMobile">⚡ 人机</button>
         <button type="button" class="command-custom-mobile" id="openCustomFromBar">＋ 自建</button>
       </div>
     </div>
@@ -165,6 +173,20 @@
           <h3>对局配置</h3>
 
           <div class="cs-field">
+            <span class="cs-field-label">运行方式</span>
+            <div class="cs-choice-row" role="group" aria-label="选择运行方式">
+              <button type="button" class="cs-choice active" data-custom-match-type="online">
+                <strong>在线联机</strong>
+                <small>实时联网 · 好友可加入</small>
+              </button>
+              <button type="button" class="cs-choice" data-custom-match-type="offline">
+                <strong>⚡ 本地人机（0ms）</strong>
+                <small>纯本地运算 · 断网/网卡可玩</small>
+              </button>
+            </div>
+          </div>
+
+          <div class="cs-field">
             <span class="cs-field-label">对战模式</span>
             <div class="cs-choice-row" role="group" aria-label="选择对战模式">
               <button type="button" class="cs-choice active" data-custom-mode="defuse">
@@ -201,6 +223,16 @@
               <button type="button" class="cs-chip" data-custom-bots="0">0 名 · 纯真人</button>
               <button type="button" class="cs-chip" data-custom-bots="5">5 名 · 3v3</button>
               <button type="button" class="cs-chip active" data-custom-bots="9">9 名 · 5v5 满员</button>
+            </div>
+          </div>
+
+          <div class="cs-field" id="customDifficultyField" hidden>
+            <span class="cs-field-label">人机难度（本地离线）</span>
+            <div class="cs-bot-presets" role="group" aria-label="选择本地人机难度">
+              <button type="button" class="cs-chip" data-custom-difficulty="easy">轻松</button>
+              <button type="button" class="cs-chip active" data-custom-difficulty="normal">普通</button>
+              <button type="button" class="cs-chip" data-custom-difficulty="hard">困难</button>
+              <button type="button" class="cs-chip" data-custom-difficulty="vitality">Vitality 挑战</button>
             </div>
           </div>
         </section>

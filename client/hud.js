@@ -110,9 +110,9 @@ export class HUD {
     this.text('score-ct', number(snapshot.scores?.CT));
     this.text('score-t', number(snapshot.scores?.T));
     this.text('mode-label', mode === 'defuse' ? '经典爆破' : '团队死斗');
-    this.text('room-label', snapshot.room || '------');
-    this.text('board-room', `${snapshot.room || ''} · ${mode === 'defuse' ? '经典爆破' : '团队死斗'}`);
-    const linkTag = transport === 'UDP' ? ' · UDP直连' : transport === 'WS' ? ' · WS' : '';
+    this.text('room-label', snapshot.room === 'LOCAL' ? '本地人机' : (snapshot.room || '------'));
+    this.text('board-room', `${snapshot.room === 'LOCAL' ? '本地人机' : (snapshot.room || '')} · ${mode === 'defuse' ? '经典爆破' : '团队死斗'}`);
+    const linkTag = transport === 'LOCAL' ? ' · 本地人机' : transport === 'UDP' ? ' · UDP直连' : transport === 'WS' ? ' · WS' : '';
     this.text('network-status', `${Math.round(clamp(ping, 0, 9999))} ms${linkTag} · ${Math.round(clamp(fps, 0, 999))} FPS`);
     const network = this.elements['network-status'];
     if (network) network.style.color = time - this.receivedAt > 2500 ? '#f09b83' : '';

@@ -18,6 +18,7 @@ import {packagedAgentAssets} from '../shared/packaged-agent-assets.js';
 import {packagedMusicAssets} from '../shared/packaged-music-assets.js';
 import {packagedSkinAssets} from '../shared/packaged-skin-assets.js';
 import {validateDownloadConfig} from '../shared/download-config.js';
+import {buildOfflineMapManifests} from './offline-map-manifests.js';
 
 const repo=path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const root=path.resolve(process.env.PERF_MAP_ROOT || path.join(repo,'artifacts/performance-maps/maps-v1'));
@@ -123,6 +124,7 @@ const allowedOrigins=(()=>{
   return set.size?set:null;
 })();
 const catalogPath=path.join(root,'catalog.json');
+let cachedOfflineManifests=null;
 const maps=new Set(JSON.parse(fs.readFileSync(catalogPath)).maps.filter(m=>isPerformanceMap(m.id)).map(m=>m.id));
 const reviewAssets=path.join(repo,'scripts/maps');
 const qualityPacks=disableLocalAssets?new Map():findQualityPacks(root,maps,
@@ -1031,6 +1033,10 @@ const server=http.createServer(async(req,res)=>{
   if(p==='/perf/catalog.json'){
     if(disableLocalAssets){json(res,404,{ok:false,error:'LOCAL_ASSETS_DISABLED'});return;}
     file(req,res,catalogPath);return;
+  }
+  if(p==='/perf/offline-maps.json'){
+    if(!cachedOfflineManifests)cachedOfflineManifests=buildOfflineMapManifests(root);
+    json(res,200,cachedOfflineManifests);return;
   }
   if(p==='/perf/ready'){json(res,draining?503:200,{ok:true,ready:!draining,draining,maps:maps.size,maxWorkers,workerMaxRooms:Number(workerMaxRooms),controlPlane:!!controlPlaneUrl,disableLocalAssets,logicGatewayOnly});return;}
   if(p==='/perf/internal/telemetry.json'){

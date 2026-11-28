@@ -16,7 +16,9 @@ import {getStaticRuntime,gameApiURL,lobbyHref,parseMatchRoute} from '../shared/s
 const parsedMatchRoute=parseMatchRoute(location.href);
 const directoryRoute=parsedMatchRoute?[null,parsedMatchRoute.quality?'quality/':'',parsedMatchRoute.mapId]:null;
 const initialParams=new URLSearchParams(location.search);
-const hasDirectMatchIntent=Boolean(initialParams.get('room')||initialParams.get('autostart')==='1');
+const isOfflineMode=initialParams.get('offline')==='1';
+const hasDirectMatchIntent=Boolean(initialParams.get('room')||initialParams.get('autostart')==='1'||isOfflineMode);
+if(isOfflineMode)globalThis.__DUST2_OFFLINE_MODE__=true;
 let redirectedToLobby=false;
 if(directoryRoute){
  if(!hasDirectMatchIntent){
@@ -29,7 +31,7 @@ if(directoryRoute){
   if(menuEl)menuEl.hidden=true;
   if(loadingEl)loadingEl.hidden=false;
   const loadLabel=document.getElementById('load-label');
-  if(loadLabel)loadLabel.textContent='正在进入战局并载入地图资源…';
+  if(loadLabel)loadLabel.textContent=isOfflineMode?'正在初始化本地人机引擎与地图资源…':'正在进入战局并载入地图资源…';
  }
 }
 
@@ -37,17 +39,29 @@ async function bootstrap(){
  if(redirectedToLobby)return null;
  const rt=getStaticRuntime();
  const request=async url=>{const r=await fetch(url,{cache:'no-store'});if(!r.ok)throw Error('私有地图配置暂不可用 ('+r.status+')');return r.json();};
- const configQuery=new URLSearchParams();
- const hintNode=initialParams.get('node');
- const hintRoom=initialParams.get('room');
- if(hintNode&&/^[a-zA-Z0-9_-]{1,32}$/.test(hintNode))configQuery.set('node',hintNode);
- if(hintRoom&&/^[A-Za-z0-9]{4,12}$/.test(hintRoom))configQuery.set('room',hintRoom.toUpperCase());
- const configSuffix=configQuery.toString()?('?'+configQuery.toString()):'';
- const configEndpoint=rt&&parsedMatchRoute
-  ? gameApiURL('/perf/play/'+parsedMatchRoute.mapId+'/private-map.json'+configSuffix)
-  : new URL('private-map.json'+configSuffix,location.href);
- const originalConfig=privateConfig(await request(configEndpoint),location.href,{apiOrigin:rt?.gameServerOrigin||null});
- const delivery=await initDownloadOrigin({configURL:new URL('../../../download-config.json',originalConfig.renderUrl),pageURL:location.href});
+ let originalConfig,delivery;
+ if(isOfflineMode&&parsedMatchRoute){
+  const manifestUrl=rt?new URL('./offline-maps.json',document.baseURI):new URL('/perf/offline-maps.json',location.href);
+  const manifestRes=await fetch(manifestUrl,{cache:'default'});
+  if(!manifestRes.ok)throw Error('本地人机地图清单暂不可用 ('+manifestRes.status+')');
+  const manifestData=await manifestRes.json();
+  const rawOfflineCfg=manifestData?.maps?.[parsedMatchRoute.mapId];
+  if(!rawOfflineCfg)throw Error('该地图暂不支持本地人机模式');
+  originalConfig=privateConfig(rawOfflineCfg,location.href,{apiOrigin:location.origin});
+  delivery={schemaVersion:1,assetBaseURL:rt?.assetBaseURL||null,mapBaseURL:rt?.mapBaseURL||null,fallbackToGameServer:false};
+ }else{
+  const configQuery=new URLSearchParams();
+  const hintNode=initialParams.get('node');
+  const hintRoom=initialParams.get('room');
+  if(hintNode&&/^[a-zA-Z0-9_-]{1,32}$/.test(hintNode))configQuery.set('node',hintNode);
+  if(hintRoom&&/^[A-Za-z0-9]{4,12}$/.test(hintRoom))configQuery.set('room',hintRoom.toUpperCase());
+  const configSuffix=configQuery.toString()?('?'+configQuery.toString()):'';
+  const configEndpoint=rt&&parsedMatchRoute
+   ? gameApiURL('/perf/play/'+parsedMatchRoute.mapId+'/private-map.json'+configSuffix)
+   : new URL('private-map.json'+configSuffix,location.href);
+  originalConfig=privateConfig(await request(configEndpoint),location.href,{apiOrigin:rt?.gameServerOrigin||null});
+  delivery=await initDownloadOrigin({configURL:new URL('../../../download-config.json',originalConfig.renderUrl),pageURL:location.href});
+ }
  hydrateHomeImages();
  const config=privateMapDownloads(originalConfig,delivery),mapFetch=privateMapFetcher(config);
  const jumpLinks=config.id==='de_mirage'?MIRAGE_JUMP_LINKS:[];
@@ -61,6 +75,7 @@ async function bootstrap(){
   if(ladderHash!==config.laddersSha256)throw Error('梯子数据与服务器版本不同');
  }
  const map=configurePrivateMap(meta,nav,config);
+ if(isOfflineMode)globalThis.__DUST2_OFFLINE_MAP_DATA__={meta,nav};
  // Resolve radars & covers from Toy-local static dir (or CDN mapBaseURL) so zero static bytes hit the game server!
  const radarBase=rt
   ? new URL('./radars/',document.baseURI)
@@ -83,7 +98,7 @@ async function bootstrap(){
  const pauseHeading=document.querySelector('#pause-menu .eyebrow');if(pauseHeading)pauseHeading.textContent=map.name.toUpperCase()+' / IN MATCH';
  const boardHeading=document.querySelector('#scoreboard .board-heading h2');if(boardHeading){boardHeading.replaceChildren(document.createTextNode(map.name.toUpperCase()+' '));const label=document.createElement('small');label.textContent='战况';boardHeading.append(label);}
  for(const el of document.querySelectorAll('.map-emblem img,.loading-tactical img')){el.src=map.overview.image;el.alt=map.name+' 战术地图';}
- const banner=document.querySelector('.loading-map-title>p');if(banner)banner.textContent=map.nameZh+' · 5v5 联网战术对战';
+ const banner=document.querySelector('.loading-map-title>p');if(banner)banner.textContent=isOfflineMode?map.nameZh+' · 本地人机模式（0ms 零流量）':map.nameZh+' · 5v5 联网战术对战';
  const cover=rt
   ? new URL('./mode-previews/'+map.id+'-performance.webp',document.baseURI).href
   : delivery.mapBaseURL
@@ -123,12 +138,14 @@ export const ready=bootstrap().then(module=>{
     const requestedMode=currentUrl.searchParams.get('matchMode')||'defuse';
     const requestedBots=currentUrl.searchParams.get('bots');
     const requestedTeam=currentUrl.searchParams.get('team')||'auto';
+    const requestedDifficulty=currentUrl.searchParams.get('difficulty')||null;
     currentUrl.searchParams.delete('autostart');
     currentUrl.searchParams.delete('matchMode');
     currentUrl.searchParams.delete('bots');
     currentUrl.searchParams.delete('team');
+    currentUrl.searchParams.delete('difficulty');
     history.replaceState(null,'',currentUrl);
-    module.quickStartRoom({mode:requestedMode,bots:requestedBots,team:requestedTeam});
+    module.quickStartRoom({mode:requestedMode,bots:requestedBots,team:requestedTeam,difficulty:requestedDifficulty});
    }
   }
  }

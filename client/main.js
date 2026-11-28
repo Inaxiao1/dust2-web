@@ -28,7 +28,7 @@ import { RuntimeDiagnostics, disconnectMessage } from './runtime-diagnostics.js'
 import { CS2_BASE_FOV, cs2FovToVertical, mouseRadiansPerCount, DEFAULT_CROSSHAIR, normalizeCrosshair } from '../shared/cs2-settings.js';
 import { Crosshair } from './crosshair.js';
 import {mountBotSettings} from './bot-settings.js';
-import {normalizeBotDifficulty,botDifficultyName} from '../shared/bot-difficulty.js';
+import {BOT_DIFFICULTIES,normalizeBotDifficulty,botDifficultyName} from '../shared/bot-difficulty.js';
 import { mountSettings } from './settings-ui.js';
 import { getStoredVisualStyle, setStoredVisualStyle, applyVisualStyleToScene, getVisualStylePreset } from './arena-look-presets.js';
 import { upgradeAllSelects, upgradeSelect } from './tactical-select.js';
@@ -116,7 +116,8 @@ let activeResumeToken=null,activeReconnectGraceMs=30000,intentionalLeave=false,r
 const snapHistory=new Map();
 let lastAppliedSid=0,lastAckedSid=0,lastSentAckSid=0,lastAckSentAt=0,lastResyncReqAt=0;
 function clearReconnect(){if(reconnectTimer){clearTimeout(reconnectTimer);reconnectTimer=null;}reconnectAttempts=0;}
-const baseConnection = privateMap?{socketURL:privateMap.socketURL,inviteBase:null,offline:false}:connectionTarget(location.href, globalThis.__DUST2_PORTABLE__);
+const isOfflineLocal=Boolean(globalThis.__DUST2_OFFLINE_MODE__);
+const baseConnection = privateMap?{socketURL:privateMap.socketURL,inviteBase:null,offline:isOfflineLocal}:connectionTarget(location.href, globalThis.__DUST2_PORTABLE__);
 const connection = stagedJoinTicket?{...baseConnection,socketURL:stagedJoinTicket.workerWsUrl}:baseConnection;
 
 const $=id=>document.getElementById(id);
@@ -585,10 +586,10 @@ async function start(joinExisting=false, directoryNavigation=false){
           $('load-files').textContent=`${step} / ${total} 把手持武器`;$('load-rate').textContent='';
         }});
       diagnostics.event('room-skins-ready',result);
-      setLoadStage('connect','建立多人对战连接');
+      setLoadStage('connect',isOfflineLocal?'启动本地人机战局引擎':'建立多人对战连接');
       $('load-fill').style.width='100%';$('load-percent').textContent='100%';
-      $('load-bytes').textContent='优先建立低延迟 UDP 直连';
-      $('load-files').textContent='自动兼容 WebSocket 线路';$('load-rate').textContent='';
+      $('load-bytes').textContent=isOfflineLocal?'纯本地计算 · 0 ms 延迟 · 不依赖服务器':'使用 WebSocket 稳定线路连接中…';
+      $('load-files').textContent=isOfflineLocal?'正在初始化战术 AI 与回合规则':'正在同步对战房间';$('load-rate').textContent='';
       appearance=await connect(joinExisting,attempt===0&&joinExisting?appearance.revision:null);
     }
     if(!connected){
@@ -601,7 +602,7 @@ async function start(joinExisting=false, directoryNavigation=false){
   }
   catch(e){releaseRoomHands();downloadAbort=null;if(e.name==='AbortError'){$('loading-screen').hidden=true;loading=false;$('start-button').disabled=false;$('join-button').disabled=false;$('menu-status').textContent='已取消加载。';}else{console.error(e);loadError(e);}}
 }
-function connect(joinExisting,revision,resumeOpts=null,transportOpts=null){
+async function connect(joinExisting,revision,resumeOpts=null,transportOpts=null){
   clearReconnect();
   if(socket){intentionalLeave=true;socket.close(1000,'reconnect');}
   intentionalLeave=false;
@@ -614,12 +615,15 @@ function connect(joinExisting,revision,resumeOpts=null,transportOpts=null){
   const wsFallbackUrls=!ticket&&Array.isArray(privateMap?.wsFallbackUrls)
     ? privateMap.wsFallbackUrls.map(raw=>{const u=new URL(raw);if(wsTarget.search)u.search=wsTarget.search;return u.href;})
     : [];
-  const wantUdp=new URLSearchParams(location.search).get('transport')==='udp'&&privateMap?.rtcEnabled!==false;
+  const wantUdp=!isOfflineLocal&&new URLSearchParams(location.search).get('transport')==='udp'&&privateMap?.rtcEnabled!==false;
   const forceWs=Boolean(transportOpts?.forceWs)||!wantUdp;
   let activeSocket=null;
   const onTransportStatus=({phase})=>{
     if(socket!==activeSocket||connected||$('loading-screen').hidden)return;
-    if(phase==='ws-fallback'){
+    if(phase==='local-open'){
+      $('load-bytes').textContent='本地人机引擎已就绪（0 ms），正在进入战局…';
+      $('load-files').textContent='纯本地模拟 · 断网可玩';
+    }else if(phase==='ws-fallback'){
       $('load-bytes').textContent='UDP 连接超时，自动切换 WebSocket 稳定线路…';
       $('load-files').textContent='正在建立 WebSocket 加密连接';
     }else if(phase==='ws-direct'){
@@ -630,7 +634,14 @@ function connect(joinExisting,revision,resumeOpts=null,transportOpts=null){
       $('load-files').textContent='正在同步房间与玩家状态';
     }
   };
-  socket=createGameSocket(url,{enableRtc:!forceWs,wsFallbackUrls,onStatus:onTransportStatus});activeSocket=socket;
+  if(isOfflineLocal){
+    const {createLocalBotSocket}=await import('./local-bot-server.js');
+    const offlineData=globalThis.__DUST2_OFFLINE_MAP_DATA__||{};
+    socket=createLocalBotSocket({mapConfig:privateMap,meta:offlineData.meta||null,nav:offlineData.nav||null,breakableCollision:mapResultCache?.breakableCollision||null,onStatus:onTransportStatus});
+  }else{
+    socket=createGameSocket(url,{enableRtc:!forceWs,wsFallbackUrls,onStatus:onTransportStatus});
+  }
+  activeSocket=socket;
   let settle;
   const outcome=new Promise(resolve=>{settle=resolve;});
   let rejected=false,gotServerReply=false,handingOff=false,udpWelcomeTimer=null;
@@ -678,23 +689,24 @@ function connect(joinExisting,revision,resumeOpts=null,transportOpts=null){
     if(data.type==='welcome'){
       gotServerReply=true;
       const incompatible=compatibilityError(data)||privateCompatibilityError(data,privateMap);if(incompatible){rejected=true;clearConnectTimers();loadError(new Error(incompatible));settle(null);activeSocket.close();return;}
-      preferences.setItem('dust2.last-session',JSON.stringify({room:data.room,mode:data.mode,mapId:privateMap?.mapId||'de_dust2',at:Date.now()}));
-      activeResumeToken=data.resumeToken||null;activeReconnectGraceMs=Number(data.reconnectGraceMs)||30000;reconnectAttempts=0;
-      saveStoredResume(privateMap?.mapId||'de_dust2',data.room,activeResumeToken,activeReconnectGraceMs);
+      if(!isOfflineLocal)preferences.setItem('dust2.last-session',JSON.stringify({room:data.room,mode:data.mode,mapId:privateMap?.mapId||'de_dust2',at:Date.now()}));
+      activeResumeToken=isOfflineLocal?null:(data.resumeToken||null);activeReconnectGraceMs=isOfflineLocal?0:(Number(data.reconnectGraceMs)||30000);reconnectAttempts=0;
+      if(!isOfflineLocal)saveStoredResume(privateMap?.mapId||'de_dust2',data.room,activeResumeToken,activeReconnectGraceMs);
       movementSupported=data.movementProtocol===1;movementPrediction.reset();fixed=0;networkAcc=0;
-      clearConnectTimers();displayedHostBots=null;matchPresentation.reset();connectionId=myId=data.id;room=data.room;mode=data.mode;connected=true;seq=0;shotId=0;lastShotEvidence=null;shotPrediction.reset();remotePlayers.clear();frameSamples.length=0;jumpId=0;reloadId=0;lastReliableReloadId=0;lastReliableInteract=false;lastSentSlot4Fire=false;resetScope();clearGameInput();lastSentInputSeq=-1;shotPrediction.pending=[];self=null;lastSnapshotAlive=false;previousHealth=100;handledEvents.clear();previousWeapon=null;previousReload=0;hud.reset();chat.reset();chat.element.hidden=false;matchView.reset();spectating=null;diagnostics.event(data.resumed?'reconnected':'connected');
+      clearConnectTimers();displayedHostBots=null;matchPresentation.reset();connectionId=myId=data.id;room=data.room;mode=data.mode;connected=true;seq=0;shotId=0;lastShotEvidence=null;shotPrediction.reset();remotePlayers.clear();frameSamples.length=0;jumpId=0;reloadId=0;lastReliableReloadId=0;lastReliableInteract=false;lastSentSlot4Fire=false;resetScope();clearGameInput();lastSentInputSeq=-1;shotPrediction.pending=[];self=null;lastSnapshotAlive=false;previousHealth=100;handledEvents.clear();previousWeapon=null;previousReload=0;hud.reset();chat.reset();chat.element.hidden=false;matchView.reset();spectating=null;diagnostics.event(isOfflineLocal?'local-connected':(data.resumed?'reconnected':'connected'));
       document.exitPointerLock?.();document.body.classList.remove('mouse-captured');$('loading-screen').hidden=true;
       $('menu').hidden=true;$('hud').hidden=false;document.body.classList.add('playing');
       $('pause-menu').dataset.entry='first';
-      $('pause-title').textContent=data.resumed?'重连成功':'准备就绪';
-      $('pause-context').textContent=`房间 ${room} · ${data.team==='CT'?'反恐精英':'恐怖分子'} · ${mode==='defuse'?'竞技爆破':'团队死斗'}`;
+      $('pause-title').textContent=isOfflineLocal?'本地人机 · 准备就绪':(data.resumed?'重连成功':'准备就绪');
+      $('pause-context').textContent=`${isOfflineLocal?'本地离线 (0ms)':`房间 ${room}`} · ${data.team==='CT'?'反恐精英':'恐怖分子'} · ${mode==='defuse'?'竞技爆破':'团队死斗'}`;
       $('resume-button').firstChild.textContent='进入战场 ';
       $('pause-menu').hidden=false;
       roomMenu.update(snapshot,connectionId);
-      $('room-label').textContent=room;$('board-room').textContent=`房间 ${room}`;$('room-code').value=room;
-      const q=new URL(location.href);q.searchParams.set('room',room);history.replaceState(null,'',q);
+      const roomDisplay=isOfflineLocal?'本地人机':`房间 ${room}`;
+      $('room-label').textContent=isOfflineLocal?'本地人机':room;$('board-room').textContent=roomDisplay;$('room-code').value=isOfflineLocal?'':room;
+      if(!isOfflineLocal){const q=new URL(location.href);q.searchParams.set('room',room);history.replaceState(null,'',q);}
       loading=false;$('start-button').disabled=false;$('join-button').disabled=false;
-      hud.toast(data.resumed?'重连成功 · 已恢复战绩与经济':`已加入 ${data.team} 阵营 · 点击进入战场`);
+      hud.toast(isOfflineLocal?`本地人机已就绪 · ${data.team} 阵营 · 0ms 离线对战`:(data.resumed?'重连成功 · 已恢复战绩与经济':`已加入 ${data.team} 阵营 · 点击进入战场`));
       settle(null);
     } else if(data.type==='snapshot'||data.type==='snapshotDelta'){
       let full=null;
@@ -1115,6 +1127,7 @@ export function quickStartRoom(options='defuse'){
   const opts=typeof options==='string'?{mode:options}:(options||{});
   if(opts.mode==='deathmatch'||opts.mode==='defuse')$('mode').value=opts.mode;
   if(opts.bots!==undefined&&opts.bots!==null&&/^[0-9]$/.test(String(opts.bots)))$('bots').value=String(opts.bots);
+  if(opts.difficulty&&BOT_DIFFICULTIES.includes(opts.difficulty))saveBotPreference(opts.difficulty);
   chooseTeam(['auto','T','CT'].includes(opts.team)?opts.team:'auto');
   updateModeLabels();
   return start(false,true);

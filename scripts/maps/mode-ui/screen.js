@@ -57,10 +57,13 @@ const AGENT_SHOWCASE = {
 let saved = {};
 try { saved = JSON.parse(localStorage.getItem(storageKey)) || {}; } catch {}
 let quickMode = ['any', 'defuse', 'deathmatch'].includes(saved.quickMode) ? saved.quickMode : 'any';
+let customMatchType = saved.customMatchType === 'offline' ? 'offline' : 'online';
 let customMode = saved.customMode === 'deathmatch' ? 'deathmatch' : 'defuse';
 let customTeam = ['auto', 'T', 'CT'].includes(saved.customTeam) ? saved.customTeam : 'auto';
 let customBots = Number.isInteger(saved.customBots) && saved.customBots >= 0 && saved.customBots <= 9 ? saved.customBots : 9;
+let customDifficulty = ['easy', 'normal', 'hard', 'vitality'].includes(saved.customDifficulty) ? saved.customDifficulty : 'normal';
 let previewFaction = saved.previewFaction === 'T' ? 'T' : 'CT';
+const difficultyLabels = { easy: '轻松', normal: '普通', hard: '困难', vitality: 'Vitality 挑战' };
 let maps = [];
 let selected;
 let images = {};
@@ -387,9 +390,11 @@ function remember() {
       map: selected?.id || 'de_dust2',
       mode: 'performance',
       quickMode,
+      customMatchType,
       customMode,
       customTeam,
       customBots,
+      customDifficulty,
       previewFaction,
     }));
   } catch {}
@@ -558,6 +563,9 @@ function renderCustomBotPips() {
 }
 
 function syncCustomUI() {
+  document.querySelectorAll('[data-custom-match-type]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.customMatchType === customMatchType);
+  });
   document.querySelectorAll('[data-custom-mode]').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.customMode === customMode);
   });
@@ -567,6 +575,11 @@ function syncCustomUI() {
   document.querySelectorAll('[data-custom-bots]').forEach(btn => {
     btn.classList.toggle('active', Number(btn.dataset.customBots) === customBots);
   });
+  document.querySelectorAll('[data-custom-difficulty]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.customDifficulty === customDifficulty);
+  });
+  const diffField = $('customDifficultyField');
+  if (diffField) diffField.hidden = customMatchType !== 'offline';
   const minus = $('customBotMinus'), plus = $('customBotPlus');
   if (minus) minus.disabled = customBots <= 0;
   if (plus) plus.disabled = customBots >= 9;
@@ -579,8 +592,15 @@ function syncCustomUI() {
         ? '9 名 · 5v5 满员'
         : `${customBots} 名人机`;
   }
+  const launchBtn = $('customLaunchBtn');
+  if (launchBtn) {
+    launchBtn.textContent = customMatchType === 'offline' ? '⚡ 开始本地人机 →' : '创建并进入 →';
+  }
   if (selected) {
-    $('customLaunchSummary').textContent = `${selected.nameZh} · ${modeLabels[customMode]} · ${teamLabels[customTeam]} · ${customBots} 名人机`;
+    const modeTag = customMatchType === 'offline'
+      ? `本地人机 (${difficultyLabels[customDifficulty] || '普通'})`
+      : '在线联机';
+    $('customLaunchSummary').textContent = `${modeTag} · ${selected.nameZh} · ${modeLabels[customMode]} · ${teamLabels[customTeam]} · ${customBots} 名人机`;
   }
 }
 
@@ -678,6 +698,41 @@ document.querySelectorAll('[data-quick-mode]').forEach(btn => {
 });
 syncQuickModePills();
 
+function launchQuickOffline() {
+  const mapId = selected?.id || 'de_dust2';
+  const mode = quickMode === 'deathmatch' ? 'deathmatch' : 'defuse';
+  const bots = customBots > 0 ? customBots : 9;
+  const params = new URLSearchParams({
+    offline: '1',
+    autostart: '1',
+    matchMode: mode,
+    bots: String(bots),
+    team: customTeam || 'auto',
+    difficulty: customDifficulty || 'normal',
+  });
+  location.assign(matchRouteUrl(mapId, params));
+}
+
+$('quickOfflineBtn')?.addEventListener('click', launchQuickOffline);
+$('quickOfflineMobile')?.addEventListener('click', launchQuickOffline);
+$('offlineFromError')?.addEventListener('click', launchQuickOffline);
+
+document.querySelectorAll('[data-custom-match-type]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    customMatchType = btn.dataset.customMatchType === 'offline' ? 'offline' : 'online';
+    if (customMatchType === 'offline' && customBots === 0) customBots = 9;
+    syncCustomUI();
+    remember();
+  });
+});
+document.querySelectorAll('[data-custom-difficulty]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    customDifficulty = btn.dataset.customDifficulty;
+    if (customDifficulty === 'vitality' && customBots < 5) customBots = 5;
+    syncCustomUI();
+    remember();
+  });
+});
 document.querySelectorAll('[data-custom-mode]').forEach(btn => {
   btn.addEventListener('click', () => { customMode = btn.dataset.customMode; syncCustomUI(); remember(); });
 });
@@ -699,6 +754,12 @@ $('customLaunchBtn')?.addEventListener('click', async () => {
     bots: String(customBots),
     team: customTeam,
   });
+  if (customMatchType === 'offline') {
+    params.set('offline', '1');
+    params.set('difficulty', customDifficulty || 'normal');
+    location.assign(matchRouteUrl(selected.id, params));
+    return;
+  }
   if (controlPlaneEnabled) {
     if (btn) btn.disabled = true;
     try {
