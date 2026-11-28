@@ -512,7 +512,8 @@ async function start(joinExisting=false, directoryNavigation=false){
       const botWeapons=new Set();
       if(!joinExisting && Number($('bots').value)>0){
         for(const side of ['T','CT']){
-          for(const id of selectedSkinIds(null,[startingPistolForTeam(null,side),'knife',...(deathmatch?[defaultPrimaryForTeam(side)]:[])]))botWeapons.add(id);
+          const botSkins={...STARTER_SKINS,knife:side==='T'?'default-t-vanilla':'default-ct-vanilla'};
+          for(const id of selectedSkinIds(botSkins,[startingPistolForTeam(null,side),'knife',...(deathmatch?[defaultPrimaryForTeam(side)]:[])]))botWeapons.add(id);
         }
       }
       setLoadStage('download',attempt?'装备已变更，补充房间外观':'准备房间探员与第一人称手套');

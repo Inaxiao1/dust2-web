@@ -30,6 +30,7 @@ import {c4Damage} from './c4-blast.js';
 import { createPlayerState, stepPlayer, raycastWorld, raycastWorldContact, raycastGrenadeWorld, raycastWorldHit, floorHeight, STAND_HEIGHT, CROUCH_HEIGHT } from '../shared/physics.js';
 import { WEAPONS, PRIMARY_WEAPONS, getWeapon, normalizeWeapon, canTeamUseWeapon, defaultPrimaryForTeam, weaponSpeedScale } from '../shared/weapons.js';
 import { DEFAULT_SKINS, getSkin, normalizeSkinLoadout } from '../shared/skins.js';
+import { STARTER_SKINS } from '../shared/progression.js';
 import { DEFAULT_AGENT_IDS, getAgent, normalizeAgentLoadout } from '../shared/agents.js';
 import { EQUIPMENT, UTILITY_IDS, MAX_GRENADES, getEquipment, canTeamBuyEquipment, equipmentPrice, grenadeCount } from '../shared/equipment.js';
 import { GrenadeSimulation } from './grenades.js';
@@ -339,7 +340,7 @@ export class GameRoom {
 
   makePlayer(id, name, team, bot, primary = 'auto', weaponLoadout) {
     const player = { ...createPlayerState(this.pickSpawn(team)), id, seat:this.freeSeat(team), lifeId:1,name, team, teamId:this.teamForSide(team), bot, musicKit:bot?'valve_cs2_01':'neckdeep_01', health: 100, armor: this.mode === 'deathmatch' ? 100 : 0, alive: true,
-      money: this.mode === 'deathmatch' ? 16000 : 800, kills: 0, roundKills:0,lifeKills:0,killCards:[],deaths: 0, assists: 0,headshots:0, inventory: {}, skins:{...DEFAULT_SKINS}, slot: this.mode === 'deathmatch' ? 1 : 2,
+      money: this.mode === 'deathmatch' ? 16000 : 800, kills: 0, roundKills:0,lifeKills:0,killCards:[],deaths: 0, assists: 0,headshots:0, inventory: {}, skins: bot ? { ...STARTER_SKINS, knife: team === 'T' ? 'default-t-vanilla' : 'default-ct-vanilla' } : { ...DEFAULT_SKINS }, slot: this.mode === 'deathmatch' ? 1 : 2,
       helmet:this.mode==='deathmatch',defuseKit:false,zoomLevel:0,flashBlindUntil:0,agents:{...DEFAULT_AGENT_IDS},agentId:DEFAULT_AGENT_IDS[team],
       weapon: 'pistol', input: neutralInput(), inputAt: 0, seq: -1, lastReceivedSeq: -1, lastShotTime: 0, nextShotAt: 0, reloadEndsAt: 0,
       respawnAt: 0, protectionUntil: this.clock() + this.rules.protectionSeconds * 1000, triggerWasDown: false, hasBomb: false,
