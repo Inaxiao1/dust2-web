@@ -23,6 +23,8 @@ test('multi-shard hot-map gateway transparently scales rooms across workers and 
       PERF_SHARD_MAPS: 'de_dust2:3',
       PERF_SHARD_TARGET_ROOMS: '2',
       PERF_STRICT_HEAVY_LOCK: '0',
+      PERF_RTC_UDP_PORT: '39999',
+      PERF_RTC_PUBLIC_IP: '127.0.0.1',
     },
     stdio: ['ignore', 'pipe', 'inherit', 'ipc'],
     windowsHide: true,
@@ -47,7 +49,16 @@ test('multi-shard hot-map gateway transparently scales rooms across workers and 
     return res.json();
   };
   const config = await get('/perf/play/de_dust2/private-map.json');
+  assert.equal(config.rtcEnabled, false);
   const wsUrl = origin.replace('http:', 'ws:') + '/perf/play/de_dust2/ws';
+  for (const prefix of ['/perf/play/', '/perf/quality/play/']) {
+    const offer = await fetch(origin + prefix + 'de_dust2/rtc-offer', {
+      method: 'POST',
+      signal: AbortSignal.timeout(5000),
+    });
+    assert.equal(offer.status, 404);
+    assert.equal((await offer.json()).error, 'RTC_DISABLED');
+  }
 
   async function openWs() {
     const ws = new WebSocket(wsUrl);
@@ -89,6 +100,7 @@ test('multi-shard hot-map gateway transparently scales rooms across workers and 
   }
 
   const health = await get('/perf/health');
+  assert.deepEqual(health.rtc, {enabled: false});
   const dustShards = health.workers.filter(w => w.id === 'de_dust2');
   assert.equal(dustShards.length, 3, `Expected 3 de_dust2 shards, got ${JSON.stringify(dustShards)}`);
   assert.ok(dustShards.every(w => w.connections >= 1), `Every shard should hold >= 1 room: ${JSON.stringify(dustShards)}`);
@@ -103,6 +115,9 @@ test('multi-shard hot-map gateway transparently scales rooms across workers and 
   }
   assert.equal(dir.totalRooms, 5);
   assert.equal(dir.totalHumans, 5);
+  const {network} = await get('/perf/internal/telemetry.json');
+  assert.equal(network.ws, 5);
+  assert.equal(network.udp, 0);
 
   // Pre-join ping and listRooms work over WS on sharded maps.
   const probeWs = await openWs();
@@ -122,8 +137,23 @@ test('multi-shard hot-map gateway transparently scales rooms across workers and 
   assert.equal(cosm.room, targetCode);
   await leave(cosmWs);
 
-  const guest = await joinRoom({name: 'Guest4', room: targetCode, existing: true});
+  const guest = await joinRoom({name: 'Guest4', room: targetCode, existing: true, snapshotDelta: 1, ackDelta: 1});
   assert.equal(guest.reply.room, targetCode);
+  const snapshotSignal = AbortSignal.timeout(5000);
+  let baseSid = null;
+  while (true) {
+    const [raw] = await once(guest.ws, 'message', {signal: snapshotSignal});
+    const frame = JSON.parse(raw.toString());
+    if (baseSid === null && frame.type === 'snapshot' && Number.isInteger(frame.sid)) {
+      baseSid = frame.sid;
+      guest.ws.send(JSON.stringify({type: 'snapAck', ackSid: baseSid}));
+    }
+    if (frame.type === 'snapshotDelta') {
+      assert.equal(frame.baseSid, baseSid);
+      assert.ok(frame.sid > baseSid);
+      break;
+    }
+  }
 
   // Private room on a sharded map: hidden from /perf/rooms.json, but friend joins by code!
   const privHost = await joinRoom({name: 'PrivHost', room: 'PRIV99', visibility: 'private'});
