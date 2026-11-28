@@ -6,6 +6,7 @@ import { UTILITY_IDS } from '../shared/equipment.js';
 import { WEAPONS, getWeapon } from '../shared/weapons.js';
 import {cs2FovToVertical} from '../shared/cs2-settings.js';
 import { DEFAULT_SKINS, getSkin } from '../shared/skins.js';
+import { STARTER_SKINS } from '../shared/progression.js';
 import { loadedSkin, requestSkin, retainSkin, releaseSkin } from './skin-assets.js';
 import { disposeInstanceAnimation, disposeInstanceSkeletons } from './resource-lifecycle.js';
 import {DEFAULT_AGENT_IDS,getAgent} from '../shared/agents.js';
@@ -128,11 +129,13 @@ export class ViewWeapon {
 
   set(id,skinId,agentId=this.agentId||'ct-sas') {
     if (!WEAPONS[id]&&!UTILITY_IDS.includes(id)&&id!=='c4') {this.group.visible=false;return;}
-    if(UTILITY_IDS.includes(id)||id==='c4')skinId=id;else if(getSkin(skinId)?.weapon!==id)skinId=DEFAULT_SKINS[id];
+    if(UTILITY_IDS.includes(id)||id==='c4')skinId=id;else if(getSkin(skinId)?.weapon!==id)skinId=STARTER_SKINS[id]||DEFAULT_SKINS[id];
     if(!getAgent(agentId))agentId='ct-sas';requestAgentArms(agentId);
     const fallback=DEFAULT_AGENT_IDS[getAgent(agentId).team];requestAgentArms(fallback);
     const visibleAgent=loadedAgentArms(agentId)?agentId:fallback;
-    requestSkin(skinId);const visibleSkin=loadedSkin(skinId)?skinId:UTILITY_IDS.includes(id)||id==='c4'?id:DEFAULT_SKINS[id],cacheKey=id+':'+visibleSkin+':'+visibleAgent;
+    requestSkin(skinId);
+    const fallbackSkin=loadedSkin(STARTER_SKINS[id])?STARTER_SKINS[id]:DEFAULT_SKINS[id];
+    const visibleSkin=loadedSkin(skinId)?skinId:UTILITY_IDS.includes(id)||id==='c4'?id:fallbackSkin,cacheKey=id+':'+visibleSkin+':'+visibleAgent;
     if(!loadedSkin(visibleSkin)||!loadedAgentArms(visibleAgent)){this.waiting=true;this.rig.visible=false;return;}this.waiting=false;this.rig.visible=true;
     if (id === this.id && this.skinId===visibleSkin && this.agentId===visibleAgent) return;
     if (this.active) { this.rig.remove(this.active.root); this.active.flash.visible=false; this.active.light.intensity=0; }

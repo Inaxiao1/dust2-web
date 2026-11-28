@@ -3,9 +3,10 @@ import { MAP } from '../shared/map-data.js';
 import {legacyBombSiteAt} from '../shared/bomb-zones.js';
 import { UTILITY_IDS, EQUIPMENT } from '../shared/equipment.js';
 import { getWeapon } from '../shared/weapons.js';
-import { getSkin, DEFAULT_SKINS } from '../shared/skins.js';
+import { getSkin } from '../shared/skins.js';
+import { STARTER_SKINS } from '../shared/progression.js';
 import { AGENT_ASSETS } from '../shared/agent-assets.js';
-import { uiIcon, uiIconUrl } from './ui-icons.js';
+import { uiIcon, uiIconUrl, weaponIconId, knifeDisplayName } from './ui-icons.js';
 import {imageAssetURL} from './image-asset-url.js';
 import { DeathScreen } from './death-screen.js';
 import './death-screen.css';
@@ -80,7 +81,7 @@ export class HUD {
     if (element && element.textContent !== content) element.textContent = content;
   }
 
-  update(snapshot, self, { ping = 0, fps = 0, spectating = null, interactKey='E',canTakeBot=false,touch=false, scoreboardKey = 'Tab', menuKey = 'Esc', nextSpectatorKey = '左键', previousSpectatorKey = '右键' } = {}) {
+  update(snapshot, self, { ping = 0, fps = 0, spectating = null, equippedSkins = null, interactKey='E',canTakeBot=false,touch=false, scoreboardKey = 'Tab', menuKey = 'Esc', nextSpectatorKey = '左键', previousSpectatorKey = '右键' } = {}) {
     if (!snapshot || !self) return;
     const time = now();
     if (this.snapshotTime !== snapshot.time || this.lastSnapshot?.room !== snapshot.room) {
@@ -97,7 +98,7 @@ export class HUD {
     this.lastSelf = self;
     this.myId = self.id;
     this.killCards.update(snapshot,self);
-    this.loadout.update(self);
+    this.loadout.update(self, equippedSkins);
     const elapsed = Math.max(0, (time - this.receivedAt) / 1000);
     this.deathScreen.update(snapshot, self, { elapsed, spectating, interactKey,canTakeBot,touch,scoreboardKey, menuKey, nextSpectatorKey, previousSpectatorKey });
     const round = snapshot.round || {};
@@ -122,10 +123,18 @@ export class HUD {
     if(this.armorHelmet!==!!self.helmet){this.armorHelmet=!!self.helmet;this.armorIcon.src=uiIconUrl(self.helmet?'hudHelmet':'hudArmor');}
     this.kitIcon.hidden=!self.defuseKit;
     this.text('money', `$ ${Math.max(0, Math.round(number(self.money))).toLocaleString('en-US')}`);
-    const heldSkin=getSkin(self.skinId||DEFAULT_SKINS[self.weapon]),knifeName=self.weapon==='knife'&&heldSkin?.animationFamily?heldSkin.name.split(' · ')[0]:weapon.name;
-    this.text('weapon-name', weapon.burstSize?knifeName+(self.burstMode?' · 三连发':' · 半自动'):knifeName);this.text('slot3',self.weapon==='knife'?'3 '+knifeName:'3 近战武器');
-    this.text('weapon-skin', getSkin(self.skinId||DEFAULT_SKINS[self.weapon])?.name || '');
-    const silhouette=document.getElementById('active-weapon-icon');if(silhouette&&this.iconWeapon!==self.weapon+':'+self.skinId){this.iconWeapon=self.weapon+':'+self.skinId;if(self.weapon==='knife'&&heldSkin?.animationFamily){const image=document.createElement('img');image.src=imageAssetURL(heldSkin.preview);image.alt=knifeName;silhouette.replaceChildren(image);}else silhouette.replaceChildren(uiIcon(self.weapon,weapon.name));}
+    const fallbackSkinId = (self.weapon === 'knife' ? equippedSkins?.knife : equippedSkins?.[self.weapon]) || STARTER_SKINS[self.weapon];
+    const heldSkin = getSkin(self.skinId || fallbackSkinId);
+    const knifeName = self.weapon === 'knife' ? knifeDisplayName(heldSkin?.id, self.team) : weapon.name;
+    this.text('weapon-name', weapon.burstSize ? knifeName + (self.burstMode ? ' · 三连发' : ' · 半自动') : knifeName);
+    this.text('slot3', self.weapon === 'knife' ? '3 ' + knifeName : '3 近战武器');
+    this.text('weapon-skin', heldSkin?.name || (weapon.slot >= 4 ? '原厂装备' : '原厂涂装'));
+    const activeIconId = weaponIconId(self.weapon, heldSkin?.id, self.team);
+    const silhouette = document.getElementById('active-weapon-icon');
+    if (silhouette && this.iconWeapon !== `${self.weapon}:${activeIconId}`) {
+      this.iconWeapon = `${self.weapon}:${activeIconId}`;
+      silhouette.replaceChildren(uiIcon(activeIconId, knifeName));
+    }
     this.text('ammo', [3,5].includes(weapon.slot) ? '—' : Math.max(0, Math.floor(number(self.ammo))));
     this.text('reserve', [3,5].includes(weapon.slot) ? '—' : self.reserveAmmoAsClips ? `${Math.max(0,Math.floor(number(self.reserveClips)))} 匣` : Math.max(0, Math.floor(number(self.reserve))));
     if(this.elements.slot5)this.elements.slot5.hidden=!self.hasBomb;
@@ -270,7 +279,10 @@ export class HUD {
       const killerLabel = document.createElement('span');
       killerLabel.textContent = event.killerName || killer?.name || (event.killerId ? '玩家' : '环境');
       killerLabel.style.color = TEAM_COLORS[killer?.team] || '#d2d8cc';
-      const weaponLabel = uiIcon(event.weapon,event.weapon==='world'?'环境伤害':(EQUIPMENT[event.weapon]||getWeapon(event.weapon)).name,'kill-weapon-icon');
+      const killKnifeSkin = event.weapon === 'knife' ? (event.weaponSkin || (killer?.weapon === 'knife' ? killer.skinId : null)) : null;
+      const killIcon = weaponIconId(event.weapon, killKnifeSkin, killer?.team);
+      const killWeaponTitle = event.weapon === 'world' ? '环境伤害' : event.weapon === 'knife' ? knifeDisplayName(killKnifeSkin, killer?.team) : (EQUIPMENT[event.weapon] || getWeapon(event.weapon)).name;
+      const weaponLabel = uiIcon(killIcon, killWeaponTitle, 'kill-weapon-icon');
       const victimLabel = document.createElement('span');
       victimLabel.textContent = victim?.name || event.victimName || '玩家'; victimLabel.style.color = TEAM_COLORS[victim?.team] || '#d2d8cc';
       node.append(killerLabel);

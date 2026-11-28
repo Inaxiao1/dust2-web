@@ -1,6 +1,6 @@
 import { WEAPONS, normalizeWeapon } from '../shared/weapons.js';
 import { getEquipment } from '../shared/equipment.js';
-import { uiIconUrl } from './ui-icons.js';
+import { uiIconUrl, weaponIconId, knifeDisplayName } from './ui-icons.js';
 import { canWatchBomb } from './match-view.js';
 
 // References: Valve's Spectator UI (2012-08-30) describes staying in the match
@@ -23,7 +23,11 @@ export function describeDeath(snapshot, self, { event = null, elapsed = 0, spect
   const round = snapshot.round || {};
   const seconds = mode === 'deathmatch' ? remaining(self.respawnIn, elapsed) : remaining(round.timeLeft, elapsed);
   const weapon = kill ? normalizeWeapon(kill.weapon) : '';
-  const weaponName = WEAPONS[weapon]?.name || getEquipment(weapon)?.name || ({ bomb: 'C4 爆炸', c4: 'C4 爆炸', world: '环境伤害' })[weapon] || (kill ? '其他伤害' : '');
+  const weaponSkin = kill?.weaponSkin || (weapon === 'knife' && killer?.weapon === 'knife' ? killer.skinId : null);
+  const resolvedWeaponIcon = weapon ? weaponIconId(weapon, weaponSkin, killer?.team) : '';
+  const weaponName = weapon === 'knife'
+    ? knifeDisplayName(weaponSkin, killer?.team)
+    : WEAPONS[weapon]?.name || getEquipment(weapon)?.name || ({ bomb: 'C4 爆炸', c4: 'C4 爆炸', world: '环境伤害' })[weapon] || (kill ? '其他伤害' : '');
   let statusTitle, statusDetail, clock = '', clockLabel = '';
   if (round.phase==='matchEnded'||snapshot.match?.status==='ended') {
     statusTitle='比赛结束';statusDetail='返回大厅，创建或加入下一场比赛';
@@ -53,7 +57,7 @@ export function describeDeath(snapshot, self, { event = null, elapsed = 0, spect
     visible: true, mode, hasKill: !!kill,
     killerName: kill ? label(killer?.name || kill.killerName, kill.killerId ? '对手' : '环境') : '你已阵亡',
     killerTeam: killer?.team === 'CT' || killer?.team === 'T' ? killer.team : '',
-    weaponName, weaponId:weapon, headshot: !!kill?.headshot,
+    weaponName, weaponId: weapon, weaponIconId: resolvedWeaponIcon, headshot: !!kill?.headshot,
     statusTitle, statusDetail, seconds, clock, clockLabel,
     teamAlive: teammates.length, observedName: watched ? label(watched.name, '队友') : '',
   };
@@ -85,7 +89,7 @@ export class DeathScreen {
     if (event?.type !== 'kill' || event.victimId !== myId) return;
     const victim = snapshot?.players?.find(player => player.id === myId);
     this.eventRecord = { type: 'kill', victimId: event.victimId, killerId: event.killerId,
-      killerName: event.killerName, weapon: event.weapon, headshot: !!event.headshot };
+      killerName: event.killerName, weapon: event.weapon, weaponSkin: event.weaponSkin || null, headshot: !!event.headshot };
     this.room = snapshot?.room || null;
     this.deaths = victim?.deaths ?? null;
   }
@@ -106,7 +110,8 @@ export class DeathScreen {
     write(this.parts.killer, state.killerName);
     this.parts.killer.dataset.team = state.killerTeam;
     write(this.parts.weapon.querySelector('span'), state.weaponName);
-    const weaponIcon=this.parts.weapon.querySelector('.death-weapon-icon');if(weaponIcon.dataset.weapon!==state.weaponId){weaponIcon.dataset.weapon=state.weaponId;weaponIcon.src=uiIconUrl(state.weaponId);weaponIcon.alt=state.weaponName;}
+    const iconKey=state.weaponIconId||state.weaponId;
+    const weaponIcon=this.parts.weapon.querySelector('.death-weapon-icon');if(weaponIcon.dataset.weapon!==iconKey){weaponIcon.dataset.weapon=iconKey;weaponIcon.src=uiIconUrl(iconKey);weaponIcon.alt=state.weaponName;}
     this.parts.weapon.querySelector('em').hidden = !state.headshot;
     this.parts.weapon.hidden = !state.weaponName;
     write(this.parts.status.querySelector('b'), state.statusTitle);

@@ -242,18 +242,24 @@ if (toyMapsMode !== 'none') {
 }
 breakdown.mapsMB = +((toyBytes - layerStart) / 1e6).toFixed(2);
 
-// Layer 5: Fill remaining headroom (< toyLimitBytes) with core default / vanilla starter weapons (.glb.gz)!
+// Layer 5: Fill remaining headroom (< toyLimitBytes) with starter vanilla weapons & CT/T knives first, then flagship skins (.glb.gz)!
 layerStart = toyBytes;
 const PRIORITY_WEAPONS = [
-  'ak47', 'm4a1', 'm4a4', 'awp', 'pistol', 'usp', 'deagle', 'knife',
+  'knife', 'pistol', 'usp', 'ak47', 'm4a1', 'm4a4', 'awp', 'deagle',
   'p250', 'mp9', 'mac10', 'galilar', 'famas', 'ssg08', 'fiveseven', 'tec9', 'ump45', 'p90', 'xm1014',
 ];
 const candidateSkins = [];
+const addedIds = new Set();
+const pushSkin = (s) => { if (s && !addedIds.has(s.id)) { addedIds.add(s.id); candidateSkins.push(s); } };
+// Always pack both starter knives (CT & T tactical knives) first!
+pushSkin(SKINS.find((s) => s.id === 'default-ct-vanilla'));
+pushSkin(SKINS.find((s) => s.id === 'default-t-vanilla'));
 for (const w of PRIORITY_WEAPONS) {
-  const def = SKINS.find((s) => s.weapon === w && s.isDefault);
-  const van = SKINS.find((s) => s.weapon === w && /-vanilla$/.test(s.id));
-  if (def) candidateSkins.push(def);
-  if (van && van !== def) candidateSkins.push(van);
+  if (w === 'knife') continue;
+  pushSkin(SKINS.find((s) => s.weapon === w && s.condition === 'Vanilla'));
+}
+for (const w of PRIORITY_WEAPONS) {
+  pushSkin(SKINS.find((s) => s.weapon === w && s.isDefault));
 }
 let packedStarterWeapons = 0;
 for (const skin of candidateSkins) {

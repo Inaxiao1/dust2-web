@@ -683,7 +683,8 @@ export class GameRoom {
     const scorer=this.players.get(killer?.controllerId)||killer;
     const assist=credited?awardAssist(this,victim,killer):{};
     if (credited) { scorer.kills++;if(headshot)scorer.headshots=(scorer.headshots||0)+1;scorer.roundKills=(scorer.roundKills||0)+1;scorer.lifeKills=(scorer.lifeKills||0)+1;scorer.killCards||=[];if(scorer.killCards.length<5)scorer.killCards.push({weapon,headshot,backstab:metadata.backstab===true});killer.money = Math.min(16000, killer.money + (weapon === 'knife' ? 750 : 300)); if (this.mode === 'deathmatch') this.scores[killer.team]++; }
-    this.emit('kill', { killerId: killer?.id || null, victimId: victim.id, killerName: scorer?.name || '环境',killerControllerId:killer?.controllerId||null, victimName: victim.name, weapon, headshot,...metadata,...assist,credited,killerRoundKills:credited?scorer.roundKills:0,killerLifeKills:credited?scorer.lifeKills:0 });
+    const weaponSkin = weapon === 'knife' && killer ? this.heldSkin(killer, 'knife') : undefined;
+    this.emit('kill', { killerId: killer?.id || null, victimId: victim.id, killerName: scorer?.name || '环境',killerControllerId:killer?.controllerId||null, victimName: victim.name, weapon, ...(weaponSkin ? { weaponSkin } : {}), headshot,...metadata,...assist,credited,killerRoundKills:credited?scorer.roundKills:0,killerLifeKills:credited?scorer.lifeKills:0 });
     if(this.mode==='deathmatch'&&killer&&this.scores[killer.team]>=MATCH_RULES.deathmatchWinTarget)this.endMatch(killer.teamId,'队伍率先完成 100 次击杀');
   }
 

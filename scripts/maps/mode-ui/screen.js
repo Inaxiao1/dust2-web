@@ -178,7 +178,7 @@ toyIdentity.init().then((s) => {
 
 async function syncLobbyCloudProgression() {
   try {
-    if (!hubLoader) hubLoader = import(staticUrl('assets/lobby-hub.js'));
+    if (!hubLoader) hubLoader = import(new URL(staticUrl('assets/lobby-hub.js'), document.baseURI).href);
     const mod = await hubLoader;
     const initProg = mod?.initHubProgression || globalThis.__CS2_LOBBY_HUB__?.initHubProgression;
     if (typeof initProg === 'function') {
@@ -315,7 +315,7 @@ async function openHub(panel, triggerBtn) {
   try {
     closeCustomModal();
     if (!hubLoader) {
-      hubLoader = import(staticUrl('assets/lobby-hub.js'));
+      hubLoader = import(new URL(staticUrl('assets/lobby-hub.js'), document.baseURI).href);
     }
     const mod = await hubLoader;
     const opener = mod?.openHubPanel || globalThis.__CS2_LOBBY_HUB__?.openHubPanel;

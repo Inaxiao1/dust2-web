@@ -1,21 +1,30 @@
 import {WEAPONS, getWeapon} from '../shared/weapons.js';
 import {EQUIPMENT, UTILITY_IDS} from '../shared/equipment.js';
-import {uiIcon} from './ui-icons.js';
+import {uiIcon, weaponIconId, knifeDisplayName} from './ui-icons.js';
 
 /** Render only the local player's authoritative equipment, never opponents'. */
-export function loadoutRows(self) {
+export function loadoutRows(self, equippedSkins = null) {
   const inventory = Array.isArray(self.inventory) ? self.inventory : [];
   const rows = [];
+  const knifeSkinId =
+    (self.weapon === 'knife' ? self.skinId : null) ||
+    equippedSkins?.knife ||
+    self.skins?.knife ||
+    null;
   for (const slot of [1, 2, 3]) {
     const id = inventory.find(id => WEAPONS[id]?.slot === slot);
-    if (id) rows.push({slot, id, name: getWeapon(id).name, count: 1, active: self.weapon === id});
+    if (id) {
+      const name = id === 'knife' ? knifeDisplayName(knifeSkinId, self.team) : getWeapon(id).name;
+      const iconId = weaponIconId(id, id === 'knife' ? knifeSkinId : null, self.team);
+      rows.push({slot, id, iconId, name, count: 1, active: self.weapon === id});
+    }
   }
   for (const id of UTILITY_IDS) {
     const count = Math.max(0, Math.floor(Number(self.utilityCounts?.[id]) || 0));
-    if (count) rows.push({slot: 4, id, name: EQUIPMENT[id].name, count, active: self.weapon === id});
+    if (count) rows.push({slot: 4, id, iconId: id, name: EQUIPMENT[id].name, count, active: self.weapon === id});
   }
-  if (self.hasBomb) rows.push({slot: 5, id: 'c4', name: 'C4 炸弹', count: 1, active: self.weapon === 'c4'});
-  if (self.defuseKit) rows.push({slot: null, id: 'defusekit', name: '拆弹工具', count: 1, active: false});
+  if (self.hasBomb) rows.push({slot: 5, id: 'c4', iconId: 'c4', name: 'C4 炸弹', count: 1, active: self.weapon === 'c4'});
+  if (self.defuseKit) rows.push({slot: null, id: 'defusekit', iconId: 'defusekit', name: '拆弹工具', count: 1, active: false});
   return rows;
 }
 
@@ -26,8 +35,8 @@ export class HudLoadout {
     this.element.setAttribute('aria-label', '携带装备');
     parent?.append(this.element);
   }
-  update(self) {
-    const rows = loadoutRows(self), signature = JSON.stringify(rows);
+  update(self, equippedSkins = null) {
+    const rows = loadoutRows(self, equippedSkins), signature = JSON.stringify(rows);
     if (signature === this.signature) return;
     this.signature = signature;
     this.element.replaceChildren(...rows.map(row => {
@@ -39,7 +48,7 @@ export class HudLoadout {
       const name = document.createElement('span');name.className = 'hud-loadout-name';name.textContent = row.name;
       const key = document.createElement('small');key.textContent = row.slot ?? '';
       const count = document.createElement('b');count.textContent = row.count > 1 ? `×${row.count}` : '';
-      item.append(name, uiIcon(row.id), count, key);
+      item.append(name, uiIcon(row.iconId || row.id, row.name), count, key);
       return item;
     }));
   }

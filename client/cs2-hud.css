@@ -43,7 +43,7 @@
  body:not(.touch-device) #hud #network-status { position:fixed; right:var(--hud-edge); bottom:8px; font-size:9px; color:#d9e6ce; }
  body:not(.touch-device) #hud .room-label { opacity:.7; font-size:9px; }
  /* Centre vitals: 42px numerals, 65px bars, 64px team emblem. */
- body:not(.touch-device) #hud .bottom-left { left:auto;right:calc(50% + 200px); bottom:18px; display:block; }
+ body:not(.touch-device) #hud .bottom-left { left:auto;right:calc(50% + clamp(115px,14vw,200px)); bottom:18px; display:block; }
  body:not(.touch-device) #hud .health-stat { position:relative; height:64px; gap:10px; align-items:center; }
  body:not(.touch-device) #hud .health-stat>b { font:700 42px CS2Stratum,sans-serif; min-width:70px; text-align:center;order:2; }
  body:not(.touch-device) #hud .health-stat>span { display:none; }
@@ -65,12 +65,12 @@
  body:not(.touch-device) #hud .bottom-right>#active-weapon-icon { display:none; }
  body:not(.touch-device) #hud #weapon-name { font:500 13px Arial,sans-serif; letter-spacing:0; }
  body:not(.touch-device) #hud #weapon-skin { font-size:10px; color:#e3dcc4; }
- body:not(.touch-device) #hud .ammo-stat { position:fixed; left:calc(50% + 200px); bottom:18px; height:64px; min-width:140px; align-items:center; justify-content:flex-start; gap:5px; margin:0; }
+ body:not(.touch-device) #hud .ammo-stat { position:fixed; left:calc(50% + clamp(115px,14vw,200px)); bottom:18px; height:64px; min-width:140px; align-items:center; justify-content:flex-start; gap:5px; margin:0; }
  body:not(.touch-device) #hud .ammo-stat>b { font:700 42px CS2Stratum,sans-serif; width:65px; text-align:center; }
  body:not(.touch-device) #hud .ammo-stat>span { font:500 32px CS2Stratum,sans-serif; opacity:.8; }
  body:not(.touch-device) #hud .ammo-stat::after { content:''; position:absolute; left:0; bottom:4px; width:65px; height:4px; background:linear-gradient(to right,currentColor calc(var(--ammo-ratio)*100%),#ffffff24 0); border:1px solid #0005; }
  body:not(.touch-device) #hud[data-ammo-visible=false] .ammo-stat { visibility:hidden; }
- body:not(.touch-device) #hud #reload-label { position:fixed; left:calc(50% + 200px); bottom:3px; font-size:9px; opacity:.65; max-width:250px; white-space:nowrap; }
+ body:not(.touch-device) #hud #reload-label { position:fixed; left:calc(50% + clamp(115px,14vw,200px)); bottom:3px; font-size:9px; opacity:.65; max-width:250px; white-space:nowrap; }
  body:not(.touch-device) #hud .bottom-center, body:not(.touch-device) #hud .utility-belt, body:not(.touch-device) #hud .hint-bar { display:none; }
  body:not(.touch-device) #hud .hud-loadout { display:grid;grid-template-columns:repeat(5,1fr);position:absolute; right:var(--hud-edge); bottom:22px; width:230px; gap:2px; color:#fff; }
  .hud-loadout-row { display:flex; align-items:center; justify-content:flex-end; gap:7px; height:48px; opacity:.45;grid-column:1/-1; }

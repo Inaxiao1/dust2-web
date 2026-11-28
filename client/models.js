@@ -8,6 +8,7 @@ import { loadViewModels } from './viewmodel.js';
 import { UTILITY_IDS } from '../shared/equipment.js';
 import { getWeapon, WEAPONS } from '../shared/weapons.js';
 import { DEFAULT_SKINS, getSkin } from '../shared/skins.js';
+import { STARTER_SKINS } from '../shared/progression.js';
 import { registerDefaultSkin, loadedSkin, requestSkin, retainSkin, releaseSkin } from './skin-assets.js';
 import { disposeInstanceAnimation, disposeInstanceSkeletons } from './resource-lifecycle.js';
 export { ViewWeapon } from './viewmodel.js';
@@ -62,8 +63,10 @@ export class PlayerModel{
   }
   setWeapon(id,skinId){
     id=WEAPONS[id]||UTILITY_IDS.includes(id)||id==='c4'?id:'knife';
-    if(UTILITY_IDS.includes(id)||id==='c4')skinId=id;else if(getSkin(skinId)?.weapon!==id)skinId=DEFAULT_SKINS[id];
-    requestSkin(skinId);const visibleSkin=loadedSkin(skinId)?skinId:UTILITY_IDS.includes(id)||id==='c4'?id:DEFAULT_SKINS[id],cacheKey=id+':'+visibleSkin;
+    if(UTILITY_IDS.includes(id)||id==='c4')skinId=id;else if(getSkin(skinId)?.weapon!==id)skinId=STARTER_SKINS[id]||DEFAULT_SKINS[id];
+    requestSkin(skinId);
+    const fallbackSkin=loadedSkin(STARTER_SKINS[id])?STARTER_SKINS[id]:DEFAULT_SKINS[id];
+    const visibleSkin=loadedSkin(skinId)?skinId:UTILITY_IDS.includes(id)||id==='c4'?id:fallbackSkin,cacheKey=id+':'+visibleSkin;
     if(!loadedSkin(visibleSkin)){this.gun.visible=false;return;}
     if(id===this.weaponId&&this.skinId===visibleSkin)return;this.weaponId=id;this.skinId=visibleSkin;this.gun.clear();
     if(!this.weaponCache.has(cacheKey)){

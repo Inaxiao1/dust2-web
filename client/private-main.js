@@ -79,10 +79,10 @@ async function bootstrap(){
  for(const el of document.querySelectorAll('.map-emblem img,.loading-tactical img')){el.src=map.overview.image;el.alt=map.name+' 战术地图';}
  const banner=document.querySelector('.loading-map-title>p');if(banner)banner.textContent=map.nameZh+' · 5v5 联网战术对战';
  const cover=rt
-  ? new URL('./radars/'+map.id+'.png',document.baseURI).href
+  ? new URL('./mode-previews/'+map.id+'-performance.webp',document.baseURI).href
   : delivery.mapBaseURL
-    ? new URL('../radars/'+map.id+'.png',delivery.mapBaseURL).href
-    : new URL('../../../previews/'+map.id+'.png',config.renderUrl).href;
+    ? new URL('../mode-previews/'+map.id+'-performance.webp',delivery.mapBaseURL).href
+    : new URL('../../../mode-previews/'+map.id+'-performance.webp',config.renderUrl).href;
  if(!directoryRoute&&!config.publicPool)document.documentElement.style.setProperty('--loading-map-cover',`url(${JSON.stringify(cover)})`);
  if(!directoryRoute){const style=document.createElement('style');style.textContent=`body.private-game .loading-image,body.private-game .menu-photo{background-image:url(${JSON.stringify(cover)})}body.private-game .map-showcase{background-image:none}
  body.private-game .private-map-switch{display:inline-flex;gap:12px;align-items:center;justify-content:center;min-height:40px;padding:9px 16px;border:1px solid #8e7950;background:#26332d;color:#f3d995;text-decoration:none;font-size:12px;white-space:nowrap;font-weight:650}
