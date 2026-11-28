@@ -1,5 +1,5 @@
 import { isMusicKit, roomMusicKits } from '../shared/music-kits.js';
-import {snapshotForSide} from './snapshot-view.js';
+import {snapshotForSide,snapshotForPlayer} from './snapshot-view.js';
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
@@ -477,8 +477,11 @@ export async function startGameServer({
           if (socket.binaryProtocol === 2) {
             socket.lastBinaryPlayers = new Map(initialSnap.players.map(p => [p.id, { ...p }]));
             if (socket.readyState === WebSocket.OPEN) socket.send(encodeSnapshotBinary(initialSnap, null), { compress: false });
+          } else if (socket.snapshotDelta === 1) {
+            const playerSnap = snapshotForPlayer(initialSnap, player.id);
+            socket.lastDeltaSnap = playerSnap;
+            send(socket, playerSnap);
           } else {
-            if (socket.snapshotDelta === 1) socket.lastDeltaSnap = initialSnap;
             send(socket, initialSnap);
           }
         } catch (e) { if (created) rooms.delete(room.code); error(socket, 'JOIN_FAILED', e.message); }
@@ -589,19 +592,30 @@ export async function startGameServer({
                 socket.lastBinaryPlayers = new Map(sideSnap.players.map(p => [p.id, { ...p }]));
                 socket.send(frame, { compress: false });
               } else if (socket.snapshotDelta === 1 && socket.lastDeltaSnap) {
-                let byPrev = deltaViews.get(side);
-                if (!byPrev) { byPrev = new Map(); deltaViews.set(side, byPrev); }
-                let payload = byPrev.get(socket.lastDeltaSnap);
-                if (payload === undefined) {
-                  payload = JSON.stringify(encodeDeltaSnapshot(sideSnap, socket.lastDeltaSnap));
-                  byPrev.set(socket.lastDeltaSnap, payload);
+                const playerSnap = snapshotForPlayer(sideSnap, socket.playerId);
+                let payload;
+                if (playerSnap === sideSnap) {
+                  let byPrev = deltaViews.get(side);
+                  if (!byPrev) { byPrev = new Map(); deltaViews.set(side, byPrev); }
+                  payload = byPrev.get(socket.lastDeltaSnap);
+                  if (payload === undefined) {
+                    payload = JSON.stringify(encodeDeltaSnapshot(playerSnap, socket.lastDeltaSnap));
+                    byPrev.set(socket.lastDeltaSnap, payload);
+                  }
+                } else {
+                  payload = JSON.stringify(encodeDeltaSnapshot(playerSnap, socket.lastDeltaSnap));
                 }
-                socket.lastDeltaSnap = sideSnap;
+                socket.lastDeltaSnap = playerSnap;
                 socket.send(payload);
               } else {
-                if (socket.snapshotDelta === 1) socket.lastDeltaSnap = sideSnap;
-                if (!jsonViews.has(side)) jsonViews.set(side, JSON.stringify(sideSnap));
-                socket.send(jsonViews.get(side));
+                if (socket.snapshotDelta === 1) {
+                  const playerSnap = snapshotForPlayer(sideSnap, socket.playerId);
+                  socket.lastDeltaSnap = playerSnap;
+                  socket.send(JSON.stringify(playerSnap));
+                } else {
+                  if (!jsonViews.has(side)) jsonViews.set(side, JSON.stringify(sideSnap));
+                  socket.send(jsonViews.get(side));
+                }
               }
             }
           }

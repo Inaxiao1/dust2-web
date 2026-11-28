@@ -196,19 +196,23 @@ for (const s of SKINS) {
 }
 breakdown.utilitiesAndPreviewsMB = +((toyBytes - layerStart) / 1e6).toFixed(2);
 
-// Layer 4: Pack as many of the 9 full-precision maps (.gz) as fit inside the 128 MB Toy budget!
+// Layer 4: Pack the 7 hottest full-precision maps (.gz) first (>98% of live matches);
+// defer cold overflow maps (de_cache, de_train) until after high-ROI hot agents/music/weapons!
 layerStart = toyBytes;
-const MAP_PRIORITY = [
+const HOT_MAPS = [
   'de_dust2',
   'de_mirage',
   'de_nuke',
   'de_vertigo',
   'de_anubis',
-  'de_cache',
   'de_ancient',
-  'de_train',
   'de_inferno',
 ];
+const OVERFLOW_MAPS = [
+  'de_cache',
+  'de_train',
+];
+const MAP_PRIORITY = [...HOT_MAPS, ...OVERFLOW_MAPS];
 const MAP_FILES = [
   'render/map.mgp',
   'compiled/physics.vidx',
@@ -219,44 +223,105 @@ const MAP_FILES = [
   'entity-collision-policy.json',
 ];
 const NON_WEB_MAP_BIN_EXT = /\.(?:mgp|vidx|u8|f32)$/i;
-// Reserve ~8 MB for core starter weapons if packing all maps, or pack all 9 maps first and fill remainder with starter weapons!
-if (toyMapsMode !== 'none') {
-  for (const mapId of MAP_PRIORITY) {
-    const dir = path.join(MAPS_SRC, mapId);
-    if (!fs.existsSync(path.join(dir, 'render/map.mgp'))) continue;
-    const staged = [];
-    let mapGzSum = 0;
-    for (const rel of MAP_FILES) {
-      const full = path.join(dir, rel);
-      if (!fs.existsSync(full)) continue;
-      const gzSide = full + '.gz';
-      const buf = fs.existsSync(gzSide) ? fs.readFileSync(gzSide) : zlib.gzipSync(fs.readFileSync(full), { level: 9 });
-      // Bilibili Toy CDN allowlists .glb.gz and .json.gz (rejecting custom .mgp/.vidx/.u8 extensions with 404).
-      const toyRel = NON_WEB_MAP_BIN_EXT.test(rel) ? `${rel}.glb.gz` : `${rel}.gz`;
-      staged.push({ rel: `maps/${mapId}/${toyRel}`, buf });
-      mapGzSum += buf.length;
-    }
-    // Keep 500 KB reserve for runtime-config.js
-    if (toyBytes + mapGzSum + 512_000 <= toyLimitBytes) {
-      for (const item of staged) writeToyBuffer(item.rel, item.buf);
-      bundledMaps.push(mapId);
-    }
+function tryPackMapToToy(mapId) {
+  const dir = path.join(MAPS_SRC, mapId);
+  if (!fs.existsSync(path.join(dir, 'render/map.mgp'))) return false;
+  const staged = [];
+  let mapGzSum = 0;
+  for (const rel of MAP_FILES) {
+    const full = path.join(dir, rel);
+    if (!fs.existsSync(full)) continue;
+    const gzSide = full + '.gz';
+    const buf = fs.existsSync(gzSide) ? fs.readFileSync(gzSide) : zlib.gzipSync(fs.readFileSync(full), { level: 9 });
+    // Bilibili Toy CDN allowlists .glb.gz and .json.gz (rejecting custom .mgp/.vidx/.u8 extensions with 404).
+    const toyRel = NON_WEB_MAP_BIN_EXT.test(rel) ? `${rel}.glb.gz` : `${rel}.gz`;
+    staged.push({ rel: `maps/${mapId}/${toyRel}`, buf });
+    mapGzSum += buf.length;
   }
+  // Keep 512 KB reserve for runtime-config.js
+  if (toyBytes + mapGzSum + 512_000 <= toyLimitBytes) {
+    for (const item of staged) writeToyBuffer(item.rel, item.buf);
+    bundledMaps.push(mapId);
+    return true;
+  }
+  return false;
+}
+if (toyMapsMode !== 'none') {
+  for (const mapId of HOT_MAPS) tryPackMapToToy(mapId);
 }
 breakdown.mapsMB = +((toyBytes - layerStart) / 1e6).toFixed(2);
 
-// Layer 5: Fill remaining headroom (< toyLimitBytes) with starter vanilla weapons & CT/T knives first, then flagship skins (.glb.gz)!
+// Layer 5a: Pack the hottest match music cues (neckdeep_01 & valve_cs2_01 — ~4000x traffic ROI in ~3 MB!)
 layerStart = toyBytes;
+let packedMusicFiles = 0;
+const HOT_MUSIC_CUES = /^(?:roundmvpanthem_01|startaction_01-[a-f0-9]+|bombplanted|bombtenseccount|wonround|lostround)\.mp3$/;
+for (const kit of ['neckdeep_01', 'valve_cs2_01']) {
+  const kitDir = path.join(PUBLIC, 'assets', 'audio', 'music', 'optional', kit);
+  if (!fs.existsSync(kitDir)) continue;
+  for (const fn of fs.readdirSync(kitDir).sort()) {
+    if (!HOT_MUSIC_CUES.test(fn)) continue;
+    if (addPublicAssetToToy(`assets/audio/music/optional/${kit}/${fn}`, { allowGz: false, checkBudget: true })) {
+      packedMusicFiles++;
+    }
+  }
+}
+breakdown.hotMusicMB = +((toyBytes - layerStart) / 1e6).toFixed(2);
+
+// Layer 5b: Pack top high-traffic optional agents & their first-person arms (.glb.gz)
+layerStart = toyBytes;
+let packedHotAgents = 0;
+const HOT_AGENT_IDS = ['t-miami', 'ct-ava', 'ct-ricksaw', 't-enforcer'];
+for (const agentId of HOT_AGENT_IDS) {
+  const body = AGENT_ASSETS[agentId]?.model;
+  const arms = AGENT_ARM_ASSETS[agentId]?.model;
+  if (typeof body === 'string' && addPublicAssetToToy(body, { allowGz: true, checkBudget: true })) packedHotAgents++;
+  if (typeof arms === 'string') addPublicAssetToToy(arms, { allowGz: true, checkBudget: true });
+}
+breakdown.hotAgentsMB = +((toyBytes - layerStart) / 1e6).toFixed(2);
+
+// Layer 5c: Fill remaining headroom (< toyLimitBytes) with starter knives, top production-traffic guns/skins, then remaining starters (.glb.gz)!
+layerStart = toyBytes;
+const HOT_SKIN_IDS = [
+  'default-ct-vanilla',
+  'default-t-vanilla',
+  // Top production-traffic stock guns & popular skins (ranked by live HK CDN GB/day)
+  'sg553-vanilla',
+  'scar20-vanilla',
+  'm4a1-printstream',
+  'elite-vanilla',
+  'pistol-fade',
+  'ssg08-vanilla',
+  'mp7-vanilla',
+  'tec9-vanilla',
+  'bizon-vanilla',
+  'ak47-ice-coaled',
+  'usp-printstream',
+  'karambit',
+  'm4a1-decimator',
+  'butterfly',
+  'awp-asiimov',
+  'nova-vanilla',
+  'karambit-sapphire',
+  'usp-kill-confirmed',
+  'usp-cortex',
+  'm4a4-temukau',
+  'mag7-vanilla',
+  'deagle-printstream',
+  'negev-vanilla',
+  'ssg08-dragonfire',
+  'xm1014-vanilla',
+];
 const PRIORITY_WEAPONS = [
   'knife', 'pistol', 'usp', 'ak47', 'm4a1', 'm4a4', 'awp', 'deagle',
   'p250', 'mp9', 'mac10', 'galilar', 'famas', 'ssg08', 'fiveseven', 'tec9', 'ump45', 'p90', 'xm1014',
+  'sg553', 'aug', 'scar20', 'g3sg1', 'elite', 'mp7', 'bizon', 'nova', 'mag7', 'negev', 'm249', 'revolver',
 ];
 const candidateSkins = [];
 const addedIds = new Set();
 const pushSkin = (s) => { if (s && !addedIds.has(s.id)) { addedIds.add(s.id); candidateSkins.push(s); } };
-// Always pack both starter knives (CT & T tactical knives) first!
-pushSkin(SKINS.find((s) => s.id === 'default-ct-vanilla'));
-pushSkin(SKINS.find((s) => s.id === 'default-t-vanilla'));
+for (const id of HOT_SKIN_IDS) {
+  pushSkin(SKINS.find((s) => s.id === id));
+}
 for (const w of PRIORITY_WEAPONS) {
   if (w === 'knife') continue;
   pushSkin(SKINS.find((s) => s.weapon === w && s.condition === 'Vanilla'));
@@ -272,6 +337,13 @@ for (const skin of candidateSkins) {
   }
 }
 breakdown.starterWeaponsMB = +((toyBytes - layerStart) / 1e6).toFixed(2);
+
+// Layer 6: Pack cold overflow maps if any budget remains under toyLimitBytes (otherwise seamlessly streamed from CDN).
+if (toyMapsMode !== 'none') {
+  layerStart = toyBytes;
+  for (const mapId of OVERFLOW_MAPS) tryPackMapToToy(mapId);
+  breakdown.overflowMapsMB = +((toyBytes - layerStart) / 1e6).toFixed(2);
+}
 
 // Emit runtime-config.js at the Toy package root
 const runtimeConfig = {

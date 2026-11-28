@@ -1248,6 +1248,8 @@ export class GameRoom {
 
   snapshot({ drainEvents = true } = {}) {
     const now = this.clock();
+    const ceil2 = v => v > 0 ? Math.ceil(v * 100) / 100 : 0;
+    const round1 = v => Math.round(v * 10) / 10;
     const players = [...this.players.values()].map(p => ({ id: p.id,seat:p.seat, lifeId:p.lifeId,name: p.name, team: p.team, teamId:p.teamId, bot: p.bot, ...(p.controllerId?{controllerId:p.controllerId}:{}),...(p.controlledBotId?{controlledBotId:p.controlledBotId}:{}), agentId:p.agentId||DEFAULT_AGENT_IDS[p.team], x: round2(p.x), y: round2(p.y), z: round2(p.z),
       vx: round2(p.vx), vy: round2(p.vy), vz: round2(p.vz), yaw: round2(p.yaw), pitch: round2(p.pitch), crouch: !!p.crouch, grounded: !!p.grounded,
       ...(p.movementStream?{movementAck:p.movementStream.ack,movementState:movementState(p)}:{}),
@@ -1257,13 +1259,13 @@ export class GameRoom {
       reserveAmmoAsClips:!!getWeapon(p.weapon).reserveAmmoAsClips,reserveClips:getWeapon(p.weapon).reserveAmmoAsClips?Math.ceil((p.inventory[p.weapon]?.reserve||0)/getWeapon(p.weapon).magazine):0,
       grenadeState:p.grenadeState?{state:'primed',weapon:p.grenadeState.weapon,mode:p.grenadeState.mode,strength:grenadeStrength(p.grenadeState.mode),primedAt:p.grenadeState.primedAt}:{state:'idle',weapon:null,mode:'full',strength:1,primedAt:0},
       ...(p.shotCommands?{shotAck:(p.fireQueue?.find(c=>c.input.shotId)?.input.shotId??((p.lastShotId||0)+1))-1,...(p.shotRejected?{shotRejected:p.shotRejected}:{})}:{}),
-      reloadRemaining: Math.max(0, (p.reloadEndsAt - now) / 1000),reloadDuration:p.reloadEndsAt?getWeapon(p.weapon).reloadTime:0,reloadElapsed:p.reloadEndsAt?Math.max(0,(now-p.reloadStartedAt)/1000):0,reloadEmpty:!!p.reloadEmpty,reloadCommitted:!!p.reloadEndsAt&&!!p.reloadCommitted,fireReadyRemaining:Math.max(0,(Math.max(p.equipReadyAt||0,p.inventory[p.weapon]?.reloadReadyAt||0)-now)/1000), money: p.money,botBuy:this.mode==='defuse'?this.teamBuys?.[p.team]?.label:null,lossIncome:this.mode==='defuse'?lossIncome(this,p.team):0, kills: p.kills, deaths: p.deaths, assists: p.assists,headshots:p.headshots||0, seq: p.seq,
-      ...this.buyStatus(p), refundable:this.refundable(p), inventory: Object.keys(p.inventory), hasBomb: p.hasBomb,bombAction:this.bomb.actorId===p.id?this.bomb.action:null,bombProgress:this.bomb.actorId===p.id?this.bomb.progress:0,bombActionDuration:this.bomb.action==='plant'?this.rules.plantSeconds:p.defuseKit?this.rules.defuseKitSeconds:this.rules.defuseSeconds, spawnProtectionRemaining: Math.max(0, (p.protectionUntil - now) / 1000),
+      reloadRemaining: ceil2((p.reloadEndsAt - now) / 1000),reloadDuration:p.reloadEndsAt?getWeapon(p.weapon).reloadTime:0,reloadElapsed:p.reloadEndsAt?round2(Math.max(0,(now-p.reloadStartedAt)/1000)):0,reloadEmpty:!!p.reloadEmpty,reloadCommitted:!!p.reloadEndsAt&&!!p.reloadCommitted,fireReadyRemaining:ceil2((Math.max(p.equipReadyAt||0,p.inventory[p.weapon]?.reloadReadyAt||0)-now)/1000), money: p.money,botBuy:this.mode==='defuse'?this.teamBuys?.[p.team]?.label:null,lossIncome:this.mode==='defuse'?lossIncome(this,p.team):0, kills: p.kills, deaths: p.deaths, assists: p.assists,headshots:p.headshots||0, seq: p.seq,
+      ...this.buyStatus(p), refundable:this.refundable(p), inventory: Object.keys(p.inventory), hasBomb: p.hasBomb,bombAction:this.bomb.actorId===p.id?this.bomb.action:null,bombProgress:this.bomb.actorId===p.id?Math.round((this.bomb.progress||0)*1000)/1000:0,bombActionDuration:this.bomb.action==='plant'?this.rules.plantSeconds:p.defuseKit?this.rules.defuseKitSeconds:this.rules.defuseSeconds, spawnProtectionRemaining: ceil2((p.protectionUntil - now) / 1000),
       roundKills:p.roundKills||0,lifeKills:p.lifeKills||0,killCards:p.killCards||[],
-      respawnIn: p.respawnAt ? Math.max(0, (p.respawnAt - now) / 1000) : 0, lastShotTime: p.lastShotTime }));
+      respawnIn: p.respawnAt ? ceil2((p.respawnAt - now) / 1000) : 0, lastShotTime: p.lastShotTime }));
     const events = drainEvents ? this.events.splice(0) : [...this.events];
     return { type: 'snapshot', radarBySide:radarBySide(this),ctSpottedBomb:isBombSpotted(this), ...(this.privateMap?{mapId:this.privateMap.mapId,mapSignature:this.privateMap.mapSignature,physicsSha256:this.privateMap.config.physicsSha256,...(this.mapBreakables?.networkSnapshot()||{mapBreakables:[]})}:{}), time: now, room: this.code, mode: this.mode, hostId:this.hostId,seats:this.roomSeats(),botDifficulty:this.botDifficulty,desiredBots:this.desiredBots,botCount:this.botCount,match:this.matchSnapshot(),players,weaponRequests:privateRequests(this),droppedWeapons:this.droppedWeapons.snapshot(),defuseKits:this.defuseKits.map(k=>({...k})),...this.grenades.snapshot(),
-      round: { ...this.round, timeLeft: this.round.phaseEndsAt ? Math.max(0, (this.round.phaseEndsAt - now) / 1000) : 0 },
-      bomb: { ...this.bomb, remaining: this.bomb.state === 'planted' ? Math.max(0, (this.bomb.explodesAt - now) / 1000) : 0 }, scores: { ...this.scores }, events };
+      round: { ...this.round, timeLeft: this.round.phaseEndsAt ? round1(Math.max(0, (this.round.phaseEndsAt - now) / 1000)) : 0 },
+      bomb: { ...this.bomb, x: round2(this.bomb.x), y: round2(this.bomb.y), z: round2(this.bomb.z), progress: Math.round((this.bomb.progress || 0) * 1000) / 1000, remaining: this.bomb.state === 'planted' ? round1(Math.max(0, (this.bomb.explodesAt - now) / 1000)) : 0 }, scores: { ...this.scores }, events };
   }
 }
