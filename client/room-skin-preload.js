@@ -70,7 +70,7 @@ export async function queryRoomSkins(url,room,options) {
 const ephemeral = new Map();
 let ephemeralBytes = 0;
 function remember(item,response) {
-  const limit = 16*1024*1024;
+  const limit = 48*1024*1024;
   if (item.bytes > limit || ephemeral.has(item.sha256)) return;
   while (ephemeralBytes + item.bytes > limit) {
     const [key,entry] = ephemeral.entries().next().value;

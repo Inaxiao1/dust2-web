@@ -95,3 +95,41 @@ test('real HTTP mirror restores hash-verified blocks and survives changing downl
  assert.equal(cacheNames[0],cacheNames[1]);
  assert([...cached.keys()].every(key=>new URL(key).host==='127.0.0.1:1'));
 });
+
+test('SHA-versioned compact performance map files persist in Cache Storage and skip redownload on reuse',async()=>{
+ const store=new Map();
+ const cachesApi={
+  async open(name){
+   assert.equal(name,'dust2-maps-v1');
+   return {
+    async match(key){return store.get(key)?.clone();},
+    async put(key,res){store.set(key,res);},
+   };
+  },
+ };
+ const payloadV1='compact-map-geometry-v1'.repeat(200);
+ const payloadV2='compact-map-geometry-v2'.repeat(200);
+ const shaV1=sha(payloadV1),shaV2=sha(payloadV2);
+ const perfBase={...base,flatOnly:true};
+ const config=privateMapDownloads(perfBase,delivery);
+ let networkCalls=0;
+ const reader=privateMapFetcher(config,{
+  cachesApi,
+  fetcher:async url=>{
+   networkCalls++;
+   return new Response(String(url).includes(shaV2)?payloadV2:payloadV1,{status:200});
+  },
+ });
+ const urlV1=new URL('map.mgp?v='+shaV1,base.renderUrl);
+ assert.equal(await (await reader(urlV1)).text(),payloadV1);
+ assert.equal(networkCalls,1);
+ // Second fetch hits Cache Storage -> 0 network requests!
+ assert.equal(await (await reader(urlV1)).text(),payloadV1);
+ assert.equal(networkCalls,1);
+ // New version hash misses cache and fetches fresh bytes.
+ const urlV2=new URL('map.mgp?v='+shaV2,base.renderUrl);
+ assert.equal(await (await reader(urlV2)).text(),payloadV2);
+ assert.equal(networkCalls,2);
+ assert.equal(await (await reader(urlV2)).text(),payloadV2);
+ assert.equal(networkCalls,2);
+});

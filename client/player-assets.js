@@ -28,7 +28,9 @@ export async function loadAgent(id,{onProgress,signal}={}){
 }
 export function requestAgent(id){if(!id||agents.has(id)||pending.has(id)||(retry.get(id)||0)>performance.now())return;retry.set(id,performance.now()+30000);loadAgent(id).catch(()=>{});}
 export async function loadPlayerAssets(loader){
- animationSource=await loader.loadAsync('assets/characters-cs2/animations.glb');
+ const animUrl=new URL('assets/characters-cs2/animations.glb',document.baseURI).href;
+ const animResp=await fetchCachedAsset(animUrl);
+ animationSource=await loader.parseAsync(await animResp.arrayBuffer(),new URL('.',animUrl).href);
  const [CT,T]=await Promise.all([loadAgent('ct-sas'),loadAgent('t-phoenix')]);
  for(const source of agents.values())prepare(source);
  return {CT,T};

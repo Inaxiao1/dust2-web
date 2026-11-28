@@ -5,8 +5,15 @@ import { DefaultLoadingManager } from 'three';
 import {clientAssetManifest} from './private-game-config.js';
 import {fetchAssetDownload,getDownloadOrigin,initDownloadOrigin} from './download-origin.js';
 import {publicPoolAssetCacheBase} from '../shared/public-map-paths.js';
+import {getStaticRuntime} from '../shared/static-runtime.js';
 import {sha256Hex} from '../shared/sha256.js';
-const blobs=new Map(),inflight=new Map();let manifestMemory=null,manifestChecked=false;
+const blobs=new Map(),inflight=new Map();let manifestMemory=null,manifestChecked=false,persistRequested=false;
+const MAPS_CACHE_NAME='dust2-maps-v1';
+function requestPersistentStorage(){
+  if(persistRequested)return;
+  persistRequested=true;
+  try{globalThis.navigator?.storage?.persist?.().catch?.(()=>{});}catch{}
+}
 const base=()=>new URL('.',document.baseURI),absolute=value=>new URL(value,document.baseURI);
 const canonical=value=>{const u=absolute(value);return u.origin+u.pathname;};
 const cacheBase=()=>publicPoolAssetCacheBase(document.baseURI,{installed:bundled||!!globalThis.__DUST2_PORTABLE__});
@@ -115,7 +122,7 @@ async function readCachedAsset(value,{sha256,bytes,signal,onProgress}={}){
   const headers=new Headers(response.headers);headers.delete('content-encoding');headers.delete('transfer-encoding');headers.set('content-length',String(received));
   headers.set('x-dust2-sha256',actual);headers.set('x-dust2-bytes',String(received));headers.set('x-dust2-asset-url',url.href);
   const result=new Response(blob,{status:200,headers});let cached=false;
-  if(cache){try{await cache.assets.put(hashKey(actual),result.clone());await cache.meta.put(indexKey(url),new Response(JSON.stringify({sha256:actual,bytes:received}),{headers:{'content-type':'application/json'}}));cached=true;changed();}
+  if(cache){try{await cache.assets.put(hashKey(actual),result.clone());await cache.meta.put(indexKey(url),new Response(JSON.stringify({sha256:actual,bytes:received}),{headers:{'content-type':'application/json'}}));cached=true;requestPersistentStorage();changed();}
     catch(error){console.warn('资源已加载，但浏览器未保存持久缓存：',error.name||error.message);}}
   check(signal);onProgress?.({loaded:received,total:bytes||received,fromCache:false,cached});return result;
 }
@@ -124,7 +131,8 @@ async function loadManifest({signal,refresh=true}={}){
   check(signal);if(!refresh&&manifestMemory)return manifestMemory;const cache=await stores();
   if(!refresh&&cache){const hit=await cache.meta.match(manifestURL());if(hit){manifestMemory=clientAssetManifest(await hit.json(),!!globalThis.__DUST2_PRIVATE_MAP__);return manifestMemory;}}
   try{if(!bundled)await ensureDownloadOrigin(signal);
-    const response=bundled?await fetch(manifestURL(),{cache:'no-cache',signal}):await fetchAssetDownload(manifestURL(),{pageURL:document.baseURI,cache:'no-cache',signal});if(!response.ok)throw new Error(`资源清单加载失败 (${response.status})`);
+    const manifestCacheMode=getStaticRuntime()?'force-cache':'no-cache';
+    const response=bundled?await fetch(manifestURL(),{cache:'no-cache',signal}):await fetchAssetDownload(manifestURL(),{pageURL:document.baseURI,cache:manifestCacheMode,signal});if(!response.ok)throw new Error(`资源清单加载失败 (${response.status})`);
     const manifest=await response.clone().json();
     if(!Array.isArray(manifest.files)||!manifest.files.every(f=>typeof f.path==='string'&&Number.isSafeInteger(f.bytes)&&f.bytes>=0&&/^[a-f\d]{64}$/i.test(f.sha256)))throw new Error('资源清单格式错误');
     manifestMemory=clientAssetManifest(manifest,!!globalThis.__DUST2_PRIVATE_MAP__);manifestChecked=true;try{await cache?.meta.put(manifestURL(),response.clone());}catch{}return manifestMemory;
@@ -172,7 +180,9 @@ export async function getAssetCacheStats(){
     for(const file of manifest?.files||[]){const r=await cache.assets.match(hashKey(file.sha256.toLowerCase()));if(r&&Number(r.headers.get('x-dust2-bytes'))===file.bytes){stats.baseCount++;stats.baseBytes+=file.bytes;}}
     stats.complete=stats.totalCount>0&&stats.baseCount===stats.totalCount;}
   const privateName=privateMapCacheName();stats.privateMapBytes=0;
-  if(privateName&&globalThis.caches){try{const maps=await caches.open(privateName);for(const key of await maps.keys()){const response=await maps.match(key),bytes=Number(response?.headers.get('Content-Length'))||0;stats.privateMapBytes+=bytes;stats.bytes+=bytes;stats.count++;}}catch{}}
+  for(const mapStore of [privateName,MAPS_CACHE_NAME].filter(Boolean)){
+    if(globalThis.caches){try{const maps=await caches.open(mapStore);for(const key of await maps.keys()){const response=await maps.match(key),bytes=Number(response?.headers.get('x-dust2-bytes')||response?.headers.get('Content-Length'))||0;stats.privateMapBytes+=bytes;stats.bytes+=bytes;stats.count++;}}catch{}}
+  }
   try{stats.persisted=await navigator.storage?.persisted?.()||false;const e=await navigator.storage?.estimate?.();stats.usage=e?.usage??null;stats.quota=e?.quota??null;}catch{}return stats;
 }
-export async function clearAssetCache(){const n=cacheNames(),privateName=privateMapCacheName();if(globalThis.caches)await Promise.all([caches.delete(n.assets),caches.delete(n.meta),...(privateName?[caches.delete(privateName)]:[])]);manifestMemory=null;manifestChecked=false;changed();return getAssetCacheStats();}
+export async function clearAssetCache(){const n=cacheNames(),privateName=privateMapCacheName();if(globalThis.caches)await Promise.all([caches.delete(n.assets),caches.delete(n.meta),caches.delete(MAPS_CACHE_NAME),...(privateName?[caches.delete(privateName)]:[])]);manifestMemory=null;manifestChecked=false;changed();return getAssetCacheStats();}

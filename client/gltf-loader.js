@@ -7,8 +7,27 @@ const pending=[];let active=0;
 function schedule(work){return new Promise((resolve,reject)=>{pending.push({work,resolve,reject});pump();});}
 function pump(){while(active<4&&pending.length){const job=pending.shift();active++;job.work().then(job.resolve,job.reject).finally(()=>{active--;pump();});}}
 
-export function gameGLTFLoader(manager,{signal,preserveTextureResolution=false}={}){
+export function gameGLTFLoader(manager,{signal,preserveTextureResolution=false,fetchAsset=null}={}){
   const loader=new GLTFLoader(manager);
+  const readUrl=(resolved,abortSignal)=>{
+    if(fetchAsset&&!/^(?:blob:|data:)/i.test(resolved))return fetchAsset(resolved,{signal:abortSignal});
+    return fetch(resolved,{signal:abortSignal});
+  };
+  if(fetchAsset){
+    loader.register(parser=>{
+      const originalLoad=parser.fileLoader.load.bind(parser.fileLoader);
+      parser.fileLoader.load=(url,onLoad,onProgress,onError)=>{
+        const resolved=parser.options.manager.resolveURL(url);
+        if(/^(?:blob:|data:)/i.test(resolved))return originalLoad(url,onLoad,onProgress,onError);
+        parser.options.manager.itemStart(url);
+        fetchAsset(resolved,{signal,onProgress:p=>onProgress?.({loaded:p.loaded,total:p.total,lengthComputable:p.total>0})})
+          .then(r=>{if(!r.ok)throw new Error('资源读取失败：'+r.status);return r.arrayBuffer();})
+          .then(buf=>onLoad?.(buf),err=>{parser.options.manager.itemError(url);onError?.(err);})
+          .finally(()=>parser.options.manager.itemEnd(url));
+      };
+      return {name:'DUSTII_CACHED_FILE_LOADER'};
+    });
+  }
   if(typeof createImageBitmap!=='function')return loader;
   loader.register(parser=>{
     let failure=null;
@@ -26,7 +45,7 @@ export function gameGLTFLoader(manager,{signal,preserveTextureResolution=false}=
           aborted.catch(()=>{});
           const decode=(source,options)=>Promise.race([createImageBitmap(source,options).then(image=>{if(expired||abort.signal.aborted){image.close();throw signal?.reason||new Error('贴图解码超时，请重试');}return image;}),aborted]);
           try{
-            const response=await fetch(manager.resolveURL(url),{signal:abort.signal});
+            const response=await readUrl(manager.resolveURL(url),abort.signal);
             if(!response.ok)throw new Error('贴图读取失败：'+response.status);
             const options={premultiplyAlpha:'none',colorSpaceConversion:'none'};
             // A decoder that never settles must not leave "510/514" forever.

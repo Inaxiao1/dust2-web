@@ -43,16 +43,61 @@ export function privateMapDownloadURL(value, config) {
  return remote;
 }
 
-export function privateMapFetcher(config,{fetcher=fetch}={}) {
+export const PRIVATE_MAP_CACHE_NAME='dust2-maps-v1';
+const pendingMapWrites=new Map();
+
+async function openMapCache(cachesApi){
+ if(!cachesApi?.open)return null;
+ try{return await cachesApi.open(PRIVATE_MAP_CACHE_NAME);}catch{return null;}
+}
+
+function mapCacheKey(sha,pageHref){
+ return new URL('/__map_cache__/sha256/'+sha.toLowerCase(),pageHref||'https://cache.local/').href;
+}
+
+export function privateMapFetcher(config,{fetcher=fetch,cachesApi=globalThis.caches}={}) {
  return async(value,options={})=>{
   const original=new URL(value),remote=privateMapDownloadURL(original,config);
   const rt=getStaticRuntime();
+  const versionSha=/^[a-f0-9]{64}$/i.test(original.searchParams.get('v')||'')?original.searchParams.get('v').toLowerCase():null;
   // The performance gateway verifies these URLs against its sealed, per-file manifest.
   // Leave the live room configuration and unversioned asset paths fresh.
-  if(config.flatOnly && options.cache==='no-store' && /^[a-f0-9]{64}$/.test(original.searchParams.get('v') || '')){
+  if(config.flatOnly && options.cache==='no-store' && versionSha){
     options={...options,cache:'default'};
   }
-  if(remote.href===original.href)return fetcher(original,options);
+  const cacheable=Boolean(config.flatOnly && versionSha);
+  const cache=cacheable?await openMapCache(cachesApi):null;
+  const cacheKey=cache?mapCacheKey(versionSha,globalThis.location?.href||original.origin):null;
+  if(cache&&cacheKey){
+   const pending=pendingMapWrites.get(cacheKey);
+   if(pending){try{await pending;}catch{}}
+   try{
+    const hit=await cache.match(cacheKey);
+    if(hit){options.signal?.throwIfAborted();return hit;}
+   }catch{}
+  }
+  const saveToCache=(response)=>{
+   if(!cache||!cacheKey||!(response instanceof Response)||!response.ok||response.type==='opaque')return response;
+   try{
+    const cloned=response.clone();
+    const write=(async()=>{
+     try{
+      const buf=await cloned.arrayBuffer();
+      const headers=new Headers(response.headers);
+      headers.delete('content-encoding');
+      headers.delete('transfer-encoding');
+      headers.set('content-length',String(buf.byteLength));
+      headers.set('x-dust2-sha256',versionSha);
+      headers.set('x-dust2-bytes',String(buf.byteLength));
+      await cache.put(cacheKey,new Response(buf,{status:200,headers}));
+     }catch{}
+    })();
+    pendingMapWrites.set(cacheKey,write);
+    write.finally(()=>{if(pendingMapWrites.get(cacheKey)===write)pendingMapWrites.delete(cacheKey);});
+   }catch{}
+   return response;
+  };
+  if(remote.href===original.href)return saveToCache(await fetcher(original,options));
   options.signal?.throwIfAborted();
   const isLocalStatic=Boolean(rt&&globalThis.location&&remote.origin===globalThis.location.origin);
   if(isLocalStatic){
@@ -65,23 +110,24 @@ export function privateMapFetcher(config,{fetcher=fetch}={}) {
      const diskRel=/^(?:map\.json|nav\.json|physics\.f32|physics\.vidx|physics-mask\.u8|physics-groups\.json)$/.test(extracted.relative)?'compiled/'+extracted.relative:extracted.relative;
      const cdnFallback=new URL('./'+config.id+'/'+diskRel,rt.mapBaseURL);
      cdnFallback.search=original.search;
-     return fetcher(cdnFallback,{...options,mode:'cors',credentials:'omit'});
+     return saveToCache(await fetcher(cdnFallback,{...options,mode:'cors',credentials:'omit'}));
     }
    }
-   return remote.pathname.endsWith('.gz')&&!original.pathname.endsWith('.gz')?maybeGunzipResponse(response):response;
+   const out=remote.pathname.endsWith('.gz')&&!original.pathname.endsWith('.gz')?await maybeGunzipResponse(response):response;
+   return saveToCache(out);
   }
   let response;
   try{response=await fetcher(remote,{...options,mode:'cors',credentials:'omit'});}
   catch(error){
    options.signal?.throwIfAborted();
    if(!config.downloadFallbackToGameServer||error?.name==='AbortError'||!['TypeError','NetworkError'].includes(error?.name))throw error;
-   return fetcher(original,options);
+   return saveToCache(await fetcher(original,options));
   }
   if(config.downloadFallbackToGameServer&&[404,408,429,500,502,503,504].includes(response.status)){
    await response.body?.cancel().catch(()=>{});
    options.signal?.throwIfAborted();
-   return fetcher(original,options);
+   return saveToCache(await fetcher(original,options));
   }
-  return response;
+  return saveToCache(response);
  };
 }

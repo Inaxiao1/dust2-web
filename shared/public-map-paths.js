@@ -2,6 +2,6 @@
  * installed-client storage. Resource URLs remain relative to their document. */
 export function publicPoolAssetCacheBase(pageURL,{installed=false}={}) {
  const directory=new URL('.',pageURL);
- if(!installed&&['/','/perf/','/play/de_dust2/','/play/de_mirage/'].includes(directory.pathname))return new URL('/',directory);
+ if(!installed&&(['/','/perf/','/play/de_dust2/','/play/de_mirage/'].includes(directory.pathname)||/^\/perf\/(?:quality\/)?play\/de_[a-z0-9_]+\/$/.test(directory.pathname)))return new URL('/',directory);
  return directory;
 }

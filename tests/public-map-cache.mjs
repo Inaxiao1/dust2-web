@@ -38,7 +38,7 @@ async function assetFixture(t){
 }
 
 test('only the exact public pool paths share the root cache directory',()=>{
- for(const path of ['/','/perf/','/play/de_dust2/','/play/de_mirage/?room=ABCD'])assert.equal(publicPoolAssetCacheBase('https://cache.test'+path).href,'https://cache.test/');
+ for(const path of ['/','/perf/','/play/de_dust2/','/play/de_mirage/?room=ABCD','/perf/play/de_dust2/','/perf/play/de_mirage/','/perf/play/de_nuke/','/perf/quality/play/de_inferno/'])assert.equal(publicPoolAssetCacheBase('https://cache.test'+path).href,'https://cache.test/');
  for(const path of ['/review/play/de_mirage/','/__installed__/','/portable/','/play/de_inferno/','/other/play/de_mirage/'])assert.equal(publicPoolAssetCacheBase('https://cache.test'+path).pathname,path);
  assert.equal(publicPoolAssetCacheBase('https://cache.test/play/de_mirage/',{installed:true}).pathname,'/play/de_mirage/');
 });

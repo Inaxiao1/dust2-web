@@ -61,7 +61,7 @@ async function bootstrap(){
   : delivery.mapBaseURL
     ? new URL('../radars/',delivery.mapBaseURL)
     : new URL('../../../radars/',config.renderUrl);
- const transforms=await fetch(new URL('transforms.json',radarBase),{cache:rt?'default':'no-store'}).then(r=>{if(!r.ok)throw Error('地图雷达标定暂不可用 ('+r.status+')');return r.json();});
+ const transforms=await fetch(new URL('transforms.json',radarBase),{cache:rt?'force-cache':'default'}).then(r=>{if(!r.ok)throw Error('地图雷达标定暂不可用 ('+r.status+')');return r.json();});
  const radar=transforms[map.id];if(!radar||![radar.pos_x,radar.pos_y,radar.scale].every(Number.isFinite))throw Error('地图雷达标定缺失');
  map.overview={...radar,size:1024,image:new URL(map.id+'.png',radarBase).href};
  map.version='CS2 private '+meta.sourceBuild+' / '+config.mapSignature.slice(0,12);
