@@ -37,9 +37,15 @@ async function bootstrap(){
  if(redirectedToLobby)return null;
  const rt=getStaticRuntime();
  const request=async url=>{const r=await fetch(url,{cache:'no-store'});if(!r.ok)throw Error('私有地图配置暂不可用 ('+r.status+')');return r.json();};
+ const configQuery=new URLSearchParams();
+ const hintNode=initialParams.get('node');
+ const hintRoom=initialParams.get('room');
+ if(hintNode&&/^[a-zA-Z0-9_-]{1,32}$/.test(hintNode))configQuery.set('node',hintNode);
+ if(hintRoom&&/^[A-Za-z0-9]{4,12}$/.test(hintRoom))configQuery.set('room',hintRoom.toUpperCase());
+ const configSuffix=configQuery.toString()?('?'+configQuery.toString()):'';
  const configEndpoint=rt&&parsedMatchRoute
-  ? gameApiURL('/perf/play/'+parsedMatchRoute.mapId+'/private-map.json')
-  : new URL('private-map.json',location.href);
+  ? gameApiURL('/perf/play/'+parsedMatchRoute.mapId+'/private-map.json'+configSuffix)
+  : new URL('private-map.json'+configSuffix,location.href);
  const originalConfig=privateConfig(await request(configEndpoint),location.href,{apiOrigin:rt?.gameServerOrigin||null});
  const delivery=await initDownloadOrigin({configURL:new URL('../../../download-config.json',originalConfig.renderUrl),pageURL:location.href});
  hydrateHomeImages();
