@@ -39,6 +39,26 @@ function getArg(name, fallback) {
 }
 
 const gameOrigin = getArg('game-origin', 'https://ws.example.com').replace(/\/+$/, '');
+const gameOriginsRaw = getArg('game-origins', '');
+const gameOrigins = (() => {
+  const out = [];
+  const push = (raw) => {
+    const clean = String(raw || '').trim().replace(/\/+$/, '');
+    if (!clean) return;
+    try {
+      const u = new URL(clean);
+      if ((u.protocol === 'https:' || u.protocol === 'http:') && !out.includes(u.origin)) {
+        out.push(u.origin);
+      }
+    } catch {}
+  };
+  if (gameOriginsRaw) {
+    for (const part of gameOriginsRaw.split(',')) push(part);
+  }
+  push(gameOrigin);
+  return out.length ? out : [gameOrigin];
+})();
+const primaryGameOrigin = gameOrigins[0];
 const cdnBase = getArg('cdn-base', 'https://cdn.example.com').replace(/\/+$/, '');
 const toyLimitMB = Math.max(20, Math.min(127.5, Number(getArg('toy-limit-mb', '124')) || 124));
 const toyLimitBytes = Math.floor(toyLimitMB * 1_000_000); // Strict decimal MB cap (124 MB = 118.25 MiB < 128 MB!)
@@ -351,7 +371,8 @@ if (toyMapsMode !== 'none') {
 
 // Emit runtime-config.js at the Toy package root
 const runtimeConfig = {
-  gameServerOrigin: gameOrigin,
+  gameServerOrigin: primaryGameOrigin,
+  gameServerOrigins: gameOrigins,
   assetBaseURL: `${cdnBase}/assets/`,
   mapBaseURL: `${cdnBase}/maps/`,
   bundledAssets: [...new Set(bundledAssets)].sort(),

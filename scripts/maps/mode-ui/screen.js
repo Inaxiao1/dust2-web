@@ -1,12 +1,17 @@
 import {mountRoomDirectory} from './room-directory.js';
 import {ToyIdentity} from './toy-identity.js';
+import {fetchGameApi} from './origin-failover.js';
 
 const $ = (id) => document.getElementById(id);
 const RT = globalThis.__CS2_STATIC_RUNTIME__ && typeof globalThis.__CS2_STATIC_RUNTIME__ === 'object'
   ? globalThis.__CS2_STATIC_RUNTIME__
   : null;
 const RT_BUNDLED_ASSETS = new Set(Array.isArray(RT?.bundledAssets) ? RT.bundledAssets : []);
-const apiUrl = (p) => (RT?.gameServerOrigin ? new URL(p, RT.gameServerOrigin).href : p);
+const apiJson = async (p, timeoutMs = 3500) => {
+  const { response } = await fetchGameApi(p, { cache: 'no-store', timeoutMs });
+  if (!response.ok) throw new Error(String(response.status));
+  return response.json();
+};
 const staticUrl = (rel) => {
   const clean = String(rel || '').replace(/^\/+/, '');
   return RT ? './' + clean : '/perf/' + clean;
@@ -96,8 +101,8 @@ function stageJoinTicket(ticket) {
   } catch {}
 }
 
-async function postJson(url, body) {
-  const response = await fetch(url, {
+async function postApiJson(path, body) {
+  const { response } = await fetchGameApi(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -296,7 +301,7 @@ const directory = mountRoomDirectory($('onlineRooms'), {
     if (!controlPlaneEnabled) return;
     event.preventDefault();
     try {
-      const ticket = await postJson(apiUrl('/perf/api/rooms/' + encodeURIComponent(room.code) + '/join'), {
+      const ticket = await postApiJson('/perf/api/rooms/' + encodeURIComponent(room.code) + '/join', {
         playerName: toyIdentity.playerName,
         playerUid: toyIdentity.uid || '',
       });
@@ -502,7 +507,7 @@ async function refreshQuickJoin() {
   const preferredMap = selected?.id || 'de_dust2';
   const params = new URLSearchParams({ mode: quickMode, preferredMap });
   try {
-    const rec = await json(apiUrl('/perf/quick-join.json?' + params));
+    const rec = await apiJson('/perf/quick-join.json?' + params);
     if (rec?.joinUrl) rec.joinUrl = toLocalMatchUrl(rec.joinUrl);
     renderQuickJoinUI(rec);
   } catch {
@@ -518,7 +523,7 @@ async function refreshQuickJoin() {
 
 async function refreshMapActivity() {
   try {
-    const data = await json(apiUrl('/perf/rooms.json'));
+    const data = await apiJson('/perf/rooms.json');
     const counts = new Map();
     for (const room of data.rooms || []) {
       const prev = counts.get(room.mapId) || { rooms: 0, humans: 0 };
@@ -763,7 +768,7 @@ $('customLaunchBtn')?.addEventListener('click', async () => {
   if (controlPlaneEnabled) {
     if (btn) btn.disabled = true;
     try {
-      const ticket = await postJson(apiUrl('/perf/api/rooms'), {
+      const ticket = await postApiJson('/perf/api/rooms', {
         mapId: selected.id,
         mode: customMode,
         visibility: 'public',
@@ -789,7 +794,7 @@ $('quickJoinBtn')?.addEventListener('click', async () => {
   try {
     const preferredMap = selected?.id || 'de_dust2';
     if (controlPlaneEnabled) {
-      const ticket = await postJson(apiUrl('/perf/api/quick-join'), {
+      const ticket = await postApiJson('/perf/api/quick-join', {
         mode: quickMode,
         preferredMap,
         playerName: toyIdentity.playerName,
@@ -802,7 +807,7 @@ $('quickJoinBtn')?.addEventListener('click', async () => {
       }
     }
     const params = new URLSearchParams({ mode: quickMode, preferredMap });
-    const fresh = await json(apiUrl('/perf/quick-join.json?' + params)).catch(() => latestRecommendation);
+    const fresh = await apiJson('/perf/quick-join.json?' + params).catch(() => latestRecommendation);
     if (fresh?.action === 'full' || fresh?.clusterFull) {
       renderQuickJoinUI(fresh);
       return;
@@ -822,9 +827,9 @@ async function load() {
   try {
     const [catalog, entries, previews, health] = await Promise.all([
       json(staticUrl('catalog.json')),
-      json(apiUrl('/perf/graphics.json')).catch(() => null),
+      apiJson('/perf/graphics.json').catch(() => null),
       json(staticUrl('mode-previews/previews.json')).catch(() => ({ maps: {} })),
-      json(apiUrl('/perf/health')).catch(() => ({})),
+      apiJson('/perf/health').catch(() => ({})),
     ]);
     controlPlaneEnabled = health?.controlPlane === true;
     const routes = new Map((entries?.maps || []).map(route => [route.id, route]));

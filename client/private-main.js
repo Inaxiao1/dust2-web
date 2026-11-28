@@ -9,7 +9,7 @@ import {hydrateHomeImages} from './image-asset-url.js';
 import {privateMapDownloads,privateMapFetcher} from './private-map-download.js';
 import {mountPortalRoom} from './portal-room.js';
 import {consumeDirectoryJoin} from '../scripts/maps/mode-ui/room-directory.js';
-import {getStaticRuntime,gameApiURL,lobbyHref,parseMatchRoute} from '../shared/static-runtime.js';
+import {getStaticRuntime,fetchGameApi,lobbyHref,parseMatchRoute,setDynamicCdnConfig,getEffectiveCdnBases} from '../shared/static-runtime.js';
 
 // Single-lobby flow: /perf/ (or Toy ./) is the only lobby & armory/settings homepage.
 // /perf/play/<map>/ (or Toy play.html?map=<map>) is strictly the match runtime.
@@ -56,10 +56,22 @@ async function bootstrap(){
   if(hintNode&&/^[a-zA-Z0-9_-]{1,32}$/.test(hintNode))configQuery.set('node',hintNode);
   if(hintRoom&&/^[A-Za-z0-9]{4,12}$/.test(hintRoom))configQuery.set('room',hintRoom.toUpperCase());
   const configSuffix=configQuery.toString()?('?'+configQuery.toString()):'';
-  const configEndpoint=rt&&parsedMatchRoute
-   ? gameApiURL('/perf/play/'+parsedMatchRoute.mapId+'/private-map.json'+configSuffix)
-   : new URL('private-map.json'+configSuffix,location.href);
-  originalConfig=privateConfig(await request(configEndpoint),location.href,{apiOrigin:rt?.gameServerOrigin||null});
+  let rawConfig,usedApiOrigin=rt?.gameServerOrigin||null;
+  if(rt&&parsedMatchRoute){
+   const apiPath='/perf/play/'+parsedMatchRoute.mapId+'/private-map.json'+configSuffix;
+   const {response,origin}=await fetchGameApi(apiPath,{cache:'no-store',timeoutMs:4500});
+   if(!response.ok)throw Error('私有地图配置暂不可用 ('+response.status+')');
+   rawConfig=await response.json();
+   usedApiOrigin=origin||usedApiOrigin;
+   // Dynamically sync live CDN bases from the active healthy game server (falls back to baked-in runtime-config.js).
+   try{
+    const dlRes=await fetch(new URL('/perf/download-config.json',usedApiOrigin).href,{cache:'no-store',signal:AbortSignal.timeout(2000)});
+    if(dlRes.ok)setDynamicCdnConfig(await dlRes.json());
+   }catch{}
+  }else{
+   rawConfig=await request(new URL('private-map.json'+configSuffix,location.href));
+  }
+  originalConfig=privateConfig(rawConfig,location.href,{apiOrigin:usedApiOrigin});
   delivery=await initDownloadOrigin({configURL:new URL('../../../download-config.json',originalConfig.renderUrl),pageURL:location.href});
  }
  hydrateHomeImages();

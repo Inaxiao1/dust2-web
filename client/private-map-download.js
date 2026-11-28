@@ -103,12 +103,13 @@ export function privateMapFetcher(config,{fetcher=fetch,cachesApi=globalThis.cac
   if(isLocalStatic){
    const response=await fetcher(remote,options);
    options.signal?.throwIfAborted();
-   if(!response.ok&&rt.mapBaseURL&&[404,408,429,500,502,503,504].includes(response.status)){
+   const fallbackMapBase=config.mapDownloadBaseURL||rt.mapBaseURL;
+   if(!response.ok&&fallbackMapBase&&[404,408,429,500,502,503,504].includes(response.status)){
     await response.body?.cancel().catch(()=>{});
     const extracted=extractMapRelative(original,config);
     if(extracted){
      const diskRel=/^(?:map\.json|nav\.json|physics\.f32|physics\.vidx|physics-mask\.u8|physics-groups\.json)$/.test(extracted.relative)?'compiled/'+extracted.relative:extracted.relative;
-     const cdnFallback=new URL('./'+config.id+'/'+diskRel,rt.mapBaseURL);
+     const cdnFallback=new URL('./'+config.id+'/'+diskRel,fallbackMapBase);
      cdnFallback.search=original.search;
      return saveToCache(await fetcher(cdnFallback,{...options,mode:'cors',credentials:'omit'}));
     }

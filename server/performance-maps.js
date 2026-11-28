@@ -39,12 +39,13 @@ function isLoopbackReq(req){
   const addr=req.socket?.remoteAddress||'';
   return addr==='127.0.0.1'||addr==='::1'||addr==='::ffff:127.0.0.1';
 }
-const deliveryConfig=validateDownloadConfig({
+const envDeliveryConfig=validateDownloadConfig({
   schemaVersion:1,
   assetBaseURL:process.env.PERF_ASSET_BASE_URL||process.env.DUST2_ASSET_DOWNLOAD_BASE||null,
   mapBaseURL:process.env.PERF_MAP_BASE_URL||process.env.DUSTII_MAP_DOWNLOAD_BASE||null,
   fallbackToGameServer:(process.env.PERF_DOWNLOAD_FALLBACK||process.env.DUST2_DOWNLOAD_FALLBACK)==='true',
 },'http://127.0.0.1/');
+let deliveryConfig=envDeliveryConfig;
 const preferredWsOrigins=(()=>{
   const raw=(process.env.PERF_WS_ORIGINS||'').trim();
   if(!raw)return [];
@@ -60,21 +61,51 @@ const preferredWsOrigins=(()=>{
   return out.slice(0,4);
 })();
 const nodeId=(process.env.PERF_NODE_ID||'local').trim().replace(/[^a-zA-Z0-9_-]/g,'').slice(0,32)||'local';
-const nodeLabel=(process.env.PERF_NODE_LABEL||'').trim().slice(0,24);
-const publicWsOrigin=(()=>{
-  const raw=(process.env.PERF_PUBLIC_WS_ORIGIN||'').trim();
-  if(raw){
-    try{
-      const u=new URL(raw);
-      if((u.protocol==='https:'||u.protocol==='http:')&&!u.username&&!u.password)return u.origin;
-    }catch{}
-  }
-  return preferredWsOrigins[0]||'';
-})();
-const maxHumans=Math.max(0,Math.floor(Number(process.env.PERF_MAX_HUMANS)||0));
-const hardMaxHumans=maxHumans>0?Math.max(maxHumans,Math.floor(Number(process.env.PERF_HARD_MAX_HUMANS)||0)||maxHumans):0;
-const maxLoadPerCpu=Math.max(0,Number(process.env.PERF_MAX_LOAD_PER_CPU)||0);
-const clusterPeers=(()=>{
+const envNodeLabel=(process.env.PERF_NODE_LABEL||'').trim().slice(0,24);
+function cleanHttpOrigin(raw){
+  if(typeof raw!=='string'||!raw.trim())return '';
+  try{
+    const u=new URL(raw.trim());
+    if((u.protocol==='https:'||u.protocol==='http:')&&!u.username&&!u.password)return u.origin;
+  }catch{}
+  return '';
+}
+const envPublicWsOrigin=cleanHttpOrigin(process.env.PERF_PUBLIC_WS_ORIGIN||'')||preferredWsOrigins[0]||'';
+const envMaxHumans=Math.max(0,Math.floor(Number(process.env.PERF_MAX_HUMANS)||0));
+const envHardMaxHumans=envMaxHumans>0?Math.max(envMaxHumans,Math.floor(Number(process.env.PERF_HARD_MAX_HUMANS)||0)||envMaxHumans):0;
+const envMaxLoadPerCpu=Math.max(0,Number(process.env.PERF_MAX_LOAD_PER_CPU)||0);
+const envNodeWeight=Math.max(0.1,Math.min(10,Number(process.env.PERF_NODE_WEIGHT)||1));
+function makePeerState({id,label,origin,publicWsOrigin='',enabled=true,acceptNewRooms=true,maxHumans=0,hardMaxHumans=0,weight=1},prev=null){
+  const keepLive=prev&&prev.origin===origin;
+  return {
+    id,
+    label:(label||id).slice(0,24),
+    origin,
+    publicWsOrigin:publicWsOrigin||(keepLive?prev.publicWsOrigin:origin)||origin,
+    cfgEnabled:enabled!==false,
+    cfgAcceptNewRooms:acceptNewRooms!==false,
+    cfgMaxHumans:Math.max(0,Math.floor(Number(maxHumans)||0)),
+    cfgHardMaxHumans:Math.max(0,Math.floor(Number(hardMaxHumans)||0)),
+    weight:Math.max(0.1,Math.min(10,Number(weight)||1)),
+    healthy:keepLive?prev.healthy:false,
+    ready:keepLive?prev.ready:false,
+    remoteEnabled:keepLive?prev.remoteEnabled:true,
+    remoteAcceptNewRooms:keepLive?prev.remoteAcceptNewRooms:true,
+    draining:keepLive?prev.draining:false,
+    humans:keepLive?prev.humans:0,
+    maxHumans:keepLive?prev.maxHumans:0,
+    hardMaxHumans:keepLive?prev.hardMaxHumans:0,
+    overloaded:keepLive?prev.overloaded:false,
+    full:keepLive?prev.full:false,
+    hardFull:keepLive?prev.hardFull:false,
+    load1m:keepLive?prev.load1m:0,
+    cpus:keepLive?prev.cpus:1,
+    rooms:keepLive?prev.rooms:[],
+    failCount:keepLive?prev.failCount:0,
+    updatedAt:keepLive?prev.updatedAt:0,
+  };
+}
+const envClusterPeers=(()=>{
   const raw=(process.env.PERF_CLUSTER_PEERS||'').trim();
   if(!raw)return [];
   const out=[];
@@ -85,36 +116,133 @@ const clusterPeers=(()=>{
     if(parts.length>=3){[id,label,originRaw]=parts;}
     else if(parts.length===2){[id,originRaw]=parts;}
     else{originRaw=parts[0];}
-    try{
-      const u=new URL(originRaw);
-      if((u.protocol!=='https:'&&u.protocol!=='http:')||u.username||u.password)continue;
-      const cleanId=(id||u.hostname.replace(/[^a-zA-Z0-9_-]/g,'')).slice(0,32);
-      if(!cleanId||seen.has(cleanId))continue;
-      seen.add(cleanId);
-      out.push({
-        id:cleanId,
-        label:(label||cleanId).slice(0,24),
-        origin:u.origin,
-        publicWsOrigin:u.origin,
-        healthy:false,
-        ready:false,
-        draining:false,
-        humans:0,
-        maxHumans:0,
-        hardMaxHumans:0,
-        overloaded:false,
-        full:false,
-        hardFull:false,
-        load1m:0,
-        cpus:1,
-        rooms:[],
-        failCount:0,
-        updatedAt:0,
-      });
-    }catch{}
+    const origin=cleanHttpOrigin(originRaw);
+    if(!origin)continue;
+    const hostId=new URL(origin).hostname.replace(/[^a-zA-Z0-9_-]/g,'');
+    const cleanId=(id||hostId).slice(0,32);
+    if(!cleanId||seen.has(cleanId))continue;
+    seen.add(cleanId);
+    out.push(makePeerState({id:cleanId,label:label||cleanId,origin}));
   }
   return out;
 })();
+const runtimeLocal={
+  label:envNodeLabel,
+  publicWsOrigin:envPublicWsOrigin,
+  enabled:true,
+  acceptNewRooms:true,
+  maxHumans:envMaxHumans,
+  hardMaxHumans:envHardMaxHumans,
+  maxLoadPerCpu:envMaxLoadPerCpu,
+  weight:envNodeWeight,
+};
+let runtimeRtcEnabled=true;
+let clusterPeers=[...envClusterPeers];
+const clusterConfigPath=(process.env.PERF_CLUSTER_CONFIG||'').trim()?path.resolve(process.env.PERF_CLUSTER_CONFIG.trim()):'';
+const clusterConfigMeta={path:clusterConfigPath||null,version:0,mtimeMs:0,loadedAt:0,error:null};
+function loadClusterConfig(force=false){
+  if(!clusterConfigPath)return false;
+  let stat;
+  try{stat=fs.statSync(clusterConfigPath);}catch(err){
+    if(force)clusterConfigMeta.error='config_not_found';
+    return false;
+  }
+  if(!force&&stat.mtimeMs===clusterConfigMeta.mtimeMs)return false;
+  let parsed;
+  try{
+    parsed=JSON.parse(fs.readFileSync(clusterConfigPath,'utf8'));
+    if(!parsed||typeof parsed!=='object'||Array.isArray(parsed))throw Error('root must be object');
+  }catch(err){
+    clusterConfigMeta.error=String(err?.message||'invalid_json');
+    console.warn(`[cluster-config] ignored invalid config at ${clusterConfigPath}: ${clusterConfigMeta.error}`);
+    return false;
+  }
+  // 1. Optional CDN override
+  if(parsed.cdn&&typeof parsed.cdn==='object'){
+    try{
+      deliveryConfig=validateDownloadConfig({
+        schemaVersion:1,
+        assetBaseURL:parsed.cdn.assetBaseURL??envDeliveryConfig.assetBaseURL,
+        mapBaseURL:parsed.cdn.mapBaseURL??envDeliveryConfig.mapBaseURL,
+        fallbackToGameServer:typeof parsed.cdn.fallbackToGameServer==='boolean'?parsed.cdn.fallbackToGameServer:envDeliveryConfig.fallbackToGameServer,
+      },'http://127.0.0.1/');
+    }catch(err){
+      console.warn(`[cluster-config] invalid cdn block ignored: ${err?.message||err}`);
+    }
+  }else{
+    deliveryConfig=envDeliveryConfig;
+  }
+  // 2. Optional transport override
+  if(parsed.transport&&typeof parsed.transport.rtcEnabled==='boolean'){
+    runtimeRtcEnabled=parsed.transport.rtcEnabled;
+  }else{
+    runtimeRtcEnabled=true;
+  }
+  // 3. Nodes list (applies matching nodeId to local runtime + builds dynamic peer list)
+  if(Array.isArray(parsed.nodes)){
+    const prevById=new Map(clusterPeers.map(p=>[p.id,p]));
+    const nextPeers=[];
+    const seen=new Set();
+    let matchedLocal=false;
+    for(const item of parsed.nodes){
+      if(!item||typeof item!=='object')continue;
+      const cleanId=String(item.id||'').trim().replace(/[^a-zA-Z0-9_-]/g,'').slice(0,32);
+      if(!cleanId||seen.has(cleanId))continue;
+      seen.add(cleanId);
+      if(cleanId===nodeId){
+        matchedLocal=true;
+        const maxH=item.maxHumans!==undefined?Math.max(0,Math.floor(Number(item.maxHumans)||0)):envMaxHumans;
+        const hardH=item.hardMaxHumans!==undefined
+          ?(maxH>0?Math.max(maxH,Math.floor(Number(item.hardMaxHumans)||0)||maxH):Math.max(0,Math.floor(Number(item.hardMaxHumans)||0)))
+          :(maxH>0?Math.max(maxH,envHardMaxHumans||maxH):0);
+        runtimeLocal.label=typeof item.label==='string'&&item.label.trim()?item.label.trim().slice(0,24):envNodeLabel;
+        runtimeLocal.publicWsOrigin=cleanHttpOrigin(item.publicWsOrigin||item.origin||'')||envPublicWsOrigin;
+        runtimeLocal.enabled=item.enabled!==false;
+        runtimeLocal.acceptNewRooms=item.acceptNewRooms!==false;
+        runtimeLocal.maxHumans=maxH;
+        runtimeLocal.hardMaxHumans=hardH;
+        runtimeLocal.maxLoadPerCpu=item.maxLoadPerCpu!==undefined?Math.max(0,Number(item.maxLoadPerCpu)||0):envMaxLoadPerCpu;
+        runtimeLocal.weight=item.weight!==undefined?Math.max(0.1,Math.min(10,Number(item.weight)||1)):envNodeWeight;
+        continue;
+      }
+      const origin=cleanHttpOrigin(item.origin||item.publicWsOrigin||'');
+      if(!origin)continue;
+      const pubWs=cleanHttpOrigin(item.publicWsOrigin||'')||origin;
+      nextPeers.push(makePeerState({
+        id:cleanId,
+        label:typeof item.label==='string'&&item.label.trim()?item.label.trim():cleanId,
+        origin,
+        publicWsOrigin:pubWs,
+        enabled:item.enabled!==false,
+        acceptNewRooms:item.acceptNewRooms!==false,
+        maxHumans:item.maxHumans,
+        hardMaxHumans:item.hardMaxHumans,
+        weight:item.weight,
+      },prevById.get(cleanId)||null));
+    }
+    if(!matchedLocal){
+      runtimeLocal.label=envNodeLabel;
+      runtimeLocal.publicWsOrigin=envPublicWsOrigin;
+      runtimeLocal.enabled=true;
+      runtimeLocal.acceptNewRooms=true;
+      runtimeLocal.maxHumans=envMaxHumans;
+      runtimeLocal.hardMaxHumans=envHardMaxHumans;
+      runtimeLocal.maxLoadPerCpu=envMaxLoadPerCpu;
+      runtimeLocal.weight=envNodeWeight;
+    }
+    const hadNewPeer=nextPeers.some(p=>p.cfgEnabled&&p.updatedAt===0);
+    clusterPeers=nextPeers;
+    for(const [k,peer] of clusterRoomToPeer.entries()){
+      if(!nextPeers.some(p=>p.id===peer.id&&p.cfgEnabled))clusterRoomToPeer.delete(k);
+    }
+    if(hadNewPeer&&typeof pollClusterPeers==='function')void pollClusterPeers();
+  }
+  clusterConfigMeta.version=Number.isFinite(Number(parsed.version))?Number(parsed.version):(clusterConfigMeta.version+1);
+  clusterConfigMeta.mtimeMs=stat.mtimeMs;
+  clusterConfigMeta.loadedAt=Date.now();
+  clusterConfigMeta.error=null;
+  return true;
+}
 const clusterRoomToPeer=new Map();
 const allowedOrigins=(()=>{
   const raw=process.env.PERF_ALLOWED_ORIGINS;
@@ -171,21 +299,24 @@ function localNodeSnapshot(){
   const humans=localActiveConnections();
   const cpus=Math.max(1,os.cpus().length||1);
   const load1m=+os.loadavg()[0].toFixed(2);
-  const overloaded=maxLoadPerCpu>0&&(load1m/cpus)>=maxLoadPerCpu;
-  const full=maxHumans>0&&humans>=maxHumans;
-  const hardFull=hardMaxHumans>0&&humans>=hardMaxHumans;
+  const overloaded=runtimeLocal.maxLoadPerCpu>0&&(load1m/cpus)>=runtimeLocal.maxLoadPerCpu;
+  const full=runtimeLocal.maxHumans>0&&humans>=runtimeLocal.maxHumans;
+  const hardFull=runtimeLocal.hardMaxHumans>0&&humans>=runtimeLocal.hardMaxHumans;
   return {
     id:nodeId,
-    label:nodeLabel||nodeId,
+    label:runtimeLocal.label||nodeId,
     local:true,
+    enabled:runtimeLocal.enabled,
+    acceptNewRooms:runtimeLocal.acceptNewRooms,
+    weight:runtimeLocal.weight,
     healthy:true,
-    ready:!draining,
+    ready:!draining&&runtimeLocal.enabled,
     draining,
-    publicWsOrigin,
+    publicWsOrigin:runtimeLocal.publicWsOrigin,
     humans,
-    maxHumans,
-    hardMaxHumans,
-    availableSlots:maxHumans>0?Math.max(0,maxHumans-humans):null,
+    maxHumans:runtimeLocal.maxHumans,
+    hardMaxHumans:runtimeLocal.hardMaxHumans,
+    availableSlots:runtimeLocal.maxHumans>0?Math.max(0,runtimeLocal.maxHumans-humans):null,
     full,
     hardFull,
     overloaded,
@@ -195,22 +326,34 @@ function localNodeSnapshot(){
 }
 function peerNodeSnapshot(peer){
   const stale=peer.updatedAt===0||(Date.now()-peer.updatedAt>15000);
-  const healthy=peer.healthy&&!stale;
+  const enabled=peer.cfgEnabled!==false&&peer.remoteEnabled!==false;
+  const healthy=enabled&&peer.healthy&&!stale;
+  const effMaxHumans=peer.cfgMaxHumans>0
+    ?(peer.maxHumans>0?Math.min(peer.cfgMaxHumans,peer.maxHumans):peer.cfgMaxHumans)
+    :peer.maxHumans;
+  const effHardMaxHumans=peer.cfgHardMaxHumans>0
+    ?(peer.hardMaxHumans>0?Math.min(peer.cfgHardMaxHumans,peer.hardMaxHumans):peer.cfgHardMaxHumans)
+    :(effMaxHumans>0?Math.max(effMaxHumans,peer.hardMaxHumans||effMaxHumans):peer.hardMaxHumans);
+  const full=Boolean(peer.full||(effMaxHumans>0&&peer.humans>=effMaxHumans));
+  const hardFull=Boolean(peer.hardFull||(effHardMaxHumans>0&&peer.humans>=effHardMaxHumans));
   return {
     id:peer.id,
     label:peer.label,
     local:false,
+    enabled,
+    acceptNewRooms:peer.cfgAcceptNewRooms!==false&&peer.remoteAcceptNewRooms!==false,
+    weight:peer.weight,
     healthy,
     ready:healthy&&peer.ready,
     draining:peer.draining,
     origin:peer.origin,
     publicWsOrigin:peer.publicWsOrigin||peer.origin,
     humans:peer.humans,
-    maxHumans:peer.maxHumans,
-    hardMaxHumans:peer.hardMaxHumans,
-    availableSlots:peer.maxHumans>0?Math.max(0,peer.maxHumans-peer.humans):null,
-    full:peer.full,
-    hardFull:peer.hardFull,
+    maxHumans:effMaxHumans,
+    hardMaxHumans:effHardMaxHumans,
+    availableSlots:effMaxHumans>0?Math.max(0,effMaxHumans-peer.humans):null,
+    full,
+    hardFull,
     overloaded:peer.overloaded,
     load1m:peer.load1m,
     cpus:peer.cpus,
@@ -218,7 +361,7 @@ function peerNodeSnapshot(peer){
 }
 function buildClusterSummary(){
   const nodes=[localNodeSnapshot(),...clusterPeers.map(peerNodeSnapshot)];
-  const healthyNodes=nodes.filter(n=>n.healthy&&n.ready&&!n.draining);
+  const healthyNodes=nodes.filter(n=>n.enabled!==false&&n.healthy&&n.ready&&!n.draining);
   const totalHumans=nodes.reduce((s,n)=>s+(n.humans||0),0);
   const allBounded=healthyNodes.length>0&&healthyNodes.every(n=>n.maxHumans>0);
   const totalCapacity=allBounded?healthyNodes.reduce((s,n)=>s+n.maxHumans,0):null;
@@ -227,13 +370,15 @@ function buildClusterSummary(){
 }
 function rankClusterNodesForNewRoom(){
   const nodes=[localNodeSnapshot(),...clusterPeers.map(peerNodeSnapshot)];
-  const eligible=nodes.filter(n=>n.healthy&&n.ready&&!n.draining&&!n.overloaded&&!n.full&&!n.hardFull);
+  const eligible=nodes.filter(n=>n.enabled!==false&&n.acceptNewRooms!==false&&n.healthy&&n.ready&&!n.draining&&!n.overloaded&&!n.full&&!n.hardFull);
   eligible.sort((a,b)=>{
     const utilA=a.maxHumans>0?(a.humans/a.maxHumans):(a.humans/100);
     const utilB=b.maxHumans>0?(b.humans/b.maxHumans):(b.humans/100);
+    const wA=Math.max(0.1,Number(a.weight)||1);
+    const wB=Math.max(0.1,Number(b.weight)||1);
     const cpuA=a.cpus>0?Math.max(0,(a.load1m/a.cpus)-0.65)*0.5:0;
     const cpuB=b.cpus>0?Math.max(0,(b.load1m/b.cpus)-0.65)*0.5:0;
-    return (utilA+cpuA)-(utilB+cpuB)||a.humans-b.humans;
+    return ((utilA/wA)+cpuA)-((utilB/wB)+cpuB)||a.humans-b.humans;
   });
   return eligible;
 }
@@ -248,7 +393,7 @@ function resolveWsOriginsForRequest(mapId,requestedNodeId='',requestedRoomCode='
   if(cleanRoom){
     const localWorker=roomToWorker.get(mapId+':'+cleanRoom);
     if(localWorker&&isLiveWorker(localWorker)){
-      return {wsOrigins:publicWsOrigin?[publicWsOrigin]:preferredWsOrigins,node:localNodeSnapshot(),clusterFull:false};
+      return {wsOrigins:runtimeLocal.publicWsOrigin?[runtimeLocal.publicWsOrigin]:preferredWsOrigins,node:localNodeSnapshot(),clusterFull:false};
     }
     const peer=clusterRoomToPeer.get(mapId+':'+cleanRoom);
     if(peer){
@@ -258,7 +403,7 @@ function resolveWsOriginsForRequest(mapId,requestedNodeId='',requestedRoomCode='
   }
   if(requestedNodeId){
     const target=resolveClusterNodeById(requestedNodeId);
-    if(target&&target.healthy&&target.ready&&!target.draining){
+    if(target&&target.enabled!==false&&target.healthy&&target.ready&&!target.draining){
       const origins=[];
       if(target.publicWsOrigin)origins.push(target.publicWsOrigin);
       return {wsOrigins:origins.length?origins:preferredWsOrigins,node:target,clusterFull:false};
@@ -266,8 +411,8 @@ function resolveWsOriginsForRequest(mapId,requestedNodeId='',requestedRoomCode='
   }
   if(!clusterPeers.length){
     const local=localNodeSnapshot();
-    const full=local.draining||local.full||local.hardFull||local.overloaded;
-    return {wsOrigins:preferredWsOrigins,node:local,clusterFull:full};
+    const full=!local.enabled||!local.acceptNewRooms||local.draining||local.full||local.hardFull||local.overloaded;
+    return {wsOrigins:runtimeLocal.publicWsOrigin?[runtimeLocal.publicWsOrigin,...preferredWsOrigins.filter(o=>o!==runtimeLocal.publicWsOrigin)]:preferredWsOrigins,node:local,clusterFull:full};
   }
   const ranked=rankClusterNodesForNewRoom();
   if(ranked.length){
@@ -284,10 +429,11 @@ function resolveWsOriginsForRequest(mapId,requestedNodeId='',requestedRoomCode='
 }
 let clusterPollRunning=false;
 async function pollClusterPeers(){
-  if(!clusterPeers.length||clusterPollRunning)return;
+  const activePeers=clusterPeers.filter(p=>p.cfgEnabled!==false);
+  if(!activePeers.length||clusterPollRunning)return;
   clusterPollRunning=true;
   try{
-    await Promise.allSettled(clusterPeers.map(async(peer)=>{
+    await Promise.allSettled(activePeers.map(async(peer)=>{
       try{
         const [hRes,rRes]=await Promise.all([
           fetch(peer.origin+'/perf/health?local=1',{cache:'no-store',signal:AbortSignal.timeout(2500)}),
@@ -298,7 +444,9 @@ async function pollClusterPeers(){
         const node=health.node||{};
         peer.healthy=true;
         peer.failCount=0;
-        peer.ready=health.ready===true&&health.draining!==true;
+        peer.remoteEnabled=node.enabled!==false;
+        peer.remoteAcceptNewRooms=node.acceptNewRooms!==false;
+        peer.ready=health.ready===true&&health.draining!==true&&peer.remoteEnabled;
         peer.draining=health.draining===true;
         peer.humans=Number.isFinite(node.humans)?node.humans:(Number(health.network?.humans)||0);
         peer.maxHumans=Number.isFinite(node.maxHumans)?node.maxHumans:0;
@@ -318,7 +466,7 @@ async function pollClusterPeers(){
     }));
     clusterRoomToPeer.clear();
     for(const peer of clusterPeers){
-      if(!peer.healthy)continue;
+      if(!peer.cfgEnabled||!peer.healthy)continue;
       for(const row of peer.rooms){
         if(row?.mapId&&row?.code)clusterRoomToPeer.set(row.mapId+':'+row.code,peer);
       }
@@ -327,8 +475,11 @@ async function pollClusterPeers(){
     clusterPollRunning=false;
   }
 }
-const clusterPollTimer=clusterPeers.length?setInterval(()=>{void pollClusterPeers();},2500):null;
+if(clusterConfigPath)loadClusterConfig(true);
+const clusterPollTimer=(clusterPeers.length||clusterConfigPath)?setInterval(()=>{if(clusterPeers.length)void pollClusterPeers();},2500):null;
 clusterPollTimer?.unref();
+const clusterConfigTimer=clusterConfigPath?setInterval(()=>{loadClusterConfig(false);},2500):null;
+clusterConfigTimer?.unref();
 if(clusterPeers.length)void pollClusterPeers();
 const types={'.js':'text/javascript','.mjs':'text/javascript','.css':'text/css','.html':'text/html; charset=utf-8','.json':'application/json','.gltf':'model/gltf+json','.glb':'model/gltf-binary','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.avif':'image/avif','.webp':'image/webp','.svg':'image/svg+xml','.hdr':'application/octet-stream','.ogg':'audio/ogg','.mp3':'audio/mpeg','.woff2':'font/woff2','.ttf':'font/ttf'};
 const json=(res,code,data)=>res.writeHead(code,{'Content-Type':'application/json','Cache-Control':'no-store'}).end(JSON.stringify(data));
@@ -669,12 +820,12 @@ async function performanceRooms({localOnly=false}={}){
         mapName: map.name,
         mapNameZh: map.nameZh,
         qualityAvailable: qualityPacks.has(map.id),
-        ...(clusterPeers.length || nodeLabel ? {nodeId: localSnap.id, nodeLabel: localSnap.label, wsOrigin: localSnap.publicWsOrigin || undefined} : {}),
+        ...(clusterPeers.length || runtimeLocal.label ? {nodeId: localSnap.id, nodeLabel: localSnap.label, wsOrigin: localSnap.publicWsOrigin || undefined} : {}),
       });
     }
   }
   if (!localOnly && clusterPeers.length) {
-    if (clusterPeers.some(p => p.updatedAt === 0)) await pollClusterPeers();
+    if (clusterPeers.some(p => p.cfgEnabled && p.updatedAt === 0)) await pollClusterPeers();
     const seenIds = new Set(rooms.map(r => r.id));
     for (const peer of clusterPeers) {
       const pSnap = peerNodeSnapshot(peer);
@@ -701,7 +852,7 @@ async function performanceRooms({localOnly=false}={}){
   rooms.sort((a,b) => Number(b.joinable)-Number(a.joinable) || b.humans-a.humans || a.id.localeCompare(b.id));
   const totalHumans = rooms.reduce((sum, r) => sum + r.humans, 0);
   const joinableRooms = rooms.filter(r => r.joinable && r.humans < r.capacity).length;
-  const cluster = !localOnly && (clusterPeers.length > 0 || maxHumans > 0) ? buildClusterSummary() : undefined;
+  const cluster = !localOnly && (clusterPeers.length > 0 || runtimeLocal.maxHumans > 0 || clusterConfigPath) ? buildClusterSummary() : undefined;
   return {rooms, totalRooms: rooms.length, totalHumans, joinableRooms, ...(cluster ? {cluster} : {}), ...(unavailable ? {partial:true} : {})};
 }
 
@@ -897,9 +1048,9 @@ function mapConfig(id,originOrWorker,quality,{requestedNodeId='',requestedRoomCo
     const routed=resolveWsOriginsForRequest(id,requestedNodeId,requestedRoomCode);
     const wsRouteMeta={
       ...(routed.wsOrigins.length?{wsOrigins:routed.wsOrigins}:{}),
-      ...(clusterPeers.length||nodeLabel?{nodeId:routed.node.id,nodeLabel:routed.node.label}:{}),
+      ...(clusterPeers.length||runtimeLocal.label?{nodeId:routed.node.id,nodeLabel:routed.node.label}:{}),
       ...(routed.clusterFull?{clusterFull:true}:{}),
-      rtcEnabled:Boolean(rtcGateway),
+      rtcEnabled:Boolean(rtcGateway&&runtimeRtcEnabled),
     };
     if(quality)return {...config,...urls,...cosmetics,...wsRouteMeta,flatOnly:false,graphicsMode:'quality',renderUrl:'/perf/quality/maps/'+id+'/render/map.gltf'};
     return {...config,...urls,...cosmetics,...compactMeta,...texturedMeta,...wsRouteMeta,flatOnly:true,...(fs.existsSync(remap)?{flatBreakableVisuals:JSON.parse(fs.readFileSync(remap))}:{})};
@@ -924,6 +1075,12 @@ const server=http.createServer(async(req,res)=>{
       for(const ev of events.slice(0,256))telemetryStore.record(ev);
       json(res,200,{ok:true,accepted:Math.min(256,events.length)});return;
     }
+    if(p==='/perf/internal/reload-config'){
+      if(!isLoopbackReq(req)){json(res,403,{ok:false,error:'LOOPBACK_ONLY'});return;}
+      const reloaded=loadClusterConfig(true);
+      if(clusterPeers.length)await pollClusterPeers();
+      json(res,200,{ok:true,reloaded,config:clusterConfigMeta,node:localNodeSnapshot(),cdn:deliveryConfig,peers:clusterPeers.map(peerNodeSnapshot)});return;
+    }
     const rtcMatch=/^\/perf\/(?:quality\/)?play\/(de_[a-z0-9]+)\/rtc-offer$/.exec(p);
     if(rtcMatch){
       if(draining){json(res,503,{ok:false,error:'SERVER_DRAINING'});return;}
@@ -934,7 +1091,7 @@ const server=http.createServer(async(req,res)=>{
       if(!maps.has(mapId)||(p.startsWith('/perf/quality/')&&!qualityPacks.has(mapId))){
         json(res,404,{ok:false,error:'UNKNOWN_MAP'});return;
       }
-      if(!rtcGateway){
+      if(!rtcGateway||!runtimeRtcEnabled){
         json(res,404,{ok:false,error:'RTC_DISABLED'});return;
       }
       const body=await readJsonBody(req);
@@ -1044,12 +1201,27 @@ const server=http.createServer(async(req,res)=>{
     const [network,store]=await Promise.all([refreshLiveNetwork(true),telemetryStore.summary()]);
     json(res,200,{ok:true,network,rtc:rtcGateway?rtcGateway.status():{enabled:false},...store});return;
   }
+  if(p==='/perf/config.json'){
+    const summary=buildClusterSummary();
+    json(res,200,{
+      ok:true,
+      version:clusterConfigMeta.version,
+      loadedAt:clusterConfigMeta.loadedAt,
+      cdn:deliveryConfig,
+      transport:{rtcEnabled:Boolean(rtcGateway&&runtimeRtcEnabled)},
+      nodes:summary.nodes.map(n=>({
+        id:n.id,label:n.label,enabled:n.enabled,acceptNewRooms:n.acceptNewRooms,weight:n.weight,
+        healthy:n.healthy,ready:n.ready,humans:n.humans,maxHumans:n.maxHumans,hardMaxHumans:n.hardMaxHumans,
+        publicWsOrigin:n.publicWsOrigin,
+      })),
+    });return;
+  }
   if(p==='/perf/health'){
     const localOnly=url.searchParams.get('local')==='1';
     const network=await refreshLiveNetwork(false);
     const node=localNodeSnapshot();
-    const cluster=!localOnly&&(clusterPeers.length>0||maxHumans>0)?buildClusterSummary():undefined;
-    json(res,200,{ok:true,ready:!draining,draining,disableLocalAssets,logicGatewayOnly,maxWorkers,workerMaxRooms:Number(workerMaxRooms),shardTargetRooms,controlPlane:!!controlPlaneUrl,maps:maps.size,node,...(cluster?{cluster}:{}),rtc:rtcGateway?rtcGateway.status():{enabled:false},network,workers:allWorkers().map(w=>({id:w.id,shard:w.shard,active:w.connections>0,connections:w.connections}))});return;
+    const cluster=!localOnly&&(clusterPeers.length>0||runtimeLocal.maxHumans>0||clusterConfigPath)?buildClusterSummary():undefined;
+    json(res,200,{ok:true,ready:!draining&&runtimeLocal.enabled,draining,disableLocalAssets,logicGatewayOnly,maxWorkers,workerMaxRooms:Number(workerMaxRooms),shardTargetRooms,controlPlane:!!controlPlaneUrl,maps:maps.size,node,...(cluster?{cluster}:{}),...(clusterConfigPath?{config:{version:clusterConfigMeta.version,loadedAt:clusterConfigMeta.loadedAt,error:clusterConfigMeta.error}}:{}),rtc:rtcGateway&&runtimeRtcEnabled?rtcGateway.status():{enabled:false},network,workers:allWorkers().map(w=>({id:w.id,shard:w.shard,active:w.connections>0,connections:w.connections}))});return;
   }
   if(p==='/perf/api/maps'){
     if(controlPlaneUrl){
@@ -1111,7 +1283,7 @@ const server=http.createServer(async(req,res)=>{
       res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-cache'}).end(req.method==='HEAD'?undefined:html);return;
     }
     const routeHint={requestedNodeId:url.searchParams.get('node')||'',requestedRoomCode:url.searchParams.get('room')||''};
-    if(play[2]==='private-map.json'&&clusterPeers.length&&clusterPeers.some(peer=>peer.updatedAt===0)){
+    if(play[2]==='private-map.json'&&clusterPeers.length&&clusterPeers.some(peer=>peer.cfgEnabled&&peer.updatedAt===0)){
       await pollClusterPeers();
     }
     const remoteOrigin=controlPlaneUrl?await remoteWorkerOriginForMap(play[1]):null;
@@ -1400,6 +1572,12 @@ function routeShardedWebSocket(mapId,query,req,clientWs){
         target=(code&&await findWorkerForRoom(mapId,code))||await ensureWorker(mapId);
       }else if(msg.type==='join'){
         const isResume=typeof msg.resumeToken==='string'&&msg.resumeToken.length>0;
+        const curHardMax=runtimeLocal.hardMaxHumans;
+        if(!runtimeLocal.enabled&&!isResume){
+          sendWsJson(clientWs,{type:'error',code:'NODE_DISABLED',message:'当前战区节点维护中，请返回大厅重新匹配。'});
+          cleanup(1013,'Node disabled');
+          return;
+        }
         if(code){
           target=await findWorkerForRoom(mapId,code);
           if(!target&&clusterPeers.length){
@@ -1412,21 +1590,31 @@ function routeShardedWebSocket(mapId,query,req,clientWs){
             }
           }
           if(!target&&!peerBridgeUrl){
-            if(hardMaxHumans>0&&!isResume&&localActiveConnections()>=hardMaxHumans){
-              sendWsJson(clientWs,{type:'error',code:'SERVER_FULL',message:`当前战区服务器已满载（上限 ${hardMaxHumans} 人），请返回大厅重新匹配或稍后再试。`});
+            if(curHardMax>0&&!isResume&&localActiveConnections()>=curHardMax){
+              sendWsJson(clientWs,{type:'error',code:'SERVER_FULL',message:`当前战区服务器已满载（上限 ${curHardMax} 人），请返回大厅重新匹配或稍后再试。`});
               cleanup(1013,'Server full');
               return;
             }
+            if(!runtimeLocal.acceptNewRooms&&!isResume&&msg.existing!==true){
+              sendWsJson(clientWs,{type:'error',code:'NODE_DRAINING',message:'当前战区节点暂不创建新房间，请返回大厅重新匹配。'});
+              cleanup(1013,'Node draining');
+              return;
+            }
             target=msg.existing===true?await ensureWorker(mapId):await selectWorkerForNewRoom(mapId);
-          }else if(target&&hardMaxHumans>0&&!isResume&&localActiveConnections()>=hardMaxHumans){
-            sendWsJson(clientWs,{type:'error',code:'SERVER_FULL',message:`当前战区服务器已满载（上限 ${hardMaxHumans} 人），请返回大厅重新匹配或稍后再试。`});
+          }else if(target&&curHardMax>0&&!isResume&&localActiveConnections()>=curHardMax){
+            sendWsJson(clientWs,{type:'error',code:'SERVER_FULL',message:`当前战区服务器已满载（上限 ${curHardMax} 人），请返回大厅重新匹配或稍后再试。`});
             cleanup(1013,'Server full');
             return;
           }
         }else{
-          if(hardMaxHumans>0&&!isResume&&localActiveConnections()>=hardMaxHumans){
-            sendWsJson(clientWs,{type:'error',code:'SERVER_FULL',message:`当前战区服务器已满载（上限 ${hardMaxHumans} 人），请返回大厅重新匹配或稍后再试。`});
+          if(curHardMax>0&&!isResume&&localActiveConnections()>=curHardMax){
+            sendWsJson(clientWs,{type:'error',code:'SERVER_FULL',message:`当前战区服务器已满载（上限 ${curHardMax} 人），请返回大厅重新匹配或稍后再试。`});
             cleanup(1013,'Server full');
+            return;
+          }
+          if(!runtimeLocal.acceptNewRooms&&!isResume){
+            sendWsJson(clientWs,{type:'error',code:'NODE_DRAINING',message:'当前战区节点暂不创建新房间，请返回大厅重新匹配。'});
+            cleanup(1013,'Node draining');
             return;
           }
           target=await selectWorkerForNewRoom(mapId);
@@ -1536,10 +1724,10 @@ server.on('upgrade',async(req,socket,head)=>{
   const match=/^\/perf\/(?:quality\/)?play\/(de_[a-z0-9]+)\/ws(\?.*)?$/.exec(req.url);
   if(!match||!maps.has(match[1])||(req.url.startsWith('/perf/quality/')&&!qualityPacks.has(match[1]))){socket.destroy();return;}
   const mapId=match[1],query=match[2]||'';
-  if(hardMaxHumans>0&&shardWss.clients.size>=hardMaxHumans+24){
+  if(runtimeLocal.hardMaxHumans>0&&shardWss.clients.size>=runtimeLocal.hardMaxHumans+24){
     socket.end('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n');return;
   }
-  if(maxShardsForMap(mapId)>1||mapWorkers(mapId).length>1||hardMaxHumans>0||clusterPeers.length>0){
+  if(maxShardsForMap(mapId)>1||mapWorkers(mapId).length>1||runtimeLocal.hardMaxHumans>0||clusterPeers.length>0||clusterConfigPath){
     shardWss.handleUpgrade(req,socket,head,clientWs=>routeShardedWebSocket(mapId,query,req,clientWs));
     return;
   }
@@ -1566,6 +1754,6 @@ server.listen(port,host,()=>{
   }
 });
 process.on('SIGUSR2',()=>{draining=true;for(const w of allWorkers())if(!w.retiring)w.child.kill('SIGUSR2');});
-function shutdown(){clearInterval(reap);clearInterval(shardHeartbeat);clearInterval(netLogTimer);if(clusterPollTimer)clearInterval(clusterPollTimer);void telemetryStore.close();for(const w of allWorkers())w.child.kill();server.close();const forceExit=setTimeout(()=>process.exit(0),1500);forceExit.unref?.();rtcGateway?.close({cleanupNative:true});}
+function shutdown(){clearInterval(reap);clearInterval(shardHeartbeat);clearInterval(netLogTimer);if(clusterPollTimer)clearInterval(clusterPollTimer);if(clusterConfigTimer)clearInterval(clusterConfigTimer);void telemetryStore.close();for(const w of allWorkers())w.child.kill();server.close();const forceExit=setTimeout(()=>process.exit(0),1500);forceExit.unref?.();rtcGateway?.close({cleanupNative:true});}
 for(const signal of ['SIGINT','SIGTERM'])process.once(signal,shutdown);
 if(process.send)process.once('disconnect',shutdown);

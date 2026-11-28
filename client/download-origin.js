@@ -2,7 +2,7 @@ import {validateDownloadConfig} from '../shared/download-config.js';
 import {isPackagedAgentPath} from '../shared/packaged-agent-assets.js';
 import {isPackagedSkinPath} from '../shared/packaged-skin-assets.js';
 import {packagedMusicKitForPath} from '../shared/music-kits.js';
-import {getStaticRuntime,resolveStaticAsset,maybeGunzipResponse} from '../shared/static-runtime.js';
+import {getStaticRuntime,resolveStaticAsset,maybeGunzipResponse,getEffectiveCdnBases} from '../shared/static-runtime.js';
 
 const DEFAULT_CONFIG=Object.freeze({schemaVersion:1,assetBaseURL:null,mapBaseURL:null,fallbackToGameServer:false});
 const AVAILABILITY_STATUS=new Set([404,408,429,500,502,503,504]);
@@ -19,10 +19,11 @@ export async function initDownloadOrigin({configURL,pageURL=defaultPageURL(),sig
  check(signal);
  const rt=getStaticRuntime();
  if(rt){
+  const effective=getEffectiveCdnBases();
   const config=Object.freeze({
    schemaVersion:1,
-   assetBaseURL:rt.assetBaseURL||null,
-   mapBaseURL:rt.mapBaseURL||null,
+   assetBaseURL:effective.assetBaseURL||rt.assetBaseURL||null,
+   mapBaseURL:effective.mapBaseURL||rt.mapBaseURL||null,
    fallbackToGameServer:false,
   });
   downloadOrigin=config;

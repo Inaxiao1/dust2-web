@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "transport": {
+    "rtcEnabled": false
+  },
+  "cdn": {
+    "assetBaseURL": "https://cdn.example.com/assets/",
+    "mapBaseURL": "https://cdn.example.com/maps/",
+    "fallbackToGameServer": false
+  },
+  "nodes": [
+    {
+      "id": "node-primary",
+      "label": "主力区",
+      "origin": "https://ws-primary.example.com",
+      "publicWsOrigin": "https://ws-primary.example.com",
+      "enabled": true,
+      "acceptNewRooms": true,
+      "maxHumans": 100,
+      "hardMaxHumans": 105,
+      "maxLoadPerCpu": 1.1,
+      "weight": 1.3
+    },
+    {
+      "id": "node-east",
+      "label": "华东区",
+      "origin": "https://ws-east.example.com",
+      "publicWsOrigin": "https://ws-east.example.com",
+      "enabled": true,
+      "acceptNewRooms": true,
+      "maxHumans": 60,
+      "hardMaxHumans": 65,
+      "maxLoadPerCpu": 0.9,
+      "weight": 1.0
+    },
+    {
+      "id": "node-backup",
+      "label": "备用区",
+      "origin": "https://ws-backup.example.com",
+      "publicWsOrigin": "https://ws-backup.example.com",
+      "enabled": true,
+      "acceptNewRooms": true,
+      "maxHumans": 35,
+      "hardMaxHumans": 38,
+      "maxLoadPerCpu": 0.95,
+      "weight": 0.7
+    }
+  ]
+}

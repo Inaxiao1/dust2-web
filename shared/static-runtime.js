@@ -19,6 +19,10 @@
 
 let cachedSource = null;
 let cachedRuntime = null;
+let dynamicCdnOverride = null;
+const ACTIVE_ORIGIN_KEY = 'cs2.activeGameOrigin.v1';
+const ORIGIN_BACKOFF_MS = 60_000;
+const failedOriginUntil = new Map();
 
 function cleanOrigin(raw) {
   if (typeof raw !== 'string' || !raw.trim()) return null;
@@ -43,6 +47,21 @@ function cleanBaseURL(raw) {
   }
 }
 
+function readStoredOrigin() {
+  try {
+    return cleanOrigin(globalThis.sessionStorage?.getItem(ACTIVE_ORIGIN_KEY) || '');
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredOrigin(origin) {
+  try {
+    if (origin) globalThis.sessionStorage?.setItem(ACTIVE_ORIGIN_KEY, origin);
+    else globalThis.sessionStorage?.removeItem(ACTIVE_ORIGIN_KEY);
+  } catch {}
+}
+
 export function getStaticRuntime() {
   const raw = globalThis.__CS2_STATIC_RUNTIME__;
   if (!raw || typeof raw !== 'object') {
@@ -51,7 +70,16 @@ export function getStaticRuntime() {
     return null;
   }
   if (raw === cachedSource && cachedRuntime) return cachedRuntime;
-  const gameServerOrigin = cleanOrigin(raw.gameServerOrigin);
+  const gameServerOrigins = [];
+  const pushOrigin = (v) => {
+    const c = cleanOrigin(v);
+    if (c && !gameServerOrigins.includes(c)) gameServerOrigins.push(c);
+  };
+  if (Array.isArray(raw.gameServerOrigins)) {
+    for (const item of raw.gameServerOrigins) pushOrigin(item);
+  }
+  pushOrigin(raw.gameServerOrigin);
+  const gameServerOrigin = gameServerOrigins[0] || null;
   const assetBaseURL = cleanBaseURL(raw.assetBaseURL);
   const mapBaseURL = cleanBaseURL(raw.mapBaseURL);
   const bundledAssetSet = new Set(Array.isArray(raw.bundledAssets) ? raw.bundledAssets : []);
@@ -60,6 +88,7 @@ export function getStaticRuntime() {
   cachedSource = raw;
   cachedRuntime = Object.freeze({
     gameServerOrigin,
+    gameServerOrigins: Object.freeze(gameServerOrigins),
     assetBaseURL,
     mapBaseURL,
     bundledAssetSet,
@@ -73,14 +102,127 @@ export function getStaticRuntime() {
   return cachedRuntime;
 }
 
+export function setDynamicCdnConfig(cfg) {
+  if (!cfg || typeof cfg !== 'object') {
+    dynamicCdnOverride = null;
+    return;
+  }
+  const assetBaseURL = cleanBaseURL(cfg.assetBaseURL);
+  const mapBaseURL = cleanBaseURL(cfg.mapBaseURL);
+  if (assetBaseURL || mapBaseURL) {
+    dynamicCdnOverride = Object.freeze({ assetBaseURL, mapBaseURL });
+  }
+}
+
+export function getEffectiveCdnBases() {
+  const rt = getStaticRuntime();
+  return {
+    assetBaseURL: dynamicCdnOverride?.assetBaseURL || rt?.assetBaseURL || null,
+    mapBaseURL: dynamicCdnOverride?.mapBaseURL || rt?.mapBaseURL || null,
+  };
+}
+
+export function getGameServerOrigins() {
+  const rt = getStaticRuntime();
+  const list = rt?.gameServerOrigins || [];
+  if (list.length <= 1) return [...list];
+  const now = Date.now();
+  const stored = readStoredOrigin();
+  const healthy = [];
+  const backedOff = [];
+  if (stored && list.includes(stored)) {
+    const until = failedOriginUntil.get(stored) || 0;
+    if (until <= now) healthy.push(stored);
+  }
+  for (const origin of list) {
+    if (healthy.includes(origin)) continue;
+    const until = failedOriginUntil.get(origin) || 0;
+    if (until <= now) healthy.push(origin);
+    else backedOff.push(origin);
+  }
+  return [...healthy, ...backedOff];
+}
+
+export function getActiveGameOrigin() {
+  const list = getGameServerOrigins();
+  return list[0] || null;
+}
+
+export function setActiveGameOrigin(origin) {
+  const clean = cleanOrigin(origin);
+  if (!clean) return;
+  failedOriginUntil.delete(clean);
+  writeStoredOrigin(clean);
+}
+
+export function markGameOriginFailed(origin, backoffMs = ORIGIN_BACKOFF_MS) {
+  const clean = cleanOrigin(origin);
+  if (!clean) return;
+  failedOriginUntil.set(clean, Date.now() + Math.max(1000, Number(backoffMs) || ORIGIN_BACKOFF_MS));
+  if (readStoredOrigin() === clean) writeStoredOrigin(null);
+}
+
+export function resetGameOriginFailures() {
+  failedOriginUntil.clear();
+  writeStoredOrigin(null);
+}
+
 export function isStaticRuntime() {
   return Boolean(getStaticRuntime());
 }
 
-export function gameApiURL(pathAndQuery) {
-  const rt = getStaticRuntime();
-  if (!rt?.gameServerOrigin) return pathAndQuery;
-  return new URL(pathAndQuery, rt.gameServerOrigin).href;
+export function gameApiURL(pathAndQuery, originOverride = null) {
+  const origin = cleanOrigin(originOverride) || getActiveGameOrigin();
+  if (!origin) return pathAndQuery;
+  return new URL(pathAndQuery, origin).href;
+}
+
+const FAILOVER_HTTP_STATUS = new Set([502, 503, 504, 520, 521, 522, 523, 524, 525, 526]);
+
+/**
+ * Fetch a game-server JSON/API endpoint with automatic multi-origin failover.
+ * Returns { response, origin } (and preserves same-origin behavior when not in static runtime).
+ */
+export async function fetchGameApi(pathAndQuery, options = {}) {
+  const { timeoutMs = 3500, fetcher = globalThis.fetch, signal: callerSignal, ...fetchInit } = options;
+  const origins = getGameServerOrigins();
+  if (!origins.length) {
+    const response = await fetcher(pathAndQuery, { ...fetchInit, signal: callerSignal });
+    return { response, origin: null };
+  }
+  let lastError = null;
+  let lastResponse = null;
+  let lastOrigin = origins[0];
+  for (const origin of origins) {
+    if (callerSignal?.aborted) throw callerSignal.reason || new DOMException('Aborted', 'AbortError');
+    const url = new URL(pathAndQuery, origin).href;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(new Error('timeout')), timeoutMs);
+    const onCallerAbort = () => ctrl.abort(callerSignal.reason);
+    callerSignal?.addEventListener('abort', onCallerAbort, { once: true });
+    try {
+      const response = await fetcher(url, { ...fetchInit, signal: ctrl.signal });
+      clearTimeout(timer);
+      callerSignal?.removeEventListener('abort', onCallerAbort);
+      if (FAILOVER_HTTP_STATUS.has(response.status)) {
+        markGameOriginFailed(origin);
+        lastResponse = response;
+        lastOrigin = origin;
+        continue;
+      }
+      setActiveGameOrigin(origin);
+      return { response, origin };
+    } catch (err) {
+      clearTimeout(timer);
+      callerSignal?.removeEventListener('abort', onCallerAbort);
+      if (callerSignal?.aborted) throw err;
+      markGameOriginFailed(origin);
+      lastError = err;
+      lastOrigin = origin;
+    }
+  }
+  if (lastResponse) return { response: lastResponse, origin: lastOrigin };
+  throw lastError || new Error('所有游戏服务器入口暂时不可用');
 }
 
 export function lobbyHref(search = '') {
@@ -129,8 +271,9 @@ export function resolveStaticAsset(assetRelPath, pageBase) {
   if (rt.bundledAssetSet.has(clean)) {
     return { url: new URL('./' + clean, base), gz: false, source: 'toy' };
   }
-  if (rt.assetBaseURL) {
-    return { url: new URL('./' + clean.slice('assets/'.length), rt.assetBaseURL), gz: false, source: 'cdn' };
+  const { assetBaseURL } = getEffectiveCdnBases();
+  if (assetBaseURL) {
+    return { url: new URL('./' + clean.slice('assets/'.length), assetBaseURL), gz: false, source: 'cdn' };
   }
   return null;
 }
@@ -165,9 +308,10 @@ export function resolveStaticMapFile(mapId, relativeFile, pageBase) {
       source: 'toy',
     };
   }
-  if (rt.mapBaseURL) {
+  const { mapBaseURL } = getEffectiveCdnBases();
+  if (mapBaseURL) {
     return {
-      url: new URL('./' + mapId + '/' + diskRel, rt.mapBaseURL),
+      url: new URL('./' + mapId + '/' + diskRel, mapBaseURL),
       gz: false,
       source: 'cdn',
     };

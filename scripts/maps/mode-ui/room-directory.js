@@ -1,3 +1,5 @@
+import {fetchGameApi} from './origin-failover.js';
+
 const roomCode = /^[A-Z0-9]{4,12}$/;
 const mapId = /^de_[a-z0-9_]+$/;
 const modeLabels = {defuse:'竞技爆破', deathmatch:'团队死斗'};
@@ -5,12 +7,6 @@ const modeLabels = {defuse:'竞技爆破', deathmatch:'团队死斗'};
 function staticRuntime() {
   const rt = globalThis.__CS2_STATIC_RUNTIME__;
   return rt && typeof rt === 'object' ? rt : null;
-}
-
-function apiUrl(pathAndQuery) {
-  const rt = staticRuntime();
-  if (rt?.gameServerOrigin) return new URL(pathAndQuery, rt.gameServerOrigin).href;
-  return pathAndQuery;
 }
 
 function availableRooms(rooms) {
@@ -134,9 +130,9 @@ export function mountRoomDirectory(section, {
     clearTimeout(nextPoll);
     const current = new AbortController();
     request = current;
-    deadline = setTimeout(() => current.abort(), 6000);
+    deadline = setTimeout(() => current.abort(), 9000);
     try {
-      const response = await fetch(apiUrl('/perf/rooms.json'), {cache:'no-store', signal:current.signal});
+      const { response } = await fetchGameApi('/perf/rooms.json', {cache:'no-store', signal:current.signal, timeoutMs:3500});
       if (!response.ok) throw Error('Room directory unavailable');
       const data = await response.json();
       if (!Array.isArray(data.rooms)) throw Error('Invalid room directory');
