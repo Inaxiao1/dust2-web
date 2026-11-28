@@ -1,13 +1,19 @@
 /**
- * Toy Cloud Storage + local account-scoped progression & loadout manager.
+ * Toy Cloud Storage v2 + local account-scoped progression, loadout, mailbox & settings manager.
  *
- * Strictly follows Bilibili Toy SDK Content Checklist §7:
- * - Cloud keys match /^[a-zA-Z0-9_-]{1,128}$/: cs_prog_v1, cs_loadout_v1
- * - Zero per-kill network spam and zero setInterval polling
- * - Batch writes ONLY at key lifecycle boundaries (round end, match end, social unlock,
- *   debounced loadout equip, pagehide, or manual sync)
- * - Exponential backoff on 307044 rate-limit errors with clear status feedback
- * - Monotone merge prevents progress loss across devices or offline sessions
+ * Strictly follows official Bilibili Toy SDK limits (https://www.bilibili.com/toy/publish/sdk):
+ * - Per-user per-Toy hard limit: <= 128 keys, each key /^[a-zA-Z0-9_-]{1,128}$/ (no "__" prefix),
+ *   each value <= 1024 UTF-8 bytes (total theoretical quota 128 KiB).
+ * - Automatically shards progress, weapon mastery, mailbox read/claimed/granted/customItems,
+ *   equipped loadout (non-starter skin diffs), and player settings/controls/touch-layout
+ *   across `cs2_*` keys via `shared/toy-cloud-codec.js` so NO value ever exceeds 1024 bytes.
+ * - Losslessly reads & migrates legacy v1 keys (`cs_prog_v1`, `cs_loadout_v1`).
+ * - Strictly follows Content Checklist §7:
+ *   - Zero per-kill network spam and zero setInterval polling
+ *   - Batch delta writes ONLY at key lifecycle boundaries (round end, match end, social unlock,
+ *     mail claim/read, debounced loadout/settings change, pagehide, or manual sync)
+ *   - Exponential backoff on 307044 rate-limit errors with clear status feedback
+ *   - Monotone merge prevents progress/mail/reward loss across devices or offline sessions
  */
 import { preferences } from './persistence.js';
 import { ToyIdentity, getStoredOperatorUid } from '../scripts/maps/mode-ui/toy-identity.js';
@@ -24,14 +30,30 @@ import {
 } from '../shared/progression.js';
 import { applyRewardsToProgress, mailHasClaimableRewards } from '../shared/rewards.js';
 import { normalizeWeaponLoadout } from '../shared/weapon-loadout.js';
+import {
+  LEGACY_CLOUD_KEY_PROGRESS,
+  LEGACY_CLOUD_KEY_LOADOUT,
+  SYNCED_SETTING_KEYS,
+  encodeToyCloudSnapshot,
+  decodeToyCloudSnapshot,
+  diffToyCloudEntries,
+  measureToyCloudUsage,
+  readLocalSettingsSnapshot,
+  applySettingsSnapshotToStorage,
+} from '../shared/toy-cloud-codec.js';
 
-export const CLOUD_KEY_PROGRESS = 'cs_prog_v1';
-export const CLOUD_KEY_LOADOUT = 'cs_loadout_v1';
+export const CLOUD_KEY_PROGRESS = LEGACY_CLOUD_KEY_PROGRESS;
+export const CLOUD_KEY_LOADOUT = LEGACY_CLOUD_KEY_LOADOUT;
+export const CLOUD_KEY_CORE = 'cs2_core';
+export const CLOUD_KEY_LOADOUT_META = 'cs2_lo_meta';
 
 const LOCAL_PROG_PREFIX = 'cs.progression.v1.';
+const LOCAL_SETTINGS_TS_KEY = 'cs.settings.updatedAt.v1';
+const LOCAL_LOADOUT_TS_KEY = 'cs.loadout.updatedAt.v1';
 const SKINS_STORAGE_KEY = 'dust2.skins.v1';
 const AGENTS_STORAGE_KEY = 'dust2.agents.v1';
 const WEAPONS_STORAGE_KEY = 'dust2.weapon-loadout.v1';
+const SYNCED_SETTING_SET = new Set(SYNCED_SETTING_KEYS);
 
 export function isToyRateLimitError(error) {
   return Boolean(error && typeof error === 'object' && (error.code === 307044 || (error.type === 'http_error' && Number(error.code) === 307044)));
@@ -61,12 +83,15 @@ export class ToyProgressStore extends EventTarget {
 
     this._uid = this.identity.uid || getStoredOperatorUid();
     this._progress = this._readLocalProgress(this._uid);
-    this._loadoutUpdatedAt = 0;
+    this._loadoutUpdatedAt = Math.max(0, Number(this.storage?.getItem?.(LOCAL_LOADOUT_TS_KEY)) || 0);
+    this._settingsUpdatedAt = Math.max(0, Number(this.storage?.getItem?.(LOCAL_SETTINGS_TS_KEY)) || 0);
+    this._lastCloudSnapshot = null;
+    this._hydratingFromCloud = false;
     this._dirty = false;
     this._lastFlushAt = 0;
     this._cooldownUntil = 0;
     this._consecutiveRateLimits = 0;
-    this._equipTimer = null;
+    this._debounceTimer = null;
     this._cloudState = {
       status: this.identity.isToy ? 'idle' : 'local',
       message: this.identity.isToy ? '等待连接 Toy 云存档' : '本地存档模式（B站 Toy 内自动开启云存档）',
@@ -76,6 +101,16 @@ export class ToyProgressStore extends EventTarget {
 
     // Immediately enforce unlocked starter loadout in local preference keys so new accounts start vanilla!
     this._enforceStoredLoadouts();
+
+    // Automatically track setting/control/touch-layout edits written through preferences.setItem
+    if (typeof this.storage?.subscribe === 'function') {
+      this._unsubscribePrefs = this.storage.subscribe((key) => {
+        if (this._hydratingFromCloud) return;
+        if (SYNCED_SETTING_SET.has(key)) {
+          this.noteSettingsChanged();
+        }
+      });
+    }
 
     this.identity.addEventListener('change', () => {
       const nextUid = this.identity.uid;
@@ -110,6 +145,12 @@ export class ToyProgressStore extends EventTarget {
     }
   }
 
+  _emitSettingsSync(settings) {
+    if (typeof globalThis.window?.dispatchEvent === 'function') {
+      globalThis.window.dispatchEvent(new CustomEvent('cs2-settings-synced', { detail: { settings } }));
+    }
+  }
+
   _readLocalProgress(uid) {
     try {
       const raw = this.storage.readJSON(localProgKey(uid), null);
@@ -126,6 +167,7 @@ export class ToyProgressStore extends EventTarget {
 
   _switchAccount(nextUid) {
     this._uid = nextUid;
+    this._lastCloudSnapshot = null;
     this._progress = this._readLocalProgress(nextUid);
     this._enforceStoredLoadouts();
     this.dispatchEvent(new Event('change'));
@@ -133,21 +175,26 @@ export class ToyProgressStore extends EventTarget {
   }
 
   _enforceStoredLoadouts() {
-    const rawSkins = this.storage.readJSON(SKINS_STORAGE_KEY, {});
-    const safeSkins = enforceUnlockedSkinLoadout(rawSkins, this._progress);
-    const skinsChanged = Object.keys(safeSkins).some((w) => rawSkins[w] !== safeSkins[w]) || Object.keys(rawSkins).length === 0;
-    if (skinsChanged) {
-      try { this.storage.setItem(SKINS_STORAGE_KEY, JSON.stringify(safeSkins)); } catch {}
-    }
+    this._hydratingFromCloud = true;
+    try {
+      const rawSkins = this.storage.readJSON(SKINS_STORAGE_KEY, {});
+      const safeSkins = enforceUnlockedSkinLoadout(rawSkins, this._progress);
+      const skinsChanged = Object.keys(safeSkins).some((w) => rawSkins[w] !== safeSkins[w]) || Object.keys(rawSkins).length === 0;
+      if (skinsChanged) {
+        try { this.storage.setItem(SKINS_STORAGE_KEY, JSON.stringify(safeSkins)); } catch {}
+      }
 
-    const rawAgents = this.storage.readJSON(AGENTS_STORAGE_KEY, {});
-    const safeAgents = enforceUnlockedAgentLoadout(rawAgents, this._progress);
-    const agentsChanged = Object.keys(safeAgents).some((t) => rawAgents[t] !== safeAgents[t]) || Object.keys(rawAgents).length === 0;
-    if (agentsChanged) {
-      try { this.storage.setItem(AGENTS_STORAGE_KEY, JSON.stringify(safeAgents)); } catch {}
-    }
+      const rawAgents = this.storage.readJSON(AGENTS_STORAGE_KEY, {});
+      const safeAgents = enforceUnlockedAgentLoadout(rawAgents, this._progress);
+      const agentsChanged = Object.keys(safeAgents).some((t) => rawAgents[t] !== safeAgents[t]) || Object.keys(rawAgents).length === 0;
+      if (agentsChanged) {
+        try { this.storage.setItem(AGENTS_STORAGE_KEY, JSON.stringify(safeAgents)); } catch {}
+      }
 
-    return { skins: safeSkins, agents: safeAgents };
+      return { skins: safeSkins, agents: safeAgents };
+    } finally {
+      this._hydratingFromCloud = false;
+    }
   }
 
   getEnforcedSkinLoadout() {
@@ -156,6 +203,27 @@ export class ToyProgressStore extends EventTarget {
 
   getEnforcedAgentLoadout() {
     return enforceUnlockedAgentLoadout(this.storage.readJSON(AGENTS_STORAGE_KEY, {}), this._progress);
+  }
+
+  /** Build the current Toy-compliant sharded cloud map (guaranteed <= 128 keys, <= 1024 B/key). */
+  _buildCloudPayload() {
+    const loadout = {
+      skins: this.getEnforcedSkinLoadout(),
+      agents: this.getEnforcedAgentLoadout(),
+      weapons: normalizeWeaponLoadout(this.storage.readJSON(WEAPONS_STORAGE_KEY, {})),
+      updatedAt: this._loadoutUpdatedAt || this._now(),
+    };
+    const settings = readLocalSettingsSnapshot(this.storage, this._settingsUpdatedAt || this._now());
+    return encodeToyCloudSnapshot({
+      progress: this._progress,
+      loadout,
+      settings,
+    });
+  }
+
+  /** Inspect exact Toy Cloud Storage quota usage (keys / 128, bytes / 128 KiB, max value bytes / 1024 B). */
+  getCloudUsage() {
+    return measureToyCloudUsage(this._buildCloudPayload());
   }
 
   _setCloudState(status, message, extra = {}) {
@@ -187,37 +255,59 @@ export class ToyProgressStore extends EventTarget {
         return { status: 'unsupported', progress: this._progress };
       }
       this._setCloudState('syncing', '正在同步 Toy 云存档…');
-      const data = await sdk.getCloudStorage([CLOUD_KEY_PROGRESS, CLOUD_KEY_LOADOUT]);
+      // Per official Toy SDK docs, calling getCloudStorage() with no args fetches ALL user keys in 1 request.
+      const data = (await sdk.getCloudStorage()) || {};
+      this._lastCloudSnapshot = { ...data };
       const before = this._progress;
+      const decoded = decodeToyCloudSnapshot(data, this._uid);
 
-      if (data?.[CLOUD_KEY_PROGRESS]) {
-        try {
-          const parsedRemote = JSON.parse(data[CLOUD_KEY_PROGRESS]);
-          this._progress = mergeProgress(this._progress, parsedRemote, this._uid);
-          this._writeLocalProgress();
-        } catch {}
+      if (decoded.progress) {
+        this._progress = mergeProgress(this._progress, decoded.progress, this._uid);
+        this._writeLocalProgress();
       }
 
-      if (data?.[CLOUD_KEY_LOADOUT]) {
-        try {
-          const remoteLoadout = JSON.parse(data[CLOUD_KEY_LOADOUT]);
-          const remoteTs = Number(remoteLoadout?.updatedAt) || 0;
-          if (remoteTs >= this._loadoutUpdatedAt) {
-            if (remoteLoadout.skins) {
-              const safeSkins = enforceUnlockedSkinLoadout(remoteLoadout.skins, this._progress);
+      if (decoded.loadout) {
+        const remoteTs = Number(decoded.loadout.updatedAt) || 0;
+        if (remoteTs >= this._loadoutUpdatedAt) {
+          this._hydratingFromCloud = true;
+          try {
+            if (decoded.loadout.skins) {
+              const safeSkins = enforceUnlockedSkinLoadout(decoded.loadout.skins, this._progress);
               this.storage.setItem(SKINS_STORAGE_KEY, JSON.stringify(safeSkins));
             }
-            if (remoteLoadout.agents) {
-              const safeAgents = enforceUnlockedAgentLoadout(remoteLoadout.agents, this._progress);
+            if (decoded.loadout.agents) {
+              const safeAgents = enforceUnlockedAgentLoadout(decoded.loadout.agents, this._progress);
               this.storage.setItem(AGENTS_STORAGE_KEY, JSON.stringify(safeAgents));
             }
-            if (remoteLoadout.weapons) {
-              const safeWeapons = normalizeWeaponLoadout(remoteLoadout.weapons);
+            if (decoded.loadout.weapons) {
+              const safeWeapons = normalizeWeaponLoadout(decoded.loadout.weapons);
               this.storage.setItem(WEAPONS_STORAGE_KEY, JSON.stringify(safeWeapons));
             }
             this._loadoutUpdatedAt = remoteTs;
+            this.storage.setItem(LOCAL_LOADOUT_TS_KEY, String(remoteTs));
+          } catch {} finally {
+            this._hydratingFromCloud = false;
           }
-        } catch {}
+        }
+      }
+
+      if (decoded.settings) {
+        const remoteSettingsTs = Number(decoded.settings.updatedAt) || 0;
+        if (remoteSettingsTs > this._settingsUpdatedAt || this._settingsUpdatedAt === 0) {
+          this._hydratingFromCloud = true;
+          try {
+            applySettingsSnapshotToStorage(this.storage, decoded.settings);
+            this._settingsUpdatedAt = remoteSettingsTs || this._now();
+            this.storage.setItem(LOCAL_SETTINGS_TS_KEY, String(this._settingsUpdatedAt));
+          } finally {
+            this._hydratingFromCloud = false;
+          }
+          this._emitSettingsSync(decoded.settings);
+        }
+      }
+
+      if (decoded.hasLegacyKeys) {
+        this._dirty = true;
       }
 
       this._enforceStoredLoadouts();
@@ -226,10 +316,8 @@ export class ToyProgressStore extends EventTarget {
       if (unlocked.skins.length || unlocked.agents.length) {
         this.dispatchEvent(new CustomEvent('unlock', { detail: unlocked }));
       }
-      if (typeof globalThis.window?.dispatchEvent === 'function') {
-        globalThis.window.dispatchEvent(new CustomEvent('cs2-progression-synced', { detail: { progress: this._progress } }));
-      }
-      return { status: 'synced', progress: this._progress };
+      this._emitWindowSync();
+      return { status: 'synced', progress: this._progress, settings: decoded.settings || null };
     } catch (error) {
       if (isToyRateLimitError(error)) {
         this._enterRateLimitBackoff();
@@ -248,7 +336,7 @@ export class ToyProgressStore extends EventTarget {
     return delay;
   }
 
-  /** Batch-write progress + equipped loadout to Toy Cloud Storage (respects cooldown & 307044 backoff). */
+  /** Batch delta-write sharded progress + loadout + mailbox + settings to Toy Cloud Storage. */
   async flushCloud({ force = false } = {}) {
     if (!this.identity.isToy) {
       this._dirty = false;
@@ -267,24 +355,31 @@ export class ToyProgressStore extends EventTarget {
     try {
       const sdk = await this.identity.ensureSdk();
       if (!sdk?.setCloudStorage) return { status: 'unsupported' };
-      const loadoutPayload = {
-        v: 1,
-        skins: this.getEnforcedSkinLoadout(),
-        agents: this.getEnforcedAgentLoadout(),
-        weapons: normalizeWeaponLoadout(this.storage.readJSON(WEAPONS_STORAGE_KEY, {})),
-        updatedAt: Math.max(this._loadoutUpdatedAt, this._now()),
-      };
-      this._loadoutUpdatedAt = loadoutPayload.updatedAt;
-      await sdk.setCloudStorage({
-        [CLOUD_KEY_PROGRESS]: JSON.stringify(this._progress),
-        [CLOUD_KEY_LOADOUT]: JSON.stringify(loadoutPayload),
-      });
+      const ts = this._now();
+      if (!this._loadoutUpdatedAt) this._loadoutUpdatedAt = ts;
+      const nextEntries = this._buildCloudPayload();
+      const { toWrite, toDelete } = diffToyCloudEntries(this._lastCloudSnapshot, nextEntries);
+
+      if (Object.keys(toWrite).length > 0) {
+        await sdk.setCloudStorage(toWrite);
+      }
+      // Clean up shrunk chunks & migrated legacy v1 keys ONLY after v2 writes succeed!
+      if (toDelete.length > 0 && typeof sdk.removeCloudStorage === 'function') {
+        try {
+          await sdk.removeCloudStorage(toDelete);
+        } catch {
+          // Non-fatal: new v2 keys are already safely persisted; stale keys can be cleaned next sync.
+        }
+      }
+
+      this._lastCloudSnapshot = { ...nextEntries };
       this._dirty = false;
-      this._lastFlushAt = this._now();
+      this._lastFlushAt = ts;
       this._consecutiveRateLimits = 0;
       this._cooldownUntil = 0;
-      this._setCloudState('synced', 'Toy 云存档已保存', { lastSyncedAt: this._lastFlushAt });
-      return { status: 'synced' };
+      const usage = measureToyCloudUsage(nextEntries);
+      this._setCloudState('synced', 'Toy 云存档已保存', { lastSyncedAt: ts, usage });
+      return { status: 'synced', writtenKeys: Object.keys(toWrite).length, deletedKeys: toDelete.length, usage };
     } catch (error) {
       if (isToyRateLimitError(error)) {
         const retryAfterMs = this._enterRateLimitBackoff();
@@ -293,6 +388,15 @@ export class ToyProgressStore extends EventTarget {
       this._setCloudState('error', '云存档同步失败，进度已安全保存在本地');
       return { status: 'error', message: error?.message || 'sync failed' };
     }
+  }
+
+  _scheduleDebouncedFlush() {
+    this._dirty = true;
+    if (this._debounceTimer) clearTimeout(this._debounceTimer);
+    this._debounceTimer = setTimeout(() => {
+      this._debounceTimer = null;
+      void this.flushCloud({ force: false });
+    }, 2200);
   }
 
   _applyProgressMutation(mutator, { flush = false, forceFlush = false } = {}) {
@@ -396,12 +500,19 @@ export class ToyProgressStore extends EventTarget {
   /** Record a skin/agent/weapon loadout save and schedule a debounced batch cloud sync. */
   noteLoadoutChanged() {
     this._loadoutUpdatedAt = this._now();
-    this._dirty = true;
-    if (this._equipTimer) clearTimeout(this._equipTimer);
-    this._equipTimer = setTimeout(() => {
-      this._equipTimer = null;
-      void this.flushCloud({ force: false });
-    }, 2200);
+    try { this.storage.setItem(LOCAL_LOADOUT_TS_KEY, String(this._loadoutUpdatedAt)); } catch {}
+    this._scheduleDebouncedFlush();
+    this.dispatchEvent(new Event('change'));
+  }
+
+  /** Record a settings / keybind / mobile touch layout save and schedule a debounced batch cloud sync. */
+  noteSettingsChanged() {
+    this._settingsUpdatedAt = this._now();
+    this._hydratingFromCloud = true;
+    try { this.storage.setItem(LOCAL_SETTINGS_TS_KEY, String(this._settingsUpdatedAt)); } catch {} finally {
+      this._hydratingFromCloud = false;
+    }
+    this._scheduleDebouncedFlush();
     this.dispatchEvent(new Event('change'));
   }
 

@@ -2,6 +2,7 @@ import {mobileDevice} from './device-profile.js';
 import { DEFAULT_CROSSHAIR, normalizeCrosshair, decodeCrosshairCode } from '../shared/cs2-settings.js';
 import { Crosshair } from './crosshair.js';
 import { VISUAL_STYLE_PRESETS, normalizeVisualStyle } from './arena-look-presets.js';
+import { preferences } from './persistence.js';
 
 const SENS_PRESETS = [
   { value: 0.8, label: '0.80', tag: '低敏' },
@@ -67,7 +68,7 @@ function hexToRgb(hex) {
 
 function readStoredDpi() {
   try {
-    const n = Number(localStorage.getItem('dust2.mouse-dpi'));
+    const n = Number(preferences.getItem('dust2.mouse-dpi'));
     return [400, 800, 1600, 3200].includes(n) ? n : 800;
   } catch {
     return 800;
@@ -378,7 +379,7 @@ export function mountSettings({
   modal.querySelectorAll('[data-dpi]').forEach(btn => {
     btn.onclick = () => {
       referenceDpi = Number(btn.dataset.dpi);
-      try { localStorage.setItem('dust2.mouse-dpi', String(referenceDpi)); } catch {}
+      try { preferences.setItem('dust2.mouse-dpi', String(referenceDpi)); } catch {}
       updateMouseTelemetry(Number(getSettings().sensitivity) || 1);
     };
   });

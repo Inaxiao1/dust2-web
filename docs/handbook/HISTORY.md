@@ -47,7 +47,7 @@
 
 ---
 
-## 二、前人踩过的 12 个血泪坑（避坑对照表）
+## 二、前人踩过的 13 个血泪坑（避坑对照表）
 
 | # | 踩坑现象 | 根因 | 永久修复与防回退约定 |
 |---|---|---|---|
@@ -63,3 +63,4 @@
 | 10 | 清除 `localStorage` 后页面刷新配置又回来了 | [client/persistence.js](../../client/persistence.js) 为防止意外清空，双写了 `<key>` 与 `<key>.backup` | 自动化测试与排障清缓存时必须同步删除 `<key>` 与 `<key>.backup` |
 | 11 | `client/interface.css` 通用按钮样式意外覆盖新按钮的金色主题 | 过宽的通用 `button` 选择器优先级覆盖了模块类 | 通用选择器需显式排除特殊按钮（如 `:not(.touch-layout-open-btn)`），或提高组件样式作用域特异性 |
 | 12 | 房间目录新增字段导致旧单测 `global-room-directory` / `performance-room-directory` 失败 | 旧测试严格校验 `.directory-details` 首个子节点为 `<h3>` 且未加密房对象不含多余 false 字段 | 锁标放进 `<h3>` 内部；服务端目录按稀疏方式仅在加密房输出 `locked: true` |
+| 13 | B站 Toy 线上云存档大概率静默写失败 | Toy 官方单键上限为 **1,024 UTF-8 字节**（128 键/玩家），而旧 `cs_loadout_v1` 默认即占 `1,245` 字节，旧 `cs_prog_v1` 领几封邮件后也超 `1,024` 字节；且旧测试未校验字节上限 | 升级为 `v2` 自动分片编解码器（[shared/toy-cloud-codec.js](../../shared/toy-cloud-codec.js)），所有分片硬控 `≤ 960 B`、覆盖全量设置/触控布局/邮箱数据、无损迁移旧 `v1`，并在 [tests/toy-cloud-quota.mjs](../../tests/toy-cloud-quota.mjs) 强制执行 128×1024 B 平台红线断言 |

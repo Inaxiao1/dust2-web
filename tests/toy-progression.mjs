@@ -22,7 +22,8 @@ import {
   getAgentUnlockRequirement,
 } from '../shared/progression.js';
 import { ToyIdentity } from '../scripts/maps/mode-ui/toy-identity.js';
-import { ToyProgressStore, CLOUD_KEY_PROGRESS, CLOUD_KEY_LOADOUT } from '../client/toy-cloud-progress.js';
+import { ToyProgressStore, CLOUD_KEY_PROGRESS, CLOUD_KEY_LOADOUT, CLOUD_KEY_CORE, CLOUD_KEY_LOADOUT_META } from '../client/toy-cloud-progress.js';
+import { TOY_CLOUD_MAX_KEYS, TOY_CLOUD_MAX_VALUE_BYTES, TOY_CLOUD_KEY_REGEX, utf8ByteLength } from '../shared/toy-cloud-codec.js';
 import { createPreferenceStore } from '../client/persistence.js';
 
 function memoryStorage() {
@@ -126,10 +127,11 @@ test('combat kills and completed matches gradually unlock growth skins, knives, 
   assert.ok(computeCareerLevel(pVet).level > computeCareerLevel(pEarly).level);
 });
 
-test('Toy SDK follow, triple, and cloud storage sync (with 307044 backoff & valid keys) work end-to-end', async () => {
-  const keyRegex = /^[a-zA-Z0-9_-]{1,128}$/;
-  assert.match(CLOUD_KEY_PROGRESS, keyRegex);
-  assert.match(CLOUD_KEY_LOADOUT, keyRegex);
+test('Toy SDK follow, triple, and cloud storage sync (with 307044 backoff & real 128x1024B limits) work end-to-end', async () => {
+  assert.match(CLOUD_KEY_PROGRESS, TOY_CLOUD_KEY_REGEX);
+  assert.match(CLOUD_KEY_LOADOUT, TOY_CLOUD_KEY_REGEX);
+  assert.match(CLOUD_KEY_CORE, TOY_CLOUD_KEY_REGEX);
+  assert.match(CLOUD_KEY_LOADOUT_META, TOY_CLOUD_KEY_REGEX);
 
   const cloud = new Map();
   let setCalls = 0;
@@ -137,6 +139,7 @@ test('Toy SDK follow, triple, and cloud storage sync (with 307044 backoff & vali
   let followed = false;
   let videoAction = { aid: 10086, liked: true, coined: false, favorited: false };
 
+  // Strict Bilibili Toy Cloud Storage mock enforcing real server-side limits (<=128 keys, <=1024 UTF-8 B/value)
   const sdk = {
     async isSupport() { return true; },
     async getUserProfile() {
@@ -152,8 +155,12 @@ test('Toy SDK follow, triple, and cloud storage sync (with 307044 backoff & vali
       assert.deepEqual(aids, [10086]);
       return { status: 'ok', items: [videoAction] };
     },
-    async getCloudStorage(keys) {
+    async getCloudStorage(keys = []) {
       const out = {};
+      if (!Array.isArray(keys) || keys.length === 0) {
+        for (const [k, v] of cloud.entries()) out[k] = v;
+        return out;
+      }
       for (const k of keys) if (cloud.has(k)) out[k] = cloud.get(k);
       return out;
     },
@@ -163,10 +170,18 @@ test('Toy SDK follow, triple, and cloud storage sync (with 307044 backoff & vali
         rateLimitOnce = false;
         throw { type: 'http_error', code: 307044 };
       }
+      const simulated = new Map(cloud);
       for (const [k, v] of Object.entries(entries)) {
-        assert.match(k, keyRegex);
-        cloud.set(k, v);
+        assert.match(k, TOY_CLOUD_KEY_REGEX, `invalid cloud key ${k}`);
+        assert.equal(typeof v, 'string', `cloud value for ${k} must be string`);
+        assert.ok(utf8ByteLength(v) <= TOY_CLOUD_MAX_VALUE_BYTES, `cloud value for ${k} (${utf8ByteLength(v)}B) exceeds 1024B limit`);
+        simulated.set(k, v);
       }
+      assert.ok(simulated.size <= TOY_CLOUD_MAX_KEYS, `cloud key count ${simulated.size} exceeds 128 limit`);
+      for (const [k, v] of Object.entries(entries)) cloud.set(k, v);
+    },
+    async removeCloudStorage(keys) {
+      for (const k of keys) cloud.delete(k);
     },
   };
 
@@ -199,12 +214,15 @@ test('Toy SDK follow, triple, and cloud storage sync (with 307044 backoff & vali
   assert.equal(store.progress.weaponKills.ak47, 20);
   assert.equal(isSkinUnlocked('ak47-slate-1035', store.progress), true);
 
-  // Completing a match batches progress + loadout to Toy Cloud Storage!
+  // Completing a match batches sharded v2 progress + loadout to Toy Cloud Storage (every value <= 1024 B)!
   store.recordMatchComplete({ won: true });
   await new Promise((r) => setTimeout(r, 10));
   assert.equal(setCalls, 1);
-  assert.ok(cloud.has(CLOUD_KEY_PROGRESS));
-  assert.ok(cloud.has(CLOUD_KEY_LOADOUT));
+  assert.ok(cloud.has(CLOUD_KEY_CORE));
+  assert.ok(cloud.has(CLOUD_KEY_LOADOUT_META));
+  for (const [k, v] of cloud.entries()) {
+    assert.ok(utf8ByteLength(v) <= TOY_CLOUD_MAX_VALUE_BYTES, `${k} exceeds 1024B`);
+  }
 
   // Follow verification unlocks all TOY_FOLLOW_SKIN_IDS & TOY_FOLLOW_AGENT_IDS
   followed = true;
