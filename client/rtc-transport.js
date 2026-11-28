@@ -275,9 +275,9 @@ export function createGameSocket(wsUrl, {
       pc = new PeerConnectionCtor({ iceServers: [] });
       dc = pc.createDataChannel('cs2', { ordered: true });
       try {
-        // Use PR-SCTP timed reliability (100ms TTL) so stale unsent snapshots are expired inside
-        // usrsctp's send queue during cwnd drops instead of piling up into multi-second bufferbloat.
-        dcUnreliable = pc.createDataChannel('cs2-u', { ordered: false, maxPacketLifeTime: 100 });
+        // Use PR-SCTP timed reliability (250ms TTL: safely above typical 60-120ms RTT so healthy
+        // frames never expire in flight, while strictly capping usrsctp queue bloat under congestion).
+        dcUnreliable = pc.createDataChannel('cs2-u', { ordered: false, maxPacketLifeTime: 250 });
         dcUnreliable.onmessage = (e) => {
           if (state !== WS_OPEN || closedByUser) return;
           dispatch('message', { data: e.data });

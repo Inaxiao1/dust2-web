@@ -394,12 +394,14 @@ export class GameRoom {
     this.emit('leave', { playerId: id, name: player.name, bot: player.bot });
   }
 
-  receiveInput(id, message) {
+  receiveInput(id, message, { allowUnordered = false } = {}) {
     const owner=this.players.get(id),player=this.controlledPlayer(id),input=sanitizeInput(message);
-    if(!player||!input||input.seq<=owner.lastReceivedSeq)return false;
+    if(!player||!input)return false;
+    const staleSeq = input.seq <= owner.lastReceivedSeq;
+    if(staleSeq && !allowUnordered)return false;
     // Old in-flight packets belong to the previous body, including after release.
     if((message.bodyId!==undefined&&message.bodyId!==player.id)||(message.lifeId!==undefined&&message.lifeId!==player.lifeId)||(owner.controlledBotId&&message.bodyId!==player.id))return true;
-    owner.lastReceivedSeq=input.seq;
+    if(!staleSeq) owner.lastReceivedSeq=input.seq;
     if(input.moves.length){if(!player.movementStream){player.movementStream=new MovementStream(player.lifeId);player.movementAt=this.clock();}player.movementStream.receive(input.moves);}
     // Retain the complete click sample. A later release/turn/unzoom/switch must
     // not overwrite the aim that actually fired. New clients send one shot ID
@@ -412,10 +414,12 @@ export class GameRoom {
     }
     const explicit=input.shotId>0;
     if(explicit)player.shotCommands=true;
-    if(this.clock()-player.inputAt>=300)this.resetRevolverTrigger(player,'inactive',true);
-    this.updateRevolverTrigger(player,input,this.clock());
+    if(!staleSeq){
+      if(this.clock()-player.inputAt>=300)this.resetRevolverTrigger(player,'inactive',true);
+      this.updateRevolverTrigger(player,input,this.clock());
+    }
     const attacking=input.fire||((input.slot===3||player.weapon==='revolver')&&input.fire2);
-    if(attacking&&input.slot!==4&&((explicit&&input.shotId>(player.lastShotId||0))||(!player.shotCommands&&(!player.input.fire&&!player.input.fire2)))){
+    if(attacking&&input.slot!==4&&((explicit&&input.shotId>(player.lastShotId||0))||(!staleSeq&&!player.shotCommands&&(!player.input.fire&&!player.input.fire2)))){
       const weaponId=input.shotWeapon||player.weapon;
       const weapon=getWeapon(weaponId),ammo=player.inventory[weaponId],now=this.clock();
       const readyAt=Math.max(player.nextShotAt,ammo?.reloadReadyAt||0,player.reloadEndsAt&&weapon.reloadStyle!=='shell'?player.reloadEndsAt:0);
@@ -436,7 +440,8 @@ export class GameRoom {
       player.lastShotId=Math.max(player.lastShotId||0,input.shotId);
     }
     if(input.interact&&!player.input.interact)player.pendingInteract=true;
-    this.captureGrenadeInput(player,input);
+    if(!staleSeq || input.cancelGrenade) this.captureGrenadeInput(player,input);
+    if(staleSeq) return true;
     input.jumpId=Math.max(player.input.jumpId||0,input.jumpId);input.reloadId=Math.max(player.input.reloadId||0,input.reloadId);
     player.lastReceivedSeq = input.seq; player.input = input; player.inputAt = this.clock();
     return true;

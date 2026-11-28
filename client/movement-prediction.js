@@ -7,9 +7,10 @@ export class MovementPrediction{
   this.previous=movementState(p);
   const move={id:++this.nextId,lifeId:p.lifeId,forward:input.forward,right:input.right,yaw:input.yaw,pitch:input.pitch,speedScale:input.speedScale||1,jump:input.jump,jumpId:input.jumpId,crouch:input.crouch,walk:input.walk};
   simulateMove(p,move,{canMove});this.history.push({move,canMove});this.unsent.push(move);
-  if(this.history.length>64)this.history.shift();if(this.unsent.length>32)this.unsent.shift();
+  if(this.history.length>64)this.history.shift();if(this.unsent.length>16)this.unsent.shift();
  }
  packet(){return this.unsent.splice(0,MAX_MOVE_BATCH);}
+ redundantPacket(maxCount=4){return this.unsent.slice(-Math.min(MAX_MOVE_BATCH,maxCount));}
  reconcile(p,authoritative){
   if(!authoritative.movementState)return false;
   const ack=authoritative.movementAck||0;if(ack<this.ack)return true;

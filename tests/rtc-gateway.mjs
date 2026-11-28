@@ -102,7 +102,7 @@ test('createGameSocket opens direct UDP DataChannel when offer succeeds and neve
       if (label === 'cs2') lastDc = chan;
       else {
         assert.equal(opts.ordered, false);
-        assert.equal(opts.maxPacketLifeTime, 100);
+        assert.equal(opts.maxPacketLifeTime, 250);
         lastUnreliableDc = chan;
       }
       return chan;
@@ -390,7 +390,7 @@ test('WebRTC UDP DataChannel end-to-end join, delta snapshots, and multi-shard r
       pc.onGatheringStateChange((s) => { if (s === 'complete') { gatherDone = true; done(); } });
     });
     const dc = pc.createDataChannel('cs2');
-    const dcU = dual ? pc.createDataChannel('cs2-u', { unordered: true, maxPacketLifeTime: 100 }) : null;
+    const dcU = dual ? pc.createDataChannel('cs2-u', { unordered: true, maxPacketLifeTime: 250 }) : null;
     const dcOpen = new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('RTC DataChannel open timeout')), 10000);
       let openCount = 0;

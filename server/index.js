@@ -606,7 +606,7 @@ export async function startGameServer({
       else if(msg.type==='requestWeapon'||msg.type==='donateWeapon'){const result=msg.type==='requestWeapon'?room.requestWeapon(socket.playerId,msg.weapon):room.donateWeapon(socket.playerId,msg.playerId,msg.weapon);if(!result.ok)error(socket,'TEAM_GEAR_REJECTED',result.message);else send(socket,{type:'teamGear',...result});}
       else if (msg.type === 'input') {
         if (msg.ackSid !== undefined) applyClientAck(msg.ackSid);
-        const inputOk = room.receiveInput(socket.playerId, msg);
+        const inputOk = room.receiveInput(socket.playerId, msg, { allowUnordered: socket.ackDelta === 1 && socket.transport === 'udp' });
         telemetry.recordInput(socket.playerId, msg, inputOk, Boolean(room.players.get(socket.playerId)?.alive));
         if (!inputOk) { if (++socket.strikes > 100) socket.close(1008, 'Invalid input'); }
       } else if(msg.type==='takeBot'){

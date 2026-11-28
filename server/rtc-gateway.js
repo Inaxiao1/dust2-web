@@ -220,16 +220,17 @@ export async function createRtcGateway({
   }
   if (!ndc?.PeerConnection) return null;
 
-  // Tune usrsctp for real-time FPS traffic: cap association send queue to 64 KB / 64 chunks so
-  // cwnd drops never build multi-second bufferbloat, and tighten RTO/SACK with H-TCP recovery.
+  // Tune usrsctp for real-time FPS traffic: cap association send queue to 32 KB / 32 chunks so
+  // cwnd drops never build multi-second bufferbloat, keep standard RFC 4960 CC (0, per libdatachannel
+  // guidance to avoid alternative-CC stalls), and tighten RTO/SACK timers.
   try {
     ndc.setSctpSettings?.({
       recvBufferSize: 256 * 1024,
-      sendBufferSize: 64 * 1024,
-      maxChunksOnQueue: 64,
+      sendBufferSize: 32 * 1024,
+      maxChunksOnQueue: 32,
       initialCongestionWindow: 20,
       maxBurst: 16,
-      congestionControlModule: 2,
+      congestionControlModule: 0,
       delayedSackTime: 20,
       minRetransmitTimeout: 120,
       initialRetransmitTimeout: 200,
