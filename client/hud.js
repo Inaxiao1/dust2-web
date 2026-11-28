@@ -15,10 +15,6 @@ import './kill-cards.css';
 import {HudLoadout} from './hud-loadout.js';
 
 const TEAM_COLORS = { CT: '#6f9ce6', T: '#eabe54' };
-const LOCATION_NAMES = {
-  'T SPAWN': 'T 出生点', 'CT SPAWN': 'CT 出生点', A: 'A 包点', B: 'B 包点',
-  MID: '中路', 'LONG A': 'A 大道', TUNNELS: 'B 洞', CATWALK: 'A 小道',
-};
 const now = () => performance.now();
 const number = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, number(value)));
@@ -32,15 +28,15 @@ const clockText = seconds => {
 export class HUD {
   constructor() {
     this.elements = Object.fromEntries([
-      'score-ct', 'score-t', 'mode-label', 'round-time', 'round-state', 'location',
-      'network-status', 'room-label', 'kill-feed', 'toast', 'hitmarker', 'damage-vignette',
+      'score-ct', 'score-t', 'mode-label', 'round-time', 'round-state',
+      'network-status', 'kill-feed', 'toast', 'hitmarker', 'damage-vignette',
       'center-message', 'interact-prompt', 'interact-text', 'health', 'armor', 'money',
-      'slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'weapon-name', 'ammo', 'reserve', 'reload-label',
-      'board-room', 'score-body', 'buy-note', 'weapon-skin', 'hit-damage',
+      'slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'ammo', 'reserve', 'reload-label',
+      'board-room', 'score-body', 'buy-note', 'hit-damage',
       'kill-confirm', 'kill-title', 'kill-victim', 'kill-weapon', 'kill-combo',
       'team-roster-ct', 'team-roster-t', 'board-match-state',
     ].map(id => [id, document.getElementById(id)]));
-    this.utilityBelt=document.createElement('div');this.utilityBelt.className='utility-belt';document.getElementById('weapon-name')?.parentElement.append(this.utilityBelt);
+    this.utilityBelt=document.createElement('div');this.utilityBelt.className='utility-belt';document.querySelector('#hud .bottom-right')?.append(this.utilityBelt);
     this.radar = document.getElementById('radar');
     this.context = this.radar?.getContext('2d');
     this.interactFill = this.elements['interact-prompt']?.querySelector('.interact-track i');
@@ -81,7 +77,7 @@ export class HUD {
     if (element && element.textContent !== content) element.textContent = content;
   }
 
-  update(snapshot, self, { ping = 0, fps = 0, transport = null, spectating = null, equippedSkins = null, interactKey='E',canTakeBot=false,touch=false, scoreboardKey = 'Tab', menuKey = 'Esc', nextSpectatorKey = '左键', previousSpectatorKey = '右键' } = {}) {
+  update(snapshot, self, { ping = 0, fps = 0, transport = null, spectating = null, equippedSkins = null, utilityShortcut, interactKey='E',canTakeBot=false,touch=false, scoreboardKey = 'Tab', menuKey = 'Esc', nextSpectatorKey = '左键', previousSpectatorKey = '右键' } = {}) {
     if (!snapshot || !self) return;
     const time = now();
     if (this.snapshotTime !== snapshot.time || this.lastSnapshot?.room !== snapshot.room) {
@@ -98,7 +94,7 @@ export class HUD {
     this.lastSelf = self;
     this.myId = self.id;
     this.killCards.update(snapshot,self);
-    this.loadout.update(self, equippedSkins);
+    this.loadout.update(self, equippedSkins, utilityShortcut);
     const elapsed = Math.max(0, (time - this.receivedAt) / 1000);
     this.deathScreen.update(snapshot, self, { elapsed, spectating, interactKey,canTakeBot,touch,scoreboardKey, menuKey, nextSpectatorKey, previousSpectatorKey });
     const round = snapshot.round || {};
@@ -110,9 +106,8 @@ export class HUD {
     this.text('score-ct', number(snapshot.scores?.CT));
     this.text('score-t', number(snapshot.scores?.T));
     this.text('mode-label', mode === 'defuse' ? '经典爆破' : '团队死斗');
-    this.text('room-label', snapshot.room || '------');
     this.text('board-room', `${snapshot.room || ''} · ${mode === 'defuse' ? '经典爆破' : '团队死斗'}`);
-    const linkTag = transport === 'UDP' ? ' · UDP直连' : transport === 'WS' ? ' · WS' : '';
+    const linkTag = transport === 'WS' ? ' · WS' : '';
     this.text('network-status', `${Math.round(clamp(ping, 0, 9999))} ms${linkTag} · ${Math.round(clamp(fps, 0, 999))} FPS`);
     const network = this.elements['network-status'];
     if (network) network.style.color = time - this.receivedAt > 2500 ? '#f09b83' : '';
@@ -127,9 +122,7 @@ export class HUD {
     const fallbackSkinId = (self.weapon === 'knife' ? equippedSkins?.knife : equippedSkins?.[self.weapon]) || STARTER_SKINS[self.weapon];
     const heldSkin = getSkin(self.skinId || fallbackSkinId);
     const knifeName = self.weapon === 'knife' ? knifeDisplayName(heldSkin?.id, self.team) : weapon.name;
-    this.text('weapon-name', weapon.burstSize ? knifeName + (self.burstMode ? ' · 三连发' : ' · 半自动') : knifeName);
     this.text('slot3', self.weapon === 'knife' ? '3 ' + knifeName : '3 近战武器');
-    this.text('weapon-skin', heldSkin?.name || (weapon.slot >= 4 ? '原厂装备' : '原厂涂装'));
     const activeIconId = weaponIconId(self.weapon, heldSkin?.id, self.team);
     const silhouette = document.getElementById('active-weapon-icon');
     if (silhouette && this.iconWeapon !== `${self.weapon}:${activeIconId}`) {
@@ -146,14 +139,7 @@ export class HUD {
     const reload = Math.max(0, number(self.reloadRemaining) - elapsed);
     const protection = Math.max(0, number(self.spawnProtectionRemaining) - elapsed);
     this.text('reload-label', reload > 0 ? `正在换弹 ${reload.toFixed(1)} s` :
-      protection > 0 && self.alive ? `重生保护 ${protection.toFixed(1)} s` :
-        self.hasBomb ? '携带 C4 · 前往 A / B 包点' : weapon.slot === 4 ? '左键投掷 · 4 切换投掷物' : [3,5].includes(weapon.slot) ? '左键轻击 · 右键重击 · B 购买' : 'R 换弹 · B 购买');
-
-    const closest = (MAP.labels || []).reduce((best, label) => {
-      const gap = distanceXZ(self, label);
-      return !best || gap < best.gap ? { label, gap } : best;
-    }, null)?.label;
-    this.text('location', closest ? LOCATION_NAMES[closest.text] || closest.text : MAP.name || 'Dust II');
+      protection > 0 && self.alive ? `重生保护 ${protection.toFixed(1)} s` : '');
 
     const roundLeft = Math.max(0, number(round.timeLeft) - elapsed);
     const bombLeft = Math.max(0, number(bomb.remaining) - elapsed);

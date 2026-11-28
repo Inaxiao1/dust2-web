@@ -5,9 +5,12 @@ import {reloadProfile} from '../shared/reload-profiles.js';
 import {getWeapon} from '../shared/weapons.js';
 import {UTILITY_AUDIO,utilitySound} from './utility-audio.js';
 
+const entryBanks=['ak47','m4a1','glock','usp','knifeSwing','knifeHeavySwing','bodyHit','armorHit','headHit','headArmor','kill','bombBeep','bombBeepFast'];
+
 export class GameAudio {
-  constructor({context=null}={}) {
+  constructor({context=null,matchEntry=false}={}) {
     this.ctx = context; this.volume = 0.6; this.ready = false; this.buffers = [];
+    this.matchEntry = matchEntry;
     this.banks = new Map(); this.voices = new Set(); this.loading = null;
     this.burstVoices=new Map();this.channelEpochs=new Map();this.playEpoch=0;
     this.lastWeapon = 'ak47'; this.lastTeam = 'T'; this.lastHitAt = -Infinity; this.lastKillAt = -Infinity;
@@ -58,9 +61,10 @@ export class GameAudio {
     if (!response.ok) throw new Error(`CS2 音效清单加载失败 (${response.status})`);
     const manifest = await response.json();
     this.sampleManifest=manifest;this.sampleBase=base;this.decoded=new Map();this.decodePending=new Map();this.bankFiles=new Map();this.decodeJobs=[];this.activeDecoders=0;
+    if(this.matchEntry)this.ready=true;
     const utilityCore=new Set(Object.values(UTILITY_AUDIO).flatMap(c=>[c.detonate,c.far]));
-    const core=Object.keys(manifest.banks).filter(bank=>/^(ak47|glock|usp|knife|bomb|announce|hit|kill|headshot)/i.test(bank)||utilityCore.has(bank));
-    await Promise.all(core.map(bank=>this.loadBank(bank)));
+    const core=this.matchEntry?entryBanks:Object.keys(manifest.banks).filter(bank=>/^(ak47|glock|usp|knife|bomb|announce|hit|kill|headshot)/i.test(bank)||utilityCore.has(bank));
+    await Promise.allSettled(core.map(bank=>this.loadBank(bank)));
     // Preserve the existing CC0 footstep samples; firing never falls back to synthesis.
     this.buffers = (await Promise.all(Array.from({ length: 5 }, async (_, i) => {
       try {

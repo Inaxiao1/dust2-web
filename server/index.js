@@ -409,8 +409,7 @@ export async function startGameServer({
     socket.isAlive = true; socket.playerId = null; socket.roomCode = null; socket.binaryProtocol = 0; socket.lastBinaryPlayers = null;
     socket.snapshotDelta = 0; socket.lastDeltaSnap = null; socket.reconnectOptIn = false; socket.resumeToken = null;
     socket.ackDelta = 0; socket.nextSnapSid = 0; socket.clientAckSid = 0; socket.sentSnaps = null; socket.lastFullResyncAt = 0;
-    socket.gatewayBufferedBytes = 0; socket.lastSnapshotSentAt = 0; socket.pendingEvents = []; socket.lastClientRtt = 0; socket.legacySkipToggle = false;
-    socket.transport = req?.headers?.['x-cs2-transport'] === 'udp' ? 'udp' : 'ws';
+    socket.gatewayBufferedBytes = 0; socket.lastSnapshotSentAt = 0; socket.pendingEvents = [];
     socket.fromGateway = req?.headers?.['x-cs2-gateway'] === '1';
     socket.ipHash = typeof req?.headers?.['x-cs2-client-ip-hash'] === 'string'
       ? req.headers['x-cs2-client-ip-hash'].slice(0, 16)
@@ -470,8 +469,7 @@ export async function startGameServer({
       if (msg.type === 'ping') {
         applyClientAck(msg.ackSid);
         const reportedRtt = Number(msg.rtt);
-        if (Number.isFinite(reportedRtt) && reportedRtt >= 1 && reportedRtt <= 5000) socket.lastClientRtt = reportedRtt;
-        if (socket.playerId) telemetry.recordClientPing(socket.playerId, { rtt: reportedRtt, fps: Number(msg.fps), tr: msg.tr });
+        if (socket.playerId) telemetry.recordClientPing(socket.playerId, { rtt: reportedRtt, fps: Number(msg.fps) });
         send(socket, { type: 'pong', time: typeof msg.time === 'number' ? msg.time : null, serverTime: now });
         return;
       }
@@ -541,8 +539,7 @@ export async function startGameServer({
         if (room && effectiveMsg.existing === true && !room.joinable) {
           error(socket,'ROOM_UNAVAILABLE','房间已满或对局已结束，请在大厅重新选择。'); return;
         }
-        const skipLegacyUdpCosmeticsBounce = socket.transport === 'udp' && effectiveMsg.rtcAsyncClose !== 1;
-        if(room && effectiveMsg.existing===true && typeof effectiveMsg.appearanceRevision==='string' && !skipLegacyUdpCosmeticsBounce){
+        if(room && effectiveMsg.existing===true && typeof effectiveMsg.appearanceRevision==='string'){
           const appearance=roomAppearance(room);
           if(appearance.revision!==effectiveMsg.appearanceRevision){
             send(socket,{type:'roomCosmeticsChanged',...appearance});
@@ -573,7 +570,6 @@ export async function startGameServer({
             name: player.name,
             room: room.code,
             mode: room.mode,
-            transport: socket.transport,
           });
           if (tokenClaims?.jti) usedJTIs.set(tokenClaims.jti, tokenClaims.exp);
           reporter?.reportNow();
@@ -606,7 +602,7 @@ export async function startGameServer({
       else if(msg.type==='requestWeapon'||msg.type==='donateWeapon'){const result=msg.type==='requestWeapon'?room.requestWeapon(socket.playerId,msg.weapon):room.donateWeapon(socket.playerId,msg.playerId,msg.weapon);if(!result.ok)error(socket,'TEAM_GEAR_REJECTED',result.message);else send(socket,{type:'teamGear',...result});}
       else if (msg.type === 'input') {
         if (msg.ackSid !== undefined) applyClientAck(msg.ackSid);
-        const inputOk = room.receiveInput(socket.playerId, msg, { allowUnordered: socket.ackDelta === 1 && socket.transport === 'udp' });
+        const inputOk = room.receiveInput(socket.playerId, msg);
         telemetry.recordInput(socket.playerId, msg, inputOk, Boolean(room.players.get(socket.playerId)?.alive));
         if (!inputOk) { if (++socket.strikes > 100) socket.close(1008, 'Invalid input'); }
       } else if(msg.type==='takeBot'){
@@ -709,15 +705,8 @@ export async function startGameServer({
               const side = room.players.get(socket.playerId)?.team;
               if (!sideSnaps.has(side)) sideSnaps.set(side, snapshotForSide(snapshot, side));
               const sideSnap = sideSnaps.get(side);
-              // Lossless backpressure coalescing:
-              // 1) When client transport queue exceeds 24 KB, skip intermediate movement ticks while preserving events.
-              // 2) For legacy single-channel ordered UDP clients experiencing SCTP queue buildup (reported RTT > 350ms),
-              //    pace down to 7.5 Hz until the ordered stream drains back below 350ms.
-              const legacyUdpBacklogged = socket.transport === 'udp' && !socket.ackDelta && socket.lastClientRtt > 350;
-              if (legacyUdpBacklogged) socket.legacySkipToggle = !socket.legacySkipToggle;
-              else socket.legacySkipToggle = false;
-              const shouldCoalesce = (effectiveBuffered > 24576 && (nowWall - socket.lastSnapshotSentAt) < 250)
-                || (legacyUdpBacklogged && socket.legacySkipToggle && !(sideSnap.events?.length));
+              // Coalesce movement ticks when the client queue exceeds 24 KB, retaining gameplay events.
+              const shouldCoalesce = effectiveBuffered > 24576 && (nowWall - socket.lastSnapshotSentAt) < 250;
               if (!socket.ackDelta && socket.snapshotDelta === 1 && socket.lastDeltaSnap && socket.binaryProtocol !== 2 && shouldCoalesce) {
                 if (sideSnap.events?.length && socket.pendingEvents.length < 128) {
                   for (const ev of sideSnap.events) socket.pendingEvents.push(ev);
@@ -750,7 +739,6 @@ export async function startGameServer({
                 const baseSnap = socket.clientAckSid > 0 ? socket.sentSnaps.get(socket.clientAckSid) : null;
                 if (baseSnap) {
                   const delta = encodeDeltaSnapshot(stateSnap, baseSnap);
-                  // Keep "type":"snapshotDelta","sid":... first so gateway routes it onto unreliable 'cs2-u'.
                   const { type: _t, ...rest } = delta;
                   socket.send(JSON.stringify({ type: 'snapshotDelta', sid, baseSid: socket.clientAckSid, ...rest }));
                 } else if (nowWall - socket.lastFullResyncAt >= 400) {

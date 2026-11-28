@@ -25,6 +25,26 @@ test('stalled download, cancellation and truncated data fail explicitly',async()
  await assert.rejects(readPrivateResource('http://local/file',{signal:abort.signal,bytes:6,fetcher:async(_url,{signal})=>streamed({signal})}),{name:'AbortError'});
  await assert.rejects(readPrivateResource('http://local/file',{bytes:6,fetcher:async()=>new Response(new Uint8Array(3),{headers:{'content-length':'6'}})}),/不完整/);
 });
+test('a transient map transfer retries once without relaxing its expected length',async()=>{
+ const attempts=[];
+ const bytes=await readPrivateResource('http://local/map.bin',{
+  bytes:3,
+  fetcher:async(_url,{cache})=>{
+   attempts.push(cache);
+   return attempts.length===1?new Response(null,{status:503}):new Response(new Uint8Array([1,2,3]));
+  },
+ });
+ assert.deepEqual([...new Uint8Array(bytes)],[1,2,3]);
+ assert.deepEqual(attempts,['default','reload']);
+ const controller=new AbortController();
+ let cancelledAttempts=0;
+ await assert.rejects(readPrivateResource('http://local/map.bin',{
+  signal:controller.signal,
+  fetcher:async()=>{cancelledAttempts++;controller.abort();throw new TypeError('connection reset');},
+ }),{name:'AbortError'});
+ assert.equal(cancelledAttempts,1);
+});
+
 test('image decode has its own deadline and disposes a late decoded bitmap',async()=>{
  let closed=false;await assert.rejects(decodePrivateImage(new Blob(),{timeoutMs:10,decode:()=>new Promise(resolve=>setTimeout(()=>resolve({close(){closed=true;}}),35))}),/解码超时/);
  await new Promise(resolve=>setTimeout(resolve,50));assert(closed);

@@ -1,0 +1,61 @@
+#pickup-prompt[hidden] { display: none; }
+
+#pickup-prompt {
+  position: fixed;
+  z-index: 8;
+  top: 60%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: grid;
+  grid-template-columns: clamp(76px, 28vw, 128px) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  box-sizing: border-box;
+  width: min(396px, calc(100vw - 24px));
+  padding: 6px 12px 6px 6px;
+  border: 1px solid #486067;
+  border-radius: 4px;
+  background: #111b20f5;
+  color: #f5f8f6;
+  font-family: CS2Stratum, 'Microsoft YaHei', sans-serif;
+  pointer-events: none;
+}
+
+.pickup-preview {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 9;
+  background: #203238;
+}
+
+.pickup-preview canvas { width: 100%; height: auto; }
+.pickup-preview img { width: 76%; max-height: 80%; object-fit: contain; opacity: .65; }
+.pickup-details { display: grid; justify-items: start; gap: 3px; min-width: 0; }
+.pickup-weapon-name { font-size: 22px; line-height: 1.05; overflow-wrap: anywhere; }
+.pickup-skin { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #bfd0d2; font-size: 11px; }
+.pickup-action { display: flex; align-items: center; gap: 6px; color: #e1ebeb; font-size: 11px; }
+.pickup-action kbd { min-width: 19px; padding: 1px 4px; border: 1px solid #60777d; border-radius: 2px; color: #fff; font: 700 12px/1.2 CS2Stratum, 'Microsoft YaHei', sans-serif; text-align: center; }
+
+.pickup-ammo {
+  display: flex;
+  gap: 10px;
+  margin: 0;
+  padding-left: 12px;
+  border-left: 1px solid #486067;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.pickup-ammo > div { display: flex; flex-direction: column-reverse; justify-content: end; gap: 4px; }
+.pickup-ammo dt { color: #bfd0d2; font-size: 10px; line-height: 1; white-space: nowrap; }
+.pickup-ammo dd { margin: 0; line-height: 1; }
+.pickup-magazine { color: #f3d39a; font-size: 27px; font-weight: 700; }
+.pickup-reserve { color: #e1ebeb; font-size: 19px; font-weight: 600; }
+
+@media (max-width: 480px), (max-height: 520px) {
+  #pickup-prompt { width: min(324px, calc(100vw - 20px)); grid-template-columns: 90px minmax(0, 1fr) auto; gap: 8px; padding-right: 8px; }
+  .pickup-weapon-name { font-size: 18px; }
+  .pickup-ammo { gap: 7px; padding-left: 8px; }
+  .pickup-magazine { font-size: 22px; }
+  .pickup-reserve { font-size: 16px; }
+}

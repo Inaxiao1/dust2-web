@@ -1,5 +1,6 @@
 import {Texture} from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {resourceResponseError,retryResource} from './resource-retry.js';
 
 const hash=value=>typeof value==='string'&&/^[a-f0-9]{64}$/.test(value);
 const filename=value=>typeof value==='string'&&value.length>0&&value!=='.'&&value!=='..'&&!/[\\/%\x00-\x1f?#]/.test(value);
@@ -26,13 +27,17 @@ export function deduplicatePrivateImages(json,files){
 
 /** One destination buffer, no Response.clone, Cache API copy or large SHA copy.
  * Timeout measures lack of incoming bytes, not the whole transfer duration. */
-export async function readPrivateResource(url,{signal,bytes=0,onBytes=()=>{},idleMs=45000,fetcher=fetch,maxBytes=512*1024*1024,cache='default'}={}){
+export function readPrivateResource(url,options={}){
+ return retryResource(retry=>readPrivateTransfer(url,options,retry),options.signal);
+}
+
+async function readPrivateTransfer(url,{signal,bytes=0,onBytes=()=>{},idleMs=45000,fetcher=fetch,maxBytes=512*1024*1024,cache='default'},retry){
  signal?.throwIfAborted();const abort=new AbortController();let timer,reader,offset=0;
  const cancel=()=>abort.abort(signal.reason),touch=()=>{clearTimeout(timer);timer=setTimeout(()=>abort.abort(Error('原图下载长时间没有数据，请检查连接后重试')),idleMs);};
  signal?.addEventListener('abort',cancel,{once:true});touch();
  try{
-  const response=await fetcher(url,{signal:abort.signal,cache});
-  if(!response.ok||response.type==='opaque')throw Error('原图下载失败 ('+response.status+')');
+  const response=await fetcher(url,{signal:abort.signal,cache:retry?'reload':cache});
+  if(!response.ok||response.type==='opaque')throw resourceResponseError(response,'原图下载失败 ('+response.status+')');
   const header=Number(response.headers.get('content-length')),compressed=!!response.headers.get('content-encoding');
   if(bytes&&header&&!compressed&&header!==bytes)throw Error('原图文件长度与版本清单不一致');
   const length=bytes||(!compressed&&header)||0;if(length>maxBytes)throw Error('原图文件超过安全读取预算');

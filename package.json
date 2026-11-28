@@ -37,8 +37,5 @@
   "engines": {
     "node": ">=22.12.0"
   },
-  "license": "MIT",
-  "optionalDependencies": {
-    "node-datachannel": "^0.33.6"
-  }
+  "license": "MIT"
 }

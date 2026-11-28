@@ -1,4 +1,5 @@
 import {getStaticRuntime,resolveStaticMapFile,maybeGunzipResponse} from '../shared/static-runtime.js';
+import {sha256Hex} from '../shared/sha256.js';
 
 /** Keep game URLs and cache identities stable while moving map transfers.
  * The delivery configuration comes only from the game's same-origin endpoint.
@@ -68,13 +69,20 @@ export function privateMapFetcher(config,{fetcher=fetch,cachesApi=globalThis.cac
   const cacheable=Boolean(config.flatOnly && versionSha);
   const cache=cacheable?await openMapCache(cachesApi):null;
   const cacheKey=cache?mapCacheKey(versionSha,globalThis.location?.href||original.origin):null;
-  if(cache&&cacheKey){
+  if(cache&&cacheKey&&options.cache!=='reload'){
    const pending=pendingMapWrites.get(cacheKey);
    if(pending){try{await pending;}catch{}}
    try{
     const hit=await cache.match(cacheKey);
-    if(hit){options.signal?.throwIfAborted();return hit;}
-   }catch{}
+    if(hit){
+     const bytes=await hit.arrayBuffer().catch(()=>null);
+     const actual=bytes&&await sha256Hex(bytes).catch(()=>null);
+     options.signal?.throwIfAborted();
+     if(actual===versionSha)return new Response(bytes,{headers:hit.headers});
+     options={...options,cache:'reload'};
+     await cache.delete(cacheKey);
+    }
+   }catch{options.signal?.throwIfAborted();}
   }
   const saveToCache=(response)=>{
    if(!cache||!cacheKey||!(response instanceof Response)||!response.ok||response.type==='opaque')return response;
@@ -83,6 +91,7 @@ export function privateMapFetcher(config,{fetcher=fetch,cachesApi=globalThis.cac
     const write=(async()=>{
      try{
       const buf=await cloned.arrayBuffer();
+      if(await sha256Hex(buf)!==versionSha||options.signal?.aborted)return;
       const headers=new Headers(response.headers);
       headers.delete('content-encoding');
       headers.delete('transfer-encoding');

@@ -145,6 +145,41 @@ test('private pages lazily initialize the shared config before downloading the a
  assert.equal(child.status,0,child.stderr||child.stdout);
 });
 
+test('match preload reads only core animations, retries transport failures and verifies lazy assets',()=>{
+ const script=`
+ import assert from 'node:assert/strict';
+ import {createHash} from 'node:crypto';
+ globalThis.document={baseURI:'https://game.test/perf/'};
+ globalThis.__DUST2_PRIVATE_MAP__={renderUrl:'https://game.test/perf/maps/de_dust2/render/map.gltf'};
+ const paths=['assets/characters-cs2/animations.glb','assets/viewmodel/animations.glb','assets/audio/cue.mp3'];
+ const files=paths.map(path=>({path,bytes:path.length,sha256:createHash('sha256').update(path).digest('hex')}));
+ const calls=[];
+ let interrupted=false,corrupt=false;
+ globalThis.fetch=async (url,options)=>{
+  const {pathname}=new URL(url);
+  if(pathname==='/perf/download-config.json')return new Response(null,{status:404});
+  if(pathname==='/perf/assets/asset-manifest.json')return Response.json({files});
+  const path=pathname.slice('/perf/'.length);
+  assert(paths.includes(path));
+  calls.push([path,options.cache]);
+  if(path===paths[0]&&!interrupted){interrupted=true;throw new TypeError('connection reset');}
+  return new Response(corrupt?'x'.repeat(path.length):path);
+ };
+ const {downloadAssets,fetchCachedAsset,releaseDownloads}=await import('./client/loading.js');
+ const manifest=await downloadAssets({matchOnly:true});
+ assert.deepEqual(manifest.files.map(file=>file.path),paths.slice(0,2));
+ assert.deepEqual(calls.filter(([path])=>path===paths[0]).map(([,cache])=>cache),['force-cache','reload']);
+ assert(!calls.some(([path])=>path===paths[2]));
+ assert.equal(await (await fetchCachedAsset(paths[2])).text(),paths[2]);
+ corrupt=true;
+ await assert.rejects(fetchCachedAsset(paths[2]),/校验失败/);
+ assert.equal(calls.filter(([path])=>path===paths[2]).length,2,'a hash mismatch is never retried');
+ releaseDownloads();
+ `;
+ const child=spawnSync(process.execPath,['--input-type=module','--eval',script],{cwd:new URL('../',import.meta.url),encoding:'utf8'});
+ assert.equal(child.status,0,child.stderr||child.stdout);
+});
+
 test('installed bundles read local bytes before any delivery configuration or mirrored download',()=>{
  const script=`
  import assert from 'node:assert/strict';

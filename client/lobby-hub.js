@@ -2,12 +2,13 @@ import interfaceCss from './interface.css?inline';
 import controlsCss from './controls.css?inline';
 import agentsCss from './agents.css?inline';
 import loadoutCss from './loadout-menu.css?inline';
+import cs2Fonts from './cs2-fonts.css?inline';
 import skinsCss from './skins.css?inline';
 import progressionCss from './progression.css?inline';
 import { preferences } from './persistence.js';
 import { getSharedToyProgress } from './toy-cloud-progress.js';
 import { initDownloadOrigin } from './download-origin.js';
-import { DEFAULT_CROSSHAIR, normalizeCrosshair } from '../shared/cs2-settings.js';
+import { DEFAULT_CROSSHAIR, normalizeCrosshair, normalizeMouseSensitivity } from '../shared/cs2-settings.js';
 import { normalizeVideo, viewportSize } from '../shared/video-settings.js';
 import { normalizeBotDifficulty } from '../shared/bot-difficulty.js';
 import { normalizeClarity, normalizeFlatScale } from '../shared/render-quality.js';
@@ -33,7 +34,7 @@ function createHub() {
     if (!document.getElementById('lobbyHubInlineStyles')) {
       const style = document.createElement('style');
       style.id = 'lobbyHubInlineStyles';
-      style.textContent = [interfaceCss, controlsCss, agentsCss, loadoutCss, skinsCss, progressionCss].join('\n');
+      style.textContent = [cs2Fonts, interfaceCss, controlsCss, agentsCss, loadoutCss, skinsCss, progressionCss].join('\n');
       document.head.append(style);
     }
     try {
@@ -48,7 +49,7 @@ function createHub() {
     const storedSettings = preferences.readJSON('dust2.cs-settings.v1');
     const videoDefaults = { aspect: '4:3', display: 'stretch' };
     let video = normalizeVideo({ ...videoDefaults, ...storedSettings });
-    let sensitivity = Math.max(0.05, Math.min(100, Number(storedSettings.sensitivity) || 1));
+    let sensitivity = normalizeMouseSensitivity(storedSettings.sensitivity);
     let zoomSensitivity = Math.max(0.05, Math.min(10, Number(storedSettings.zoomSensitivity) || 1));
     let invertY = Boolean(storedSettings.invertY);
     let crosshairSettings = normalizeCrosshair(storedSettings.crosshair || DEFAULT_CROSSHAIR);
@@ -123,7 +124,7 @@ function createHub() {
         if (values.radarRotate !== undefined) radarRotate = values.radarRotate;
         if (values.flatRenderScale !== undefined) flatRenderScale = normalizeFlatScale(values.flatRenderScale);
         if (values.mobileClarity !== undefined) mobileClarity = normalizeClarity(values.mobileClarity);
-        if (values.sensitivity !== undefined) sensitivity = values.sensitivity;
+        if (values.sensitivity !== undefined) sensitivity = normalizeMouseSensitivity(values.sensitivity);
         if (values.zoomSensitivity !== undefined) zoomSensitivity = values.zoomSensitivity;
         if (values.invertY !== undefined) invertY = Boolean(values.invertY);
         if (values.crosshair) crosshairSettings = values.crosshair;

@@ -110,10 +110,9 @@ export function createPlayerTelemetry({
     return s;
   }
 
-  function recordClientPing(playerId, { rtt, fps, tr } = {}) {
+  function recordClientPing(playerId, { rtt, fps } = {}) {
     const s = sessions.get(playerId);
     if (!s) return;
-    if (tr === 'u' && s.transport !== 'udp') s.transport = 'udp';
     if (Number.isFinite(rtt) && rtt >= 1 && rtt <= 5000) {
       const clamped = Math.round(rtt);
       if (s.lastClientRtt !== null) {

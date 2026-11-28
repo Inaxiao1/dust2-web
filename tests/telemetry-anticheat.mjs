@@ -79,9 +79,9 @@ test('player telemetry tracks real RTT, detects anti-cheat anomalies with cooldo
   });
 
   // Network samples
-  tel.recordClientPing('p1', { rtt: 42, fps: 144, tr: 'u' });
-  tel.recordClientPing('p1', { rtt: 48, fps: 140, tr: 'u' });
-  tel.recordClientPing('p1', { rtt: 44, fps: 142, tr: 'u' });
+  tel.recordClientPing('p1', { rtt: 42, fps: 144 });
+  tel.recordClientPing('p1', { rtt: 48, fps: 140 });
+  tel.recordClientPing('p1', { rtt: 44, fps: 142 });
 
   // Live network snapshot MUST NOT leak uid, ipHash, or name
   const live = tel.liveNetworkSnapshot();

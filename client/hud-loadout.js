@@ -35,21 +35,33 @@ export class HudLoadout {
     this.element.setAttribute('aria-label', '携带装备');
     parent?.append(this.element);
   }
-  update(self, equippedSkins = null) {
-    const rows = loadoutRows(self, equippedSkins), signature = JSON.stringify(rows);
+  update(self, equippedSkins = null, utilityShortcut = '4') {
+    const rows = loadoutRows(self, equippedSkins), signature = JSON.stringify([rows, utilityShortcut]);
     if (signature === this.signature) return;
     this.signature = signature;
-    this.element.replaceChildren(...rows.map(row => {
+    const items = rows.map(row => {
       const item = document.createElement('div');
       item.className = `hud-loadout-row${row.active ? ' selected' : ''}${row.slot === 4 ? ' grenade' : ''}`;
       item.dataset.slot = row.slot ?? 'kit';
       item.setAttribute('aria-label', `${row.name}${row.count > 1 ? ` × ${row.count}` : ''}${row.active ? ' · 当前装备' : ''}`);
       if (row.active) item.setAttribute('aria-current', 'true');
       const name = document.createElement('span');name.className = 'hud-loadout-name';name.textContent = row.name;
-      const key = document.createElement('small');key.textContent = row.slot ?? '';
       const count = document.createElement('b');count.textContent = row.count > 1 ? `×${row.count}` : '';
-      item.append(name, uiIcon(row.iconId || row.id, row.name), count, key);
+      item.append(name, uiIcon(row.iconId || row.id, row.name), count);
+      if (row.slot !== 4 && row.slot !== null) {
+        const key = document.createElement('small');
+        key.textContent = row.slot;
+        item.append(key);
+      }
       return item;
-    }));
+    });
+    if (utilityShortcut && rows.some(row => row.slot === 4)) {
+      const key = document.createElement('small');
+      key.className = 'hud-loadout-utility-key';
+      key.textContent = utilityShortcut;
+      key.setAttribute('aria-label', `切换投掷物 ${utilityShortcut}`);
+      items.push(key);
+    }
+    this.element.replaceChildren(...items);
   }
 }

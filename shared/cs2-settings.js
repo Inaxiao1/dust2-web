@@ -11,9 +11,10 @@ export const CS2_MOUSE_YAW = 0.022;
 export const CS2_MOUSE_PITCH = 0.022;
 export const AWP_ZOOM_FOVS = Object.freeze([90, 40, 10]);
 export const AWP_ZOOM_TIME = 0.05;
-export const DEFAULT_SENSITIVITY = 1;
+export const DEFAULT_SENSITIVITY = 3.5;
+export const MIN_SENSITIVITY = 1;
+export const MAX_SENSITIVITY = 7;
 export const DEFAULT_ZOOM_SENSITIVITY = 1;
-export const MAX_SENSITIVITY = 100;
 export const MAX_ZOOM_SENSITIVITY = 10;
 
 const RAD = Math.PI / 180;
@@ -25,6 +26,10 @@ const finite = (value, fallback, min, max) => {
 const flag = (value, fallback) => value === true || value === 1 || value === '1' ? true
   : value === false || value === 0 || value === '0' ? false : fallback;
 const angle = value => finite(value, CS2_BASE_FOV, 1, 179);
+
+export function normalizeMouseSensitivity(value) {
+  return finite(value, DEFAULT_SENSITIVITY, MIN_SENSITIVITY, MAX_SENSITIVITY);
+}
 
 export function cs2FovToVertical(fov43 = CS2_BASE_FOV) {
   return 2 * Math.atan(Math.tan(angle(fov43) * RAD / 2) * 3 / 4) / RAD;
@@ -46,7 +51,7 @@ export function cs2FovToHorizontal(fov43 = CS2_BASE_FOV, aspect = 16 / 9) {
 export function mouseRadiansPerCount(sensitivity = DEFAULT_SENSITIVITY, axis = 'yaw',
   zoomFov = CS2_BASE_FOV, zoomSensitivity = DEFAULT_ZOOM_SENSITIVITY) {
   if (axis !== 'yaw' && axis !== 'pitch') throw new TypeError('Mouse axis must be yaw or pitch');
-  const s = finite(sensitivity, DEFAULT_SENSITIVITY, 0.01, MAX_SENSITIVITY);
+  const s = normalizeMouseSensitivity(sensitivity);
   const fov = angle(zoomFov);
   const zoom = finite(zoomSensitivity, DEFAULT_ZOOM_SENSITIVITY, 0.01, MAX_ZOOM_SENSITIVITY);
   const multiplier = fov === CS2_BASE_FOV ? 1 : fov / CS2_BASE_FOV * zoom;
@@ -56,7 +61,7 @@ export function mouseRadiansPerCount(sensitivity = DEFAULT_SENSITIVITY, axis = '
 export function normalizeAimSettings(settings = {}) {
   const s = settings && typeof settings === 'object' ? settings : {};
   return {
-    sensitivity: finite(s.sensitivity, DEFAULT_SENSITIVITY, 0.01, MAX_SENSITIVITY),
+    sensitivity: normalizeMouseSensitivity(s.sensitivity),
     zoomSensitivity: finite(s.zoomSensitivity, DEFAULT_ZOOM_SENSITIVITY, 0.01, MAX_ZOOM_SENSITIVITY),
     invertY: flag(s.invertY, false),
   };

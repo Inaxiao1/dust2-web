@@ -1,15 +1,15 @@
 import {mobileDevice} from './device-profile.js';
-import { DEFAULT_CROSSHAIR, normalizeCrosshair, decodeCrosshairCode } from '../shared/cs2-settings.js';
+import { DEFAULT_CROSSHAIR, normalizeCrosshair, decodeCrosshairCode, DEFAULT_SENSITIVITY, MIN_SENSITIVITY, MAX_SENSITIVITY, DEFAULT_ZOOM_SENSITIVITY, normalizeMouseSensitivity } from '../shared/cs2-settings.js';
 import { Crosshair } from './crosshair.js';
 import { VISUAL_STYLE_PRESETS, normalizeVisualStyle } from './arena-look-presets.js';
 
 const SENS_PRESETS = [
-  { value: 0.8, label: '0.80', tag: '低敏' },
-  { value: 1.6, label: '1.60', tag: '经典' },
-  { value: 3.2, label: '3.20', tag: '偏快' },
-  { value: 6.0, label: '6.00', tag: '高敏' },
-  { value: 12.0, label: '12.0', tag: '极速' },
-  { value: 25.0, label: '25.0', tag: '触控板' },
+  { value: MIN_SENSITIVITY, tag: '低敏' },
+  { value: 2, tag: '偏慢' },
+  { value: DEFAULT_SENSITIVITY, tag: '默认' },
+  { value: 5, tag: '偏快' },
+  { value: 6, tag: '高敏' },
+  { value: MAX_SENSITIVITY, tag: '最高' },
 ];
 
 const ZOOM_PRESETS = [
@@ -183,16 +183,16 @@ export function mountSettings({
           <div class="settings-group">
             <h4>基础灵敏度</h4>
             <div class="slider-control-head">
-              <div><label class="control-title" for="cs-sensitivity">游戏内灵敏度</label><span class="control-sub">范围 0.05 – 100.00（滑块 0.10 – 50.00，高敏 / 触控板可按需调高）</span></div>
+              <div><label class="control-title" for="cs-sensitivity">游戏内灵敏度</label><span class="control-sub">范围 ${MIN_SENSITIVITY}–${MAX_SENSITIVITY} · 默认 ${DEFAULT_SENSITIVITY}</span></div>
               <div class="stepper-box">
                 <button type="button" class="step-btn" data-step-target="sensitivity" data-step-delta="-1" aria-label="降低游戏内灵敏度">−</button>
-                <input id="cs-sensitivity" type="number" min="0.05" max="100" step="0.05">
+                <input id="cs-sensitivity" type="number" min="${MIN_SENSITIVITY}" max="${MAX_SENSITIVITY}" step="0.01">
                 <button type="button" class="step-btn" data-step-target="sensitivity" data-step-delta="1" aria-label="提高游戏内灵敏度">+</button>
               </div>
             </div>
-            <input id="cs-sensitivity-range" class="cs-range" aria-label="游戏内灵敏度滑块" type="range" min="0.1" max="50" step="0.05">
+            <input id="cs-sensitivity-range" class="cs-range" aria-label="游戏内灵敏度滑块" type="range" min="${MIN_SENSITIVITY}" max="${MAX_SENSITIVITY}" step="0.01">
             <div class="preset-strip" data-presets="sensitivity">
-              ${SENS_PRESETS.map(p=>`<button type="button" class="preset-chip" data-preset-key="sensitivity" data-preset-value="${p.value}"><b>${p.label}</b><span>${p.tag}</span></button>`).join('')}
+              ${SENS_PRESETS.map(p=>`<button type="button" class="preset-chip" data-preset-key="sensitivity" data-preset-value="${p.value}"><b>${p.value.toFixed(2)}</b><span>${p.tag}</span></button>`).join('')}
             </div>
             <div class="telemetry-strip">
               <div class="telemetry-dpi">
@@ -318,12 +318,12 @@ export function mountSettings({
 
   function syncMouse() {
     const s = getSettings();
-    const sens = Number(s.sensitivity) || 1;
-    const zoom = Number(s.zoomSensitivity) || 1;
+    const sens = normalizeMouseSensitivity(s.sensitivity);
+    const zoom = Number(s.zoomSensitivity) || DEFAULT_ZOOM_SENSITIVITY;
     const sensNum = select('#cs-sensitivity'), sensRange = select('#cs-sensitivity-range');
     const zoomNum = select('#cs-zoom-sensitivity'), zoomRange = select('#cs-zoom-sensitivity-range');
     if (document.activeElement !== sensNum) sensNum.value = sens.toFixed(2).replace(/\.?0+$/, '') || String(sens);
-    sensRange.value = String(clampNumber(sens, 0.1, 50));
+    sensRange.value = String(sens);
     setRangeFill(sensRange);
     if (document.activeElement !== zoomNum) zoomNum.value = zoom.toFixed(2).replace(/\.?0+$/, '') || String(zoom);
     zoomRange.value = String(clampNumber(zoom, 0.1, 5));
@@ -337,14 +337,16 @@ export function mountSettings({
   }
 
   function setMouseValue(key, rawValue, commit = true) {
-    const max = key === 'sensitivity' ? 100 : 10;
+    const isSensitivity = key === 'sensitivity';
+    const field = select(isSensitivity ? '#cs-sensitivity' : '#cs-zoom-sensitivity');
     const n = Number(rawValue);
-    if (!Number.isFinite(n) || n < 0.05 || n > max) {
-      if (commit) syncMouse();
+    if (rawValue !== '' && Number.isFinite(n) && (isSensitivity || (n >= Number(field.min) && n <= Number(field.max)))) {
+      const value = isSensitivity ? normalizeMouseSensitivity(n) : n;
+      onSettings({ [key]: Math.round(value * 100) / 100 });
+    } else if (!commit) {
       return;
     }
-    const rounded = Math.round(n * 100) / 100;
-    onSettings({ [key]: rounded });
+    if (commit) field.value = String(getSettings()[key]);
     syncMouse();
   }
 
@@ -354,21 +356,17 @@ export function mountSettings({
     range.addEventListener('change', () => setMouseValue(key, range.value, true));
     num.addEventListener('input', () => {
       const n = Number(num.value);
-      if (Number.isFinite(n) && n >= 0.05 && n <= (key === 'sensitivity' ? 100 : 10)) {
-        onSettings({ [key]: n });
-        range.value = String(clampNumber(n, Number(range.min), Number(range.max)));
-        setRangeFill(range);
-        if (key === 'sensitivity') updateMouseTelemetry(n);
-      }
+      if (n >= Number(num.min) && n <= Number(num.max)) setMouseValue(key, num.value, false);
     });
     num.addEventListener('change', () => setMouseValue(key, num.value, true));
   }
   modal.querySelectorAll('[data-step-target]').forEach(btn => {
     btn.onclick = () => {
       const key = btn.dataset.stepTarget, rawDelta = Number(btn.dataset.stepDelta);
-      const cur = Number(getSettings()[key]) || 1;
-      const step = key === 'sensitivity' ? (cur >= 10 ? 1 : cur >= 3 ? 0.25 : 0.1) * Math.sign(rawDelta) : rawDelta;
-      setMouseValue(key, clampNumber(Math.round((cur + step) * 100) / 100, 0.05, key === 'sensitivity' ? 100 : 10), true);
+      const isSensitivity = key === 'sensitivity';
+      const cur = isSensitivity ? normalizeMouseSensitivity(getSettings()[key]) : Number(getSettings()[key]) || DEFAULT_ZOOM_SENSITIVITY;
+      const step = isSensitivity ? (cur >= 3 ? 0.25 : 0.1) * Math.sign(rawDelta) : rawDelta;
+      setMouseValue(key, isSensitivity ? cur + step : clampNumber(cur + step, 0.05, 10));
     };
   });
   modal.querySelectorAll('[data-preset-key]').forEach(btn => {
@@ -378,12 +376,12 @@ export function mountSettings({
     btn.onclick = () => {
       referenceDpi = Number(btn.dataset.dpi);
       try { localStorage.setItem('dust2.mouse-dpi', String(referenceDpi)); } catch {}
-      updateMouseTelemetry(Number(getSettings().sensitivity) || 1);
+      updateMouseTelemetry(normalizeMouseSensitivity(getSettings().sensitivity));
     };
   });
   select('#cs-invert-y').onchange = e => onSettings({ invertY: e.target.checked });
   select('#reset-mouse').onclick = () => {
-    onSettings({ sensitivity: 1, zoomSensitivity: 1, invertY: false });
+    onSettings({ sensitivity: DEFAULT_SENSITIVITY, zoomSensitivity: DEFAULT_ZOOM_SENSITIVITY, invertY: false });
     syncMouse();
   };
 

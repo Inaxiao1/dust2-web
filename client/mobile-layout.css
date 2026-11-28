@@ -61,8 +61,6 @@
 .touch-device #touch-controls .touch-walk{left:16px;bottom:150px;min-height:30px}
 .touch-device .radar-block{left:8px!important;top:5px!important;width:70px!important}
 .touch-device #radar{width:70px!important;height:70px!important}
-.touch-device .location-label{margin-bottom:2px!important}
-.touch-device #location{font-size:8px!important}
 .touch-device .radar-info{display:none}
 .touch-device .team-rosters{display:none}
 .touch-device .top-score{transform:translateX(-50%) scale(.52)!important;top:4px!important;transform-origin:top center!important}
@@ -76,7 +74,6 @@
 .touch-device .bottom-right{left:190px!important;right:auto!important;bottom:5px!important}
 .touch-device .ammo-stat>b{font-size:20px!important}
 .touch-device .ammo-stat>span{font-size:10px!important}
-.touch-device #weapon-name{font-size:8px!important}
 .touch-device #toast{top:37px!important;font-size:9px!important;max-width:48vw;padding:4px 8px!important;white-space:normal;line-height:1.4;background:#182a3299!important;border:0!important}.touch-spectator #toast{display:none}
 .touch-device #kill-cards{transform:translateX(-50%) scale(.5)!important;bottom:46px!important}
 .touch-device .death-screen-card{top:58px!important;bottom:auto!important;width:min(350px,70vw)!important;max-width:70vw;padding:7px 10px!important;gap:8px!important;box-shadow:none;animation:none;background:#182a32b8}

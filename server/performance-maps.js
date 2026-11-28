@@ -9,7 +9,6 @@ import crypto from 'node:crypto';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {WebSocketServer, WebSocket} from 'ws';
-import {createRtcGateway} from './rtc-gateway.js';
 import {createTelemetryStore, percentiles} from './telemetry-store.js';
 import {PERFORMANCE_MAPS, isPerformanceMap} from '../shared/performance-map-pool.js';
 import {findQualityPacks} from './performance-quality.js';
@@ -897,7 +896,7 @@ function mapConfig(id,originOrWorker,quality,{requestedNodeId='',requestedRoomCo
       ...(routed.wsOrigins.length?{wsOrigins:routed.wsOrigins}:{}),
       ...(clusterPeers.length||nodeLabel?{nodeId:routed.node.id,nodeLabel:routed.node.label}:{}),
       ...(routed.clusterFull?{clusterFull:true}:{}),
-      rtcEnabled:Boolean(rtcGateway),
+      rtcEnabled:false,
     };
     if(quality)return {...config,...urls,...cosmetics,...wsRouteMeta,flatOnly:false,graphicsMode:'quality',renderUrl:'/perf/quality/maps/'+id+'/render/map.gltf'};
     return {...config,...urls,...cosmetics,...compactMeta,...texturedMeta,...wsRouteMeta,flatOnly:true,...(fs.existsSync(remap)?{flatBreakableVisuals:JSON.parse(fs.readFileSync(remap))}:{})};
@@ -922,22 +921,9 @@ const server=http.createServer(async(req,res)=>{
       for(const ev of events.slice(0,256))telemetryStore.record(ev);
       json(res,200,{ok:true,accepted:Math.min(256,events.length)});return;
     }
-    const rtcMatch=/^\/perf\/(?:quality\/)?play\/(de_[a-z0-9]+)\/rtc-offer$/.exec(p);
-    if(rtcMatch){
-      if(draining){json(res,503,{ok:false,error:'SERVER_DRAINING'});return;}
-      if(allowedOrigins instanceof Set && req.headers.origin && !allowedOrigins.has(req.headers.origin)){
-        json(res,403,{ok:false,error:'ORIGIN_NOT_ALLOWED'});return;
-      }
-      const mapId=rtcMatch[1];
-      if(!maps.has(mapId)||(p.startsWith('/perf/quality/')&&!qualityPacks.has(mapId))){
-        json(res,404,{ok:false,error:'UNKNOWN_MAP'});return;
-      }
-      if(!rtcGateway){
-        json(res,404,{ok:false,error:'RTC_DISABLED'});return;
-      }
-      const body=await readJsonBody(req);
-      const {status,body:reply}=await rtcGateway.handleOffer(mapId,url.search||'',req,body);
-      json(res,status,reply);return;
+    // Cached clients switch to WebSocket when the legacy offer endpoint returns 404.
+    if(/^\/perf\/(?:quality\/)?play\/de_[a-z0-9]+\/rtc-offer$/.test(p)){
+      json(res,404,{ok:false,error:'RTC_DISABLED'});return;
     }
     if(!controlPlaneUrl){json(res,404,{ok:false,code:'CONTROL_PLANE_DISABLED',message:'control plane mode is not enabled'});return;}
     const clientForwardHeaders={...(req.headers['x-forwarded-for']?{'X-Forwarded-For':req.headers['x-forwarded-for']}:{'X-Forwarded-For':req.socket?.remoteAddress||''})};
@@ -1036,14 +1022,14 @@ const server=http.createServer(async(req,res)=>{
   if(p==='/perf/internal/telemetry.json'){
     if(!isLoopbackReq(req)){json(res,403,{ok:false,error:'LOOPBACK_ONLY'});return;}
     const [network,store]=await Promise.all([refreshLiveNetwork(true),telemetryStore.summary()]);
-    json(res,200,{ok:true,network,rtc:rtcGateway?rtcGateway.status():{enabled:false},...store});return;
+    json(res,200,{ok:true,network,rtc:{enabled:false},...store});return;
   }
   if(p==='/perf/health'){
     const localOnly=url.searchParams.get('local')==='1';
     const network=await refreshLiveNetwork(false);
     const node=localNodeSnapshot();
     const cluster=!localOnly&&(clusterPeers.length>0||maxHumans>0)?buildClusterSummary():undefined;
-    json(res,200,{ok:true,ready:!draining,draining,disableLocalAssets,logicGatewayOnly,maxWorkers,workerMaxRooms:Number(workerMaxRooms),shardTargetRooms,controlPlane:!!controlPlaneUrl,maps:maps.size,node,...(cluster?{cluster}:{}),rtc:rtcGateway?rtcGateway.status():{enabled:false},network,workers:allWorkers().map(w=>({id:w.id,shard:w.shard,active:w.connections>0,connections:w.connections}))});return;
+    json(res,200,{ok:true,ready:!draining,draining,disableLocalAssets,logicGatewayOnly,maxWorkers,workerMaxRooms:Number(workerMaxRooms),shardTargetRooms,controlPlane:!!controlPlaneUrl,maps:maps.size,node,...(cluster?{cluster}:{}),rtc:{enabled:false},network,workers:allWorkers().map(w=>({id:w.id,shard:w.shard,active:w.connections>0,connections:w.connections}))});return;
   }
   if(p==='/perf/api/maps'){
     if(controlPlaneUrl){
@@ -1145,16 +1131,12 @@ const shardWss=new WebSocketServer({
   maxPayload:4096,
   perMessageDeflate:{serverNoContextTakeover:true,clientNoContextTakeover:true,threshold:256,concurrencyLimit:10,zlibDeflateOptions:{level:1,memLevel:7}},
 });
-const rtcAdapters=new Set();
 const shardHeartbeat=setInterval(()=>{
   for(const ws of shardWss.clients){
     if(ws._cs2Alive===false){ws.terminate();continue;}
     ws._cs2Alive=false;
     ws._cs2PingAt=performance.now();
     try{ws.ping();}catch{}
-  }
-  for(const adapter of rtcAdapters){
-    try{adapter.ping();}catch{}
   }
 },15000);
 shardHeartbeat.unref();
@@ -1179,8 +1161,7 @@ function buildLiveNetworkSummary(){
       else wsRtts.push(sample.ms);
     }
   }
-  // Also collect gateway-measured WS ping/pong RTTs and native WebRTC ICE/SCTP RTTs
-  // so legacy clients that do not report RTT in JSON pings are measured accurately too.
+  // Include gateway-measured ping/pong RTT for clients that omit RTT in JSON pings.
   const gwWsRtts=[];
   for(const sock of shardWss.clients){
     if(Number.isFinite(sock._cs2LastRtt)&&sock._cs2LastRtt>=1&&sock._cs2LastRtt<=5000){
@@ -1192,24 +1173,11 @@ function buildLiveNetworkSummary(){
       }
     }
   }
-  const gwUdpRtts=[];
-  for(const adapter of rtcAdapters){
-    const rtt=adapter.rttMs;
-    if(Number.isFinite(rtt)&&rtt>=1&&rtt<=5000){
-      gwUdpRtts.push(rtt);
-      if(adapter._cs2MapId){
-        const m=ensureMap(adapter._cs2MapId);
-        if(!m.gwUdpRtts)m.gwUdpRtts=[];
-        m.gwUdpRtts.push(rtt);
-      }
-    }
-  }
-  const effectiveUdpRtts=udpRtts.length>=gwUdpRtts.length?udpRtts:gwUdpRtts;
   const effectiveWsRtts=wsRtts.length>=gwWsRtts.length?wsRtts:gwWsRtts;
-  const effectiveAllRtts=[...effectiveUdpRtts,...effectiveWsRtts];
+  const effectiveAllRtts=[...udpRtts,...effectiveWsRtts];
   const mapSummary={};
   for(const [id,m] of Object.entries(byMap)){
-    const rList=m.rtts.length?m.rtts:[...(m.gwUdpRtts||[]),...(m.gwWsRtts||[])];
+    const rList=m.rtts.length?m.rtts:(m.gwWsRtts||[]);
     const p=percentiles(rList);
     mapSummary[id]={humans:m.humans,udp:m.udp,ws:m.ws,...(p?{p50:p.p50,p95:p.p95,samples:p.n}:{})};
   }
@@ -1219,9 +1187,9 @@ function buildLiveNetworkSummary(){
     ws,
     udpPct:humans?Math.round((udp/humans)*100):0,
     rttAll:percentiles(effectiveAllRtts),
-    rttUdp:percentiles(effectiveUdpRtts),
+    rttUdp:percentiles(udpRtts),
     rttWs:percentiles(effectiveWsRtts),
-    gwUdpRtt:percentiles(gwUdpRtts),
+    gwUdpRtt:null,
     gwWsRtt:percentiles(gwWsRtts),
     byMap:mapSummary,
   };
@@ -1257,17 +1225,6 @@ const netLogTimer=setInterval(async()=>{
   }catch{}
 },60000);
 netLogTimer.unref();
-let rtcGateway=null;
-createRtcGateway({
-  onClientSocket:(mapId,query,req,adapter)=>{
-    rtcAdapters.add(adapter);
-    adapter.once('close',()=>rtcAdapters.delete(adapter));
-    routeShardedWebSocket(mapId,query,req,adapter);
-  },
-}).then(gw=>{
-  rtcGateway=gw;
-  if(gw)console.log(`WebRTC UDP DataChannel enabled on port ${gw.udpPort}`);
-}).catch(()=>{});
 function safeCloseWs(ws,code,reason){
   if(!ws||ws.readyState===WebSocket.CLOSED||ws.readyState===WebSocket.CLOSING)return;
   if(code&&code>=1000&&code<=4999&&code!==1004&&code!==1005&&code!==1006&&code!==1015){
@@ -1290,7 +1247,6 @@ async function listMapRoomsForWs(mapId){
 }
 function routeShardedWebSocket(mapId,query,req,clientWs){
   try{clientWs._socket?.setNoDelay?.(true);}catch{}
-  const isRtc=rtcAdapters.has(clientWs);
   clientWs._cs2Alive=true;
   clientWs._cs2MapId=mapId;
   clientWs.on('pong',()=>{
@@ -1301,14 +1257,12 @@ function routeShardedWebSocket(mapId,query,req,clientWs){
       clientWs._cs2PingAt=0;
     }
   });
-  if(!isRtc){
-    // Sample real end-to-end WS RTT 2s after connect so even short sessions get measured.
-    const firstPing=setTimeout(()=>{
-      if(clientWs.readyState===WebSocket.OPEN){clientWs._cs2PingAt=performance.now();try{clientWs.ping();}catch{}}
-    },2000);
-    firstPing.unref?.();
-    clientWs.once('close',()=>clearTimeout(firstPing));
-  }
+  // Sample real end-to-end WS RTT 2s after connect so even short sessions get measured.
+  const firstPing=setTimeout(()=>{
+    if(clientWs.readyState===WebSocket.OPEN){clientWs._cs2PingAt=performance.now();try{clientWs.ping();}catch{}}
+  },2000);
+  firstPing.unref?.();
+  clientWs.once('close',()=>clearTimeout(firstPing));
   let state='unbound',boundWorker=null,upstreamWs=null,released=false,welcomed=false;
   let lastBpSent=0,bpTimer=null;
   const pending=[];
@@ -1455,7 +1409,6 @@ function routeShardedWebSocket(mapId,query,req,clientWs){
       boundWorker.directoryRead=null;
       boundWorker.internalRead=null;
       const forwardHeaders={
-        'x-cs2-transport':isRtc?'udp':'ws',
         'x-cs2-gateway':'1',
         'x-cs2-client-ip-hash':telemetryStore.hashIp(req.headers['x-forwarded-for']||req.socket?.remoteAddress||''),
       };
@@ -1494,18 +1447,7 @@ function routeShardedWebSocket(mapId,query,req,clientWs){
         if(clientWs.readyState===WebSocket.OPEN){
           const curBuf=clientWs.bufferedAmount||0;
           if(curBuf>512*1024){cleanup(1008,'Client too slow');return;}
-          let useUnreliable=false;
-          if(isRtc&&!uBinary&&clientWs.hasUnreliable){
-            const head=uData.subarray(0,32).toString('utf8');
-            if(head.startsWith('{"type":"pong"')||head.startsWith('{"type":"snapshotDelta","sid":')){
-              useUnreliable=true;
-            }
-          }
-          if(useUnreliable){
-            clientWs.sendUnreliable(uData,{binary:uBinary});
-          }else{
-            clientWs.send(uData,{binary:uBinary});
-          }
+          clientWs.send(uData,{binary:uBinary});
           const afterBuf=clientWs.bufferedAmount||0;
           if(afterBuf>24576){
             sendBackpressure(afterBuf);
@@ -1560,6 +1502,6 @@ server.listen(port,host,()=>{
   }
 });
 process.on('SIGUSR2',()=>{draining=true;for(const w of allWorkers())if(!w.retiring)w.child.kill('SIGUSR2');});
-function shutdown(){clearInterval(reap);clearInterval(shardHeartbeat);clearInterval(netLogTimer);if(clusterPollTimer)clearInterval(clusterPollTimer);void telemetryStore.close();for(const w of allWorkers())w.child.kill();server.close();const forceExit=setTimeout(()=>process.exit(0),1500);forceExit.unref?.();rtcGateway?.close({cleanupNative:true});}
+function shutdown(){clearInterval(reap);clearInterval(shardHeartbeat);clearInterval(netLogTimer);if(clusterPollTimer)clearInterval(clusterPollTimer);void telemetryStore.close();for(const w of allWorkers())w.child.kill();server.close();const forceExit=setTimeout(()=>process.exit(0),1500);forceExit.unref?.();}
 for(const signal of ['SIGINT','SIGTERM'])process.once(signal,shutdown);
 if(process.send)process.once('disconnect',shutdown);

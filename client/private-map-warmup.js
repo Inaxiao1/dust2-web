@@ -1,7 +1,7 @@
 /** compileAsync prepares programs, but does not upload the original map's
  * textures/vertex buffers. Complete that work under the loading screen before
  * opening WSS, so a cold GPU upload cannot consume the socket heartbeat budget. */
-export async function warmPrivateMap({renderer,scene,camera,gunScene,gunCamera,signal,onProgress=()=>{},yieldFrame,now=()=>performance.now()}){
+export async function warmPrivateMap({renderer,scene,camera,gunScene,gunCamera,signal,viewCount=4,onProgress=()=>{},yieldFrame,now=()=>performance.now()}){
  const started=now(),textures=new Set();
  const check=()=>{signal?.throwIfAborted();if(renderer.getContext().isContextLost())throw Error('显卡在准备原始地图时中断，请关闭其他 3D 页面后重试');};
  for(const root of [scene,gunScene]){
@@ -15,11 +15,10 @@ export async function warmPrivateMap({renderer,scene,camera,gunScene,gunCamera,s
  }
  const rotation=camera.rotation.clone(),autoClear=renderer.autoClear;let maxRenderMs=0;
  try{
-  // Four views prepare the immediate spawn surroundings without changing any
-  // source geometry, texture resolution or the player's eventual view.
-  for(let view=0;view<4;view++){
+  // Full-resolution maps also warm the side and rear views of the spawn area.
+  for(let view=0;view<viewCount;view++){
    check();camera.rotation.copy(rotation);camera.rotation.y+=view*Math.PI/2;camera.updateMatrixWorld();
-   onProgress(`准备出生点画面 ${view+1} / 4`,{phase:'gpu-frames',complete:view,count:4});await yieldFrame();check();
+   onProgress(`准备出生点画面 ${view+1} / ${viewCount}`,{phase:'gpu-frames',complete:view,count:viewCount});await yieldFrame();check();
    const before=now();renderer.autoClear=true;renderer.render(scene,camera);renderer.autoClear=false;renderer.clearDepth();renderer.render(gunScene,gunCamera);maxRenderMs=Math.max(maxRenderMs,now()-before);
    await yieldFrame();check();
   }

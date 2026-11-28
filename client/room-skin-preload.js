@@ -29,11 +29,11 @@ export function reserveWarmIds(carried,active,mobile) {
   return chosen;
 }
 
-export function queryRoomAppearance(url,room,{signal, Socket=WebSocket}={}) {
+export function queryRoomAppearance(url,room,{signal,Socket=WebSocket,timeoutMs=10000}={}) {
   signal?.throwIfAborted();
   return new Promise((resolve,reject) => {
     const socket = new Socket(url);
-    const timer = setTimeout(() => finish(new Error('获取房间外观清单超时，请重试。')),10000);
+    const timer = setTimeout(() => finish(new Error('获取房间外观清单超时，请重试。')),timeoutMs);
     let settled = false;
     const cancel = () => finish(signal.reason);
     function finish(error,ids) {
@@ -54,7 +54,7 @@ export function queryRoomAppearance(url,room,{signal, Socket=WebSocket}={}) {
       }
       // Older online servers only know the regular join protocol.
       if (msg.type === 'error' && msg.code === 'NOT_JOINED') return finish(null,readRoomAppearance({}));
-      if (msg.type === 'error') finish(new Error(msg.message || '无法获取房间外观清单'));
+      if (msg.type === 'error') finish(Object.assign(new Error(msg.message || '无法获取房间外观清单'),{code:msg.code}));
     });
     socket.addEventListener('error',() => finish(new Error('无法连接房间外观服务')));
     socket.addEventListener('close',() => finish(new Error('房间外观连接中断')));

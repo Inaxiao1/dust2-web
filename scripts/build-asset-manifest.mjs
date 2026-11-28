@@ -1,14 +1,23 @@
-import { readFile, writeFile, readdir, stat } from 'node:fs/promises';
+import { readFile, writeFile, readdir, rename, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { promisify } from 'node:util';
+import { gzip } from 'node:zlib';
 
 const root = path.resolve('public');
 const files = new Set();
+const compress = promisify(gzip);
 async function add(relative, group) {
   if (files.has(relative)) return;
   files.add(relative);
   const content = await readFile(path.join(root, relative));
   entries.push({ path: relative.replaceAll('\\', '/'), bytes: content.length, sha256: createHash('sha256').update(content).digest('hex'), group });
+  if (/^assets\/(characters-cs2|viewmodel)\/animations\.glb$/.test(relative)) {
+    const compressed = path.join(root, relative + '.gz');
+    const temporary = compressed + '.' + process.pid + '.tmp';
+    await writeFile(temporary, await compress(content));
+    await rename(temporary, compressed);
+  }
   if (relative.endsWith('.gltf')) {
     const gltf = JSON.parse(content);
     for (const item of [...gltf.buffers || [], ...gltf.images || []]) if (item.uri && !item.uri.startsWith('data:')) {

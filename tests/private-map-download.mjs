@@ -104,6 +104,7 @@ test('SHA-versioned compact performance map files persist in Cache Storage and s
    return {
     async match(key){return store.get(key)?.clone();},
     async put(key,res){store.set(key,res);},
+    async delete(key){return store.delete(key);},
    };
   },
  };
@@ -132,4 +133,11 @@ test('SHA-versioned compact performance map files persist in Cache Storage and s
  assert.equal(networkCalls,2);
  assert.equal(await (await reader(urlV2)).text(),payloadV2);
  assert.equal(networkCalls,2);
+ const oldKey=[...store.keys()].find(key=>key.endsWith(shaV1));
+ assert.ok(oldKey);
+ store.set(oldKey,new Response('damaged archived geometry'));
+ assert.equal(await (await reader(urlV1)).text(),payloadV1);
+ assert.equal(networkCalls,3);
+ assert.equal(await (await reader(urlV1)).text(),payloadV1);
+ assert.equal(networkCalls,3);
 });
