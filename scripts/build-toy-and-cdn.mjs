@@ -123,7 +123,7 @@ if (!playHtml.includes('runtime-config.js')) {
 writeToyBuffer('play.html', Buffer.from(playHtml, 'utf8'));
 
 // 1c. mode-ui, mode-previews, radars, catalog, icons, Vite dist root assets
-copyTreeToToy(MODE_UI, 'ui', (_s, name) => name !== 'index.html');
+copyTreeToToy(MODE_UI, 'ui', (_s, name) => name !== 'index.html' && !name.endsWith('.txt'));
 copyTreeToToy(MODE_PREVIEWS, 'mode-previews');
 copyTreeToToy(path.join(MAPS_SRC, 'radars'), 'radars');
 copyToyFile(path.join(MAPS_SRC, 'catalog.json'), 'catalog.json');
@@ -218,6 +218,7 @@ const MAP_FILES = [
   'compiled/nav.json',
   'entity-collision-policy.json',
 ];
+const NON_WEB_MAP_BIN_EXT = /\.(?:mgp|vidx|u8|f32)$/i;
 // Reserve ~8 MB for core starter weapons if packing all maps, or pack all 9 maps first and fill remainder with starter weapons!
 if (toyMapsMode !== 'none') {
   for (const mapId of MAP_PRIORITY) {
@@ -230,7 +231,9 @@ if (toyMapsMode !== 'none') {
       if (!fs.existsSync(full)) continue;
       const gzSide = full + '.gz';
       const buf = fs.existsSync(gzSide) ? fs.readFileSync(gzSide) : zlib.gzipSync(fs.readFileSync(full), { level: 9 });
-      staged.push({ rel: `maps/${mapId}/${rel}.gz`, buf });
+      // Bilibili Toy CDN allowlists .glb.gz and .json.gz (rejecting custom .mgp/.vidx/.u8 extensions with 404).
+      const toyRel = NON_WEB_MAP_BIN_EXT.test(rel) ? `${rel}.glb.gz` : `${rel}.gz`;
+      staged.push({ rel: `maps/${mapId}/${toyRel}`, buf });
       mapGzSum += buf.length;
     }
     // Keep 500 KB reserve for runtime-config.js
@@ -279,6 +282,7 @@ const runtimeConfig = {
   bundledGzAssets: [...new Set(bundledGzAssets)].sort(),
   bundledMaps,
   bundledMapsGz: true,
+  bundledMapsBinExt: '.glb',
   staticPlayPath: './play.html',
   staticLobbyPath: './index.html',
 };

@@ -87,8 +87,35 @@ test('static-runtime routes Toy-bundled assets/maps locally (.gz) and spills opt
     const gunzipped = await maybeGunzipResponse(new Response(gzBytes, { status: 200 }));
     assert.deepEqual(Buffer.from(await gunzipped.arrayBuffer()), sample);
 
-    const passthrough = await maybeGunzipResponse(new Response(sample, { status: 200 }));
+    const passthrough = await maybeGunzipResponse(new Response(sample, {
+      status: 200,
+      headers: { 'content-encoding': 'gzip', 'content-length': '12' },
+    }));
+    assert.equal(passthrough.headers.get('content-encoding'), null);
+    assert.equal(passthrough.headers.get('content-length'), String(sample.byteLength));
     assert.deepEqual(Buffer.from(await passthrough.arrayBuffer()), sample);
+
+    // Bilibili Toy CDN allowlist mode: custom map binary extensions (.mgp/.vidx/.u8) append .glb before .gz
+    globalThis.__CS2_STATIC_RUNTIME__ = {
+      ...globalThis.__CS2_STATIC_RUNTIME__,
+      bundledMapsBinExt: '.glb',
+    };
+    assert.equal(
+      resolveStaticMapFile('de_dust2', 'render/map.mgp', pageBase).url.href,
+      'https://toy.bilibilitoy.com/app/maps/de_dust2/render/map.mgp.glb.gz',
+    );
+    assert.equal(
+      resolveStaticMapFile('de_dust2', 'physics.vidx', pageBase).url.href,
+      'https://toy.bilibilitoy.com/app/maps/de_dust2/compiled/physics.vidx.glb.gz',
+    );
+    assert.equal(
+      resolveStaticMapFile('de_dust2', 'physics-mask.u8', pageBase).url.href,
+      'https://toy.bilibilitoy.com/app/maps/de_dust2/compiled/physics-mask.u8.glb.gz',
+    );
+    assert.equal(
+      resolveStaticMapFile('de_dust2', 'map.json', pageBase).url.href,
+      'https://toy.bilibilitoy.com/app/maps/de_dust2/compiled/map.json.gz',
+    );
   } finally {
     delete globalThis.__CS2_STATIC_RUNTIME__;
   }

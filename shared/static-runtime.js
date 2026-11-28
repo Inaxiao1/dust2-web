@@ -66,6 +66,7 @@ export function getStaticRuntime() {
     bundledGzAssetSet,
     bundledMapSet,
     bundledMapsGz: raw.bundledMapsGz !== false,
+    bundledMapsBinExt: typeof raw.bundledMapsBinExt === 'string' ? raw.bundledMapsBinExt : '',
     staticPlayPath: typeof raw.staticPlayPath === 'string' && raw.staticPlayPath ? raw.staticPlayPath : './play.html',
     staticLobbyPath: typeof raw.staticLobbyPath === 'string' && raw.staticLobbyPath ? raw.staticLobbyPath : './',
   });
@@ -143,6 +144,8 @@ const COMPILED_MAP_FILES = new Set([
   'physics-groups.json',
 ]);
 
+const NON_WEB_MAP_BIN_EXT = /\.(?:mgp|vidx|u8|f32)$/i;
+
 /** Resolve a per-map file in static/Toy mode: Toy-bundled (.gz) first, then external CDN mapBaseURL. */
 export function resolveStaticMapFile(mapId, relativeFile, pageBase) {
   const rt = getStaticRuntime();
@@ -151,9 +154,13 @@ export function resolveStaticMapFile(mapId, relativeFile, pageBase) {
   const diskRel = COMPILED_MAP_FILES.has(rel) ? 'compiled/' + rel : rel;
   const base = new URL('.', pageBase);
   if (rt.bundledMapSet.has(mapId)) {
-    const useGz = rt.bundledMapsGz && !diskRel.endsWith('.gz');
+    const mappedRel =
+      rt.bundledMapsBinExt && NON_WEB_MAP_BIN_EXT.test(diskRel)
+        ? diskRel + rt.bundledMapsBinExt
+        : diskRel;
+    const useGz = rt.bundledMapsGz && !mappedRel.endsWith('.gz');
     return {
-      url: new URL('./maps/' + mapId + '/' + diskRel + (useGz ? '.gz' : ''), base),
+      url: new URL('./maps/' + mapId + '/' + mappedRel + (useGz ? '.gz' : ''), base),
       gz: useGz,
       source: 'toy',
     };
@@ -172,6 +179,8 @@ export function resolveStaticMapFile(mapId, relativeFile, pageBase) {
 export async function maybeGunzipResponse(response) {
   if (!response?.ok) return response;
   const raw = new Uint8Array(await response.arrayBuffer());
+  const headers = new Headers(response.headers);
+  headers.delete('content-encoding');
   if (raw.length >= 2 && raw[0] === 0x1f && raw[1] === 0x8b) {
     let out;
     if (typeof DecompressionStream === 'function') {
@@ -181,10 +190,9 @@ export async function maybeGunzipResponse(response) {
       const { gunzipSync } = await import('three/addons/libs/fflate.module.js');
       out = gunzipSync(raw);
     }
-    const headers = new Headers(response.headers);
-    headers.delete('content-encoding');
     headers.set('content-length', String(out.byteLength));
     return new Response(out, { status: response.status, statusText: response.statusText, headers });
   }
-  return new Response(raw, { status: response.status, statusText: response.statusText, headers: response.headers });
+  headers.set('content-length', String(raw.byteLength));
+  return new Response(raw, { status: response.status, statusText: response.statusText, headers });
 }
