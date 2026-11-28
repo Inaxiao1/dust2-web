@@ -612,7 +612,7 @@ function mapConfig(id,originOrWorker,quality){
         mobileUrl:hasMobileDust2?'/perf/assets/map-mobile/dust2-clear.gltf':'/perf/assets/map-cs2/dust2-web.gltf?v=e4f2b2d3903c',
       },
     }:{};
-    const wsRouteMeta=preferredWsOrigins.length?{wsOrigins:preferredWsOrigins}:{};
+    const wsRouteMeta={...(preferredWsOrigins.length?{wsOrigins:preferredWsOrigins}:{}),rtcEnabled:Boolean(rtcGateway)};
     if(quality)return {...config,...urls,...cosmetics,...wsRouteMeta,flatOnly:false,graphicsMode:'quality',renderUrl:'/perf/quality/maps/'+id+'/render/map.gltf'};
     return {...config,...urls,...cosmetics,...compactMeta,...texturedMeta,...wsRouteMeta,flatOnly:true,...(fs.existsSync(remap)?{flatBreakableVisuals:JSON.parse(fs.readFileSync(remap))}:{})};
   });

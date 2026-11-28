@@ -614,7 +614,8 @@ function connect(joinExisting,revision,resumeOpts=null,transportOpts=null){
   const wsFallbackUrls=!ticket&&Array.isArray(privateMap?.wsFallbackUrls)
     ? privateMap.wsFallbackUrls.map(raw=>{const u=new URL(raw);if(wsTarget.search)u.search=wsTarget.search;return u.href;})
     : [];
-  const forceWs=Boolean(transportOpts?.forceWs);
+  const wantUdp=new URLSearchParams(location.search).get('transport')==='udp'&&privateMap?.rtcEnabled!==false;
+  const forceWs=Boolean(transportOpts?.forceWs)||!wantUdp;
   let activeSocket=null;
   const onTransportStatus=({phase})=>{
     if(socket!==activeSocket||connected||$('loading-screen').hidden)return;

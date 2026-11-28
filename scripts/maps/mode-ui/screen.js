@@ -69,7 +69,12 @@ let modalMapCards = [];
 let latestRecommendation = null;
 let controlPlaneEnabled = false;
 let activeBackdropLayer = 'A';
+let hasActiveBackdrop = false;
+let backdropSwapSeq = 0;
 let currentBackdropSrc = '';
+let heroSwitchSeq = 0;
+let heroSwitchTimer = 0;
+let currentHeroSrc = '';
 const failedFiles = new Set();
 
 function stageJoinTicket(ticket) {
@@ -137,15 +142,19 @@ function renderToyCard() {
     ? `B站干员 · ${careerTag}`
     : `本地干员 · ${careerTag}`;
   if (avatarEl) {
-    if (s.avatar) {
-      const img = new Image();
-      img.src = s.avatar;
-      img.alt = '';
-      avatarEl.replaceChildren(img);
-    } else {
-      const span = document.createElement('span');
-      span.textContent = (s.displayName || '').replace(/^干员#?/, '').trim().slice(0, 1) || 'OP';
-      avatarEl.replaceChildren(span);
+    const avatarKey = s.avatar ? `img:${s.avatar}` : `txt:${(s.displayName || '').replace(/^干员#?/, '').trim().slice(0, 1) || 'OP'}`;
+    if (avatarEl.dataset.avatarKey !== avatarKey) {
+      avatarEl.dataset.avatarKey = avatarKey;
+      if (s.avatar) {
+        const img = new Image();
+        img.src = s.avatar;
+        img.alt = '';
+        avatarEl.replaceChildren(img);
+      } else {
+        const span = document.createElement('span');
+        span.textContent = (s.displayName || '').replace(/^干员#?/, '').trim().slice(0, 1) || 'OP';
+        avatarEl.replaceChildren(span);
+      }
     }
   }
   if (authBtn) {
@@ -222,17 +231,44 @@ function renderHeroAgent(animate = false) {
   const enEl = $('heroAgentEn');
   if (nameEl) nameEl.textContent = agent.name;
   if (enEl) enEl.textContent = agent.en;
-  if (img && img.getAttribute('src') !== agent.img) {
-    if (animate) {
-      img.classList.add('switching');
-      setTimeout(() => {
-        img.src = agent.img;
-        img.onload = () => img.classList.remove('switching');
-        if (img.complete) img.classList.remove('switching');
-      }, 110);
-    } else {
+  if (!img || currentHeroSrc === agent.img) return;
+
+  currentHeroSrc = agent.img;
+  const seq = ++heroSwitchSeq;
+  clearTimeout(heroSwitchTimer);
+
+  const applyAndReveal = () => {
+    if (seq !== heroSwitchSeq) return;
+    let settled = false;
+    const finish = () => {
+      if (settled || seq !== heroSwitchSeq) return;
+      settled = true;
+      img.onload = null;
+      img.onerror = null;
+      const reveal = () => {
+        if (seq !== heroSwitchSeq) return;
+        img.classList.remove('is-loading', 'switching');
+      };
+      if (typeof img.decode === 'function') {
+        img.decode().then(reveal, reveal);
+      } else {
+        reveal();
+      }
+    };
+    img.onload = finish;
+    img.onerror = finish;
+    if (img.dataset.agentSrc !== agent.img) {
+      img.dataset.agentSrc = agent.img;
       img.src = agent.img;
     }
+    if (img.complete && img.naturalWidth > 0) finish();
+  };
+
+  if (animate) {
+    img.classList.add('switching');
+    heroSwitchTimer = setTimeout(applyAndReveal, 95);
+  } else {
+    applyAndReveal();
   }
 }
 
@@ -374,19 +410,54 @@ function setStageMapVisual(map) {
   const url = imageURL(file) || staticUrl('radars/' + map.id + '.png');
   if (url === currentBackdropSrc) return;
   currentBackdropSrc = url;
-  const incoming = activeBackdropLayer === 'A' ? $('backdropB') : $('backdropA');
-  const outgoing = activeBackdropLayer === 'A' ? $('backdropA') : $('backdropB');
+
+  const nextLayer = !hasActiveBackdrop ? 'A' : (activeBackdropLayer === 'A' ? 'B' : 'A');
+  const incoming = nextLayer === 'A' ? $('backdropA') : $('backdropB');
+  const outgoing = nextLayer === 'A' ? $('backdropB') : $('backdropA');
   if (!incoming || !outgoing) return;
-  incoming.onload = () => {
-    incoming.classList.add('active');
-    outgoing.classList.remove('active');
-    activeBackdropLayer = activeBackdropLayer === 'A' ? 'B' : 'A';
+
+  const seq = ++backdropSwapSeq;
+  let settled = false;
+  const commit = () => {
+    if (settled || seq !== backdropSwapSeq) return;
+    settled = true;
+    incoming.onload = null;
+    incoming.onerror = null;
+    const reveal = () => {
+      if (seq !== backdropSwapSeq) return;
+      incoming.classList.add('active');
+      outgoing.classList.remove('active');
+      activeBackdropLayer = nextLayer;
+      hasActiveBackdrop = true;
+    };
+    if (typeof incoming.decode === 'function') {
+      incoming.decode().then(reveal, reveal);
+    } else {
+      reveal();
+    }
   };
+
+  incoming.onload = commit;
   incoming.onerror = () => {
+    if (settled || seq !== backdropSwapSeq) return;
+    settled = true;
+    incoming.onload = null;
+    incoming.onerror = null;
     if (file) failedFiles.add(file);
+    const fallbackUrl = staticUrl('radars/' + map.id + '.png');
+    if (url !== fallbackUrl) {
+      currentBackdropSrc = '';
+      setStageMapVisual(map);
+    }
   };
+
+  if (incoming.dataset.backdropSrc === url && incoming.complete && incoming.naturalWidth > 0) {
+    commit();
+    return;
+  }
+  incoming.dataset.backdropSrc = url;
   incoming.src = url;
-  if (incoming.complete && incoming.naturalWidth > 0) incoming.onload();
+  if (incoming.complete && incoming.naturalWidth > 0) commit();
 }
 
 /* 7. Quick Join Recommendation */

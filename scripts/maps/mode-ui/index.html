@@ -14,8 +14,8 @@
 <body data-faction="CT">
   <!-- Full-Screen Crisp Living Map Stage (Zero heavy blur — real FPS lobby stage) -->
   <div class="lobby-backdrop" aria-hidden="true">
-    <img id="backdropA" class="lobby-bg-layer active" alt="">
-    <img id="backdropB" class="lobby-bg-layer" alt="">
+    <img id="backdropA" class="lobby-bg-layer" decoding="async" alt="">
+    <img id="backdropB" class="lobby-bg-layer" decoding="async" alt="">
     <div class="lobby-bg-vignette"></div>
     <div class="lobby-bg-aura"></div>
   </div>
@@ -89,7 +89,7 @@
       <!-- Center-Right Equipped Agent Showcase (Rising flush from the bottom command dock) -->
       <div class="stage-agent-showcase" id="agentShowcase">
         <div class="stage-agent-glow" aria-hidden="true"></div>
-        <img id="heroAgentImg" class="stage-agent-img" src="/perf/assets/characters-cs2/previews/ct-sas.webp" alt="当前装备探员">
+        <img id="heroAgentImg" class="stage-agent-img is-loading" decoding="async" alt="当前装备探员">
       </div>
 
       <!-- Bottom-Left Open Map Stage Switcher Strip (9 Maps — Click to switch live stage!) -->

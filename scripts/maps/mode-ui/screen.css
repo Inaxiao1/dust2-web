@@ -41,6 +41,8 @@ button { cursor: pointer; }
   overflow: hidden;
   pointer-events: none;
   background: #0d161b;
+  contain: strict;
+  isolation: isolate;
 }
 .lobby-bg-layer {
   position: absolute;
@@ -50,17 +52,24 @@ button { cursor: pointer; }
   object-fit: cover;
   object-position: 42% 48%;
   opacity: 0;
+  transform: translate3d(0, 0, 0) scale3d(1.03, 1.03, 1) rotate(0.02deg);
+  transform-origin: 50% 50%;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
   transition: opacity 0.65s var(--ease-ui);
-  animation: kenBurns 30s ease-in-out infinite;
-  filter: brightness(0.84) contrast(1.06) saturate(1.04);
+  animation: kenBurns 28s ease-in-out infinite paused;
 }
-.lobby-bg-layer.active { opacity: 1; }
+.lobby-bg-layer.active {
+  opacity: 1;
+  animation-play-state: running;
+}
 .lobby-bg-vignette {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(95deg, rgba(13, 21, 26, 0.84) 0%, rgba(13, 21, 26, 0.34) 34%, rgba(13, 21, 26, 0.08) 58%, rgba(13, 21, 26, 0.56) 100%),
-    linear-gradient(180deg, rgba(13, 21, 26, 0.58) 0%, transparent 20%, transparent 66%, rgba(13, 21, 26, 0.88) 100%);
+    linear-gradient(0deg, rgba(11, 18, 23, 0.14), rgba(11, 18, 23, 0.14)),
+    linear-gradient(95deg, rgba(13, 21, 26, 0.86) 0%, rgba(13, 21, 26, 0.40) 34%, rgba(13, 21, 26, 0.14) 58%, rgba(13, 21, 26, 0.60) 100%),
+    linear-gradient(180deg, rgba(13, 21, 26, 0.62) 0%, transparent 20%, transparent 66%, rgba(13, 21, 26, 0.90) 100%);
 }
 .lobby-bg-aura {
   position: absolute;
@@ -84,9 +93,8 @@ body[data-faction="T"] .lobby-bg-aura {
   gap: 14px;
   padding: 0 22px;
   padding-top: env(safe-area-inset-top, 0px);
-  background: rgba(21, 32, 36, 0.86);
+  background: rgba(17, 27, 32, 0.94);
   border-bottom: 1px solid rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(18px);
 }
 .lobby-topbar-left {
   display: flex;
@@ -195,9 +203,8 @@ body[data-faction="T"] .lobby-bg-aura {
   align-items: center;
   gap: 12px;
   padding: 8px 14px;
-  background: rgba(21, 32, 36, 0.92);
+  background: rgba(18, 28, 33, 0.96);
   border: 1px solid rgba(255, 255, 255, 0.18);
-  backdrop-filter: blur(12px);
   font-size: 12.5px;
   color: var(--portal-muted);
 }
@@ -215,9 +222,8 @@ body[data-faction="T"] .lobby-bg-aura {
   align-items: center;
   gap: 8px;
   padding: 4px 11px;
-  background: rgba(21, 32, 36, 0.72);
+  background: rgba(16, 25, 30, 0.88);
   border: 1px solid rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(10px);
   font-size: 11.5px;
   color: #dce6ea;
   margin-bottom: clamp(8px, 1.8vh, 16px);
@@ -253,8 +259,8 @@ body[data-faction="T"] .lobby-bg-aura {
 
 /* Center-Right Hero Equipped Agent Standing Flush on Stage */
 @keyframes agentBreathe {
-  0%, 100% { transform: scale(1.16) translateY(0); }
-  50% { transform: scale(1.16) translateY(-5px); }
+  0%, 100% { transform: translate3d(0, 0, 0) scale3d(1.14, 1.14, 1) rotate(0.02deg); }
+  50% { transform: translate3d(0, 0, 0) scale3d(1.178, 1.178, 1) rotate(0.02deg); }
 }
 .stage-agent-showcase {
   position: absolute;
@@ -267,15 +273,23 @@ body[data-faction="T"] .lobby-bg-aura {
   align-items: flex-end;
   justify-content: center;
   pointer-events: none;
+  contain: layout style;
+  isolation: isolate;
 }
 .stage-agent-glow {
   position: absolute;
-  inset: 10% 6% 0;
-  background: radial-gradient(ellipse at 50% 66%, rgba(133, 191, 217, 0.34) 0%, rgba(25, 38, 46, 0.14) 54%, transparent 76%);
+  inset: 8% 4% 0;
+  background:
+    radial-gradient(ellipse 52% 16% at 50% 99%, rgba(0, 0, 0, 0.64) 0%, transparent 72%),
+    radial-gradient(ellipse 46% 62% at 50% 64%, rgba(6, 11, 15, 0.50) 0%, rgba(6, 11, 15, 0.18) 54%, transparent 74%),
+    radial-gradient(ellipse at 50% 66%, rgba(133, 191, 217, 0.34) 0%, rgba(25, 38, 46, 0.14) 54%, transparent 76%);
   transition: background 0.4s ease;
 }
 body[data-faction="T"] .stage-agent-glow {
-  background: radial-gradient(ellipse at 50% 66%, rgba(227, 189, 107, 0.34) 0%, rgba(56, 48, 32, 0.14) 54%, transparent 76%);
+  background:
+    radial-gradient(ellipse 52% 16% at 50% 99%, rgba(0, 0, 0, 0.64) 0%, transparent 72%),
+    radial-gradient(ellipse 46% 62% at 50% 64%, rgba(6, 11, 15, 0.50) 0%, rgba(6, 11, 15, 0.18) 54%, transparent 74%),
+    radial-gradient(ellipse at 50% 66%, rgba(227, 189, 107, 0.34) 0%, rgba(56, 48, 32, 0.14) 54%, transparent 76%);
 }
 .stage-agent-img {
   position: relative;
@@ -286,11 +300,14 @@ body[data-faction="T"] .stage-agent-glow {
   height: 98%;
   object-fit: contain;
   object-position: center bottom;
-  transform-origin: center bottom;
-  filter: drop-shadow(0 20px 42px rgba(0, 0, 0, 0.72));
-  animation: agentBreathe 6.5s ease-in-out infinite;
-  transition: opacity 0.25s ease;
+  transform-origin: 50% 100%;
+  transform: translate3d(0, 0, 0) scale3d(1.14, 1.14, 1) rotate(0.02deg);
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  animation: agentBreathe 7s ease-in-out infinite;
+  transition: opacity 0.24s ease;
 }
+.stage-agent-img.is-loading { opacity: 0; }
 .stage-agent-img.switching { opacity: 0.15; }
 
 /* Agent Nameplate + CT/T Toggle docked cleanly at Top-Right of Stage */
@@ -304,10 +321,9 @@ body[data-faction="T"] .stage-agent-glow {
   align-items: center;
   gap: 9px;
   padding: 6px 9px;
-  background: rgba(21, 32, 36, 0.84);
+  background: rgba(17, 27, 32, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-left: 3px solid var(--portal-blue);
-  backdrop-filter: blur(14px);
 }
 body[data-faction="T"] .stage-agent-plate { border-left-color: var(--portal-gold); }
 .stage-faction-switch {
@@ -437,9 +453,8 @@ body[data-faction="T"] .stage-agent-plate { border-left-color: var(--portal-gold
   display: flex;
   flex-direction: column;
   min-height: 0;
-  background: rgba(21, 32, 36, 0.85);
+  background: rgba(17, 27, 32, 0.93);
   border-left: 1px solid rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(18px);
 }
 .lobby-sidebar-dir {
   flex: 1;
@@ -480,9 +495,8 @@ body[data-faction="T"] .stage-agent-plate { border-left-color: var(--portal-gold
   grid-template-columns: minmax(0, 1fr) var(--sidebar-w);
   align-items: stretch;
   padding-bottom: env(safe-area-inset-bottom, 0px);
-  background: rgba(18, 28, 33, 0.92);
+  background: rgba(16, 25, 30, 0.96);
   border-top: 1px solid rgba(255, 255, 255, 0.16);
-  backdrop-filter: blur(20px);
 }
 .command-left {
   display: flex;
@@ -608,8 +622,7 @@ body[data-faction="T"] .stage-agent-plate { border-left-color: var(--portal-gold
   justify-content: center;
   align-items: center;
   padding: 20px;
-  background: var(--portal-overlay);
-  backdrop-filter: blur(14px);
+  background: rgba(10, 16, 21, 0.84);
   animation: backdropFade 0.2s ease both;
 }
 .cs-modal-card {
