@@ -25,6 +25,22 @@ export function privateConfig(config,pageURL,{apiOrigin=null}={}){
  const socket=new URL(config.socketPath||'ws',apiBase);socket.protocol=apiBase.protocol==='https:'?'wss:':'ws:';
  if(socket.host!==apiBase.host||socket.pathname!==apiBase.pathname+'ws'||socket.username||socket.password)throw Error('私有对战连接地址无效');
  result.socketURL=socket.href;
+ if(Array.isArray(config.wsOrigins)){
+  const loopbackHosts=new Set(['localhost','127.0.0.1','[::1]']);
+  const wsFallbacks=[];
+  for(const rawOrigin of config.wsOrigins.slice(0,4)){
+   if(typeof rawOrigin!=='string')continue;
+   try{
+    const parsed=new URL(rawOrigin.trim());
+    const local=parsed.protocol==='http:'&&loopbackHosts.has(parsed.hostname)&&apiBase.protocol==='http:'&&loopbackHosts.has(apiBase.hostname);
+    if((parsed.protocol!=='https:'&&!local)||parsed.username||parsed.password)continue;
+    const alt=new URL(socket.pathname,parsed.origin);
+    alt.protocol=parsed.protocol==='https:'?'wss:':'ws:';
+    if(alt.href!==socket.href&&!wsFallbacks.includes(alt.href))wsFallbacks.push(alt.href);
+   }catch{}
+  }
+  if(wsFallbacks.length)result.wsFallbackUrls=Object.freeze(wsFallbacks);
+ }
  if(result.compactRender?.url)result.compactRender={...result.compactRender,url:new URL(result.compactRender.url,apiBase).href};
  if(result.compactPhysics?.url)result.compactPhysics={...result.compactPhysics,url:new URL(result.compactPhysics.url,apiBase).href};
  return Object.freeze(result);

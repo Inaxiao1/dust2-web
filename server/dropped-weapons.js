@@ -44,11 +44,10 @@ export class DroppedWeapons {
     }
   }
   snapshot(){
-    const now=this.clock();
-    return this.items.map(({id,weaponId,skinId,ammo,reserve,yaw,expiresAt,...position})=>({
+    return this.items.map(({id,weaponId,skinId,ammo,reserve,yaw,...position})=>({
       id,weaponId,skinId,ammo,reserve,yaw:round2(yaw||0),...point(position),
-      // Quantize remaining TTL into 10s buckets so static dropped guns do not bust delta snapshots 15x/sec.
-      remaining:Math.max(1,Math.ceil(Math.max(0,(expiresAt-now)/1000)/10)*10),
+      // Expired drops are removed in tick(); keep remaining constant so static drops never bust delta snapshots.
+      remaining:1,
     }));
   }
 }

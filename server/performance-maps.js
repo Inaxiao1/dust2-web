@@ -43,6 +43,20 @@ const deliveryConfig=validateDownloadConfig({
   mapBaseURL:process.env.PERF_MAP_BASE_URL||process.env.DUSTII_MAP_DOWNLOAD_BASE||null,
   fallbackToGameServer:(process.env.PERF_DOWNLOAD_FALLBACK||process.env.DUST2_DOWNLOAD_FALLBACK)==='true',
 },'http://127.0.0.1/');
+const preferredWsOrigins=(()=>{
+  const raw=(process.env.PERF_WS_ORIGINS||'').trim();
+  if(!raw)return [];
+  const out=[];
+  for(const item of raw.split(',').map(v=>v.trim()).filter(Boolean)){
+    try{
+      const u=new URL(item);
+      if(u.protocol!=='https:'&&u.protocol!=='http:')continue;
+      if(u.username||u.password)continue;
+      if(!out.includes(u.origin))out.push(u.origin);
+    }catch{}
+  }
+  return out.slice(0,4);
+})();
 const allowedOrigins=(()=>{
   const raw=process.env.PERF_ALLOWED_ORIGINS;
   if(!raw)return null;
@@ -598,8 +612,9 @@ function mapConfig(id,originOrWorker,quality){
         mobileUrl:hasMobileDust2?'/perf/assets/map-mobile/dust2-clear.gltf':'/perf/assets/map-cs2/dust2-web.gltf?v=e4f2b2d3903c',
       },
     }:{};
-    if(quality)return {...config,...urls,...cosmetics,flatOnly:false,graphicsMode:'quality',renderUrl:'/perf/quality/maps/'+id+'/render/map.gltf'};
-    return {...config,...urls,...cosmetics,...compactMeta,...texturedMeta,flatOnly:true,...(fs.existsSync(remap)?{flatBreakableVisuals:JSON.parse(fs.readFileSync(remap))}:{})};
+    const wsRouteMeta=preferredWsOrigins.length?{wsOrigins:preferredWsOrigins}:{};
+    if(quality)return {...config,...urls,...cosmetics,...wsRouteMeta,flatOnly:false,graphicsMode:'quality',renderUrl:'/perf/quality/maps/'+id+'/render/map.gltf'};
+    return {...config,...urls,...cosmetics,...compactMeta,...texturedMeta,...wsRouteMeta,flatOnly:true,...(fs.existsSync(remap)?{flatBreakableVisuals:JSON.parse(fs.readFileSync(remap))}:{})};
   });
 }
 function safePath(base,tail){
@@ -1139,7 +1154,18 @@ function routeShardedWebSocket(mapId,query,req,clientWs){
         if(clientWs.readyState===WebSocket.OPEN){
           const curBuf=clientWs.bufferedAmount||0;
           if(curBuf>512*1024){cleanup(1008,'Client too slow');return;}
-          clientWs.send(uData,{binary:uBinary});
+          let useUnreliable=false;
+          if(isRtc&&!uBinary&&clientWs.hasUnreliable){
+            const head=uData.subarray(0,32).toString('utf8');
+            if(head.startsWith('{"type":"pong"')||head.startsWith('{"type":"snapshotDelta","sid":')){
+              useUnreliable=true;
+            }
+          }
+          if(useUnreliable){
+            clientWs.sendUnreliable(uData,{binary:uBinary});
+          }else{
+            clientWs.send(uData,{binary:uBinary});
+          }
           const afterBuf=clientWs.bufferedAmount||0;
           if(afterBuf>24576){
             sendBackpressure(afterBuf);
@@ -1191,6 +1217,6 @@ server.listen(port,host,()=>{
   }
 });
 process.on('SIGUSR2',()=>{draining=true;for(const w of allWorkers())if(!w.retiring)w.child.kill('SIGUSR2');});
-function shutdown(){clearInterval(reap);clearInterval(shardHeartbeat);clearInterval(netLogTimer);rtcGateway?.close({cleanupNative:true});void telemetryStore.close();for(const w of allWorkers())w.child.kill();server.close();}
+function shutdown(){clearInterval(reap);clearInterval(shardHeartbeat);clearInterval(netLogTimer);void telemetryStore.close();for(const w of allWorkers())w.child.kill();server.close();const forceExit=setTimeout(()=>process.exit(0),1500);forceExit.unref?.();rtcGateway?.close({cleanupNative:true});}
 for(const signal of ['SIGINT','SIGTERM'])process.once(signal,shutdown);
 if(process.send)process.once('disconnect',shutdown);

@@ -74,6 +74,7 @@ test('createGameSocket opens direct UDP DataChannel when offer succeeds and neve
   resetRtcBackoff();
   let wsConstructed = 0;
   let lastDc = null;
+  let lastUnreliableDc = null;
   class MockWebSocket extends FakeWebSocket {
     constructor(url) { wsConstructed++; super(url); }
   }
@@ -84,19 +85,27 @@ test('createGameSocket opens direct UDP DataChannel when offer succeeds and neve
       this.connectionState = 'new';
       this.iceConnectionState = 'new';
     }
-    createDataChannel(label) {
-      assert.equal(label, 'cs2');
-      lastDc = {
+    createDataChannel(label, opts = {}) {
+      assert.ok(label === 'cs2' || label === 'cs2-u', `unexpected label ${label}`);
+      const chan = {
+        label,
+        opts,
         readyState: 'connecting',
         bufferedAmount: 0,
         sent: [],
         send(data) {
           this.sent.push(data);
-          queueMicrotask(() => this.onmessage?.({ data: `udp-echo:${data}` }));
+          queueMicrotask(() => this.onmessage?.({ data: `${label}-echo:${data}` }));
         },
         close() { this.readyState = 'closed'; },
       };
-      return lastDc;
+      if (label === 'cs2') lastDc = chan;
+      else {
+        assert.equal(opts.ordered, false);
+        assert.equal(opts.maxPacketLifeTime, 100);
+        lastUnreliableDc = chan;
+      }
+      return chan;
     }
     async createOffer() { return { type: 'offer', sdp: 'v=0\r\nm=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\n' }; }
     async setLocalDescription(desc) { this.localDescription = desc; }
@@ -105,6 +114,10 @@ test('createGameSocket opens direct UDP DataChannel when offer succeeds and neve
       queueMicrotask(() => {
         lastDc.readyState = 'open';
         lastDc.onopen?.();
+        if (lastUnreliableDc) {
+          lastUnreliableDc.readyState = 'open';
+          lastUnreliableDc.onopen?.();
+        }
       });
     }
     close() { this.connectionState = 'closed'; }
@@ -130,7 +143,12 @@ test('createGameSocket opens direct UDP DataChannel when offer succeeds and neve
 
   const echoed = new Promise((resolve) => sock.addEventListener('message', (e) => resolve(e.data), { once: true }));
   sock.send('hello-udp');
-  assert.equal(await echoed, 'udp-echo:hello-udp');
+  assert.equal(await echoed, 'cs2-echo:hello-udp');
+
+  assert.equal(sock.hasUnreliable, true);
+  const echoedU = new Promise((resolve) => sock.addEventListener('message', (e) => resolve(e.data), { once: true }));
+  sock.sendUnreliable('fast-ping');
+  assert.equal(await echoedU, 'cs2-u-echo:fast-ping');
 
   // Regression guard for the roomCosmeticsChanged Stage-03 hang:
   // close() must set readyState === 3 immediately AND emit 'close' asynchronously
@@ -211,6 +229,103 @@ test('createGameSocket transparently falls back to WebSocket on RTC timeout or n
   resetRtcBackoff();
 });
 
+test('createGameSocket tries dynamic preferred wsFallbackUrls first and fails over to primary WS on error/timeout', async () => {
+  resetRtcBackoff();
+  const preferredUrl = 'wss://198.51.100.10:3244/perf/play/de_dust2/ws';
+  const primaryUrl = 'wss://cs2-ws.apikeygame.top/perf/play/de_dust2/ws';
+  const dialed = [];
+  let failPreferredMode = null;
+
+  class RoutedWebSocket extends EventTarget {
+    constructor(url) {
+      super();
+      this.url = url;
+      this.readyState = 0;
+      this.bufferedAmount = 0;
+      dialed.push(url);
+      if (url === preferredUrl && failPreferredMode === 'error') {
+        queueMicrotask(() => {
+          this.readyState = 3;
+          this.dispatchEvent(new Event('error'));
+          this.dispatchEvent(Object.assign(new Event('close'), { code: 1006, reason: 'connect failed', wasClean: false }));
+        });
+      } else if (url === preferredUrl && failPreferredMode === 'hang') {
+        // Leave connecting forever to trigger wsConnectTimeoutMs failover
+      } else {
+        queueMicrotask(() => {
+          if (this.readyState !== 0) return;
+          this.readyState = 1;
+          this.dispatchEvent(new Event('open'));
+        });
+      }
+    }
+    send(data) {
+      queueMicrotask(() => {
+        if (this.readyState !== 1) return;
+        this.dispatchEvent(Object.assign(new Event('message'), { data: `${this.url}:${data}` }));
+      });
+    }
+    close(code = 1000, reason = '') {
+      if (this.readyState === 3) return;
+      this.readyState = 3;
+      this.dispatchEvent(Object.assign(new Event('close'), { code, reason, wasClean: code === 1000 }));
+    }
+  }
+
+  // 1) Preferred mainland WS healthy -> connects directly to preferredUrl
+  const s1 = createGameSocket(primaryUrl, {
+    enableRtc: false,
+    wsFallbackUrls: [preferredUrl],
+    WebSocketCtor: RoutedWebSocket,
+  });
+  await new Promise((resolve) => s1.addEventListener('open', resolve, { once: true }));
+  assert.equal(s1.transportMode, 'WS');
+  assert.equal(s1.url, preferredUrl);
+  assert.deepEqual(dialed, [preferredUrl]);
+  s1.close();
+
+  // 2) Preferred WS errors on connect -> automatically fails over to primaryUrl and backs off broken candidate
+  dialed.length = 0;
+  failPreferredMode = 'error';
+  const s2 = createGameSocket(primaryUrl, {
+    enableRtc: false,
+    wsFallbackUrls: [preferredUrl],
+    WebSocketCtor: RoutedWebSocket,
+  });
+  await new Promise((resolve) => s2.addEventListener('open', resolve, { once: true }));
+  assert.equal(s2.url, primaryUrl);
+  assert.deepEqual(dialed, [preferredUrl, primaryUrl]);
+  s2.close();
+
+  // Subsequent connect during backoff skips dead preferredUrl directly
+  dialed.length = 0;
+  const s3 = createGameSocket(primaryUrl, {
+    enableRtc: false,
+    wsFallbackUrls: [preferredUrl],
+    WebSocketCtor: RoutedWebSocket,
+  });
+  await new Promise((resolve) => s3.addEventListener('open', resolve, { once: true }));
+  assert.equal(s3.url, primaryUrl);
+  assert.deepEqual(dialed, [primaryUrl]);
+  s3.close();
+
+  // 3) Preferred WS hangs -> times out after wsConnectTimeoutMs and fails over to primaryUrl
+  resetRtcBackoff();
+  dialed.length = 0;
+  failPreferredMode = 'hang';
+  const s4 = createGameSocket(primaryUrl, {
+    enableRtc: false,
+    wsConnectTimeoutMs: 40,
+    wsFallbackUrls: [preferredUrl],
+    WebSocketCtor: RoutedWebSocket,
+  });
+  await new Promise((resolve) => s4.addEventListener('open', resolve, { once: true }));
+  assert.equal(s4.url, primaryUrl);
+  assert.deepEqual(dialed, [preferredUrl, primaryUrl]);
+  s4.close();
+  resetRtcBackoff();
+});
+
 test('WebRTC UDP DataChannel end-to-end join, delta snapshots, and multi-shard routing', { skip: !installed || !ndc, timeout: 90000 }, async (t) => {
   const udpPort = await pickFreeUdpPort();
   const gateway = spawn(process.execPath, ['server/performance-maps.js'], {
@@ -260,7 +375,7 @@ test('WebRTC UDP DataChannel end-to-end join, delta snapshots, and multi-shard r
   assert.equal(configRes.status, 200);
   const config = await configRes.json();
 
-  async function openRtcClient() {
+  async function openRtcClient({ dual = false } = {}) {
     const pc = new ndc.PeerConnection('test-rtc-client-' + peers.size, { iceServers: [] });
     peers.add(pc);
     let localSdp = null;
@@ -275,9 +390,14 @@ test('WebRTC UDP DataChannel end-to-end join, delta snapshots, and multi-shard r
       pc.onGatheringStateChange((s) => { if (s === 'complete') { gatherDone = true; done(); } });
     });
     const dc = pc.createDataChannel('cs2');
+    const dcU = dual ? pc.createDataChannel('cs2-u', { unordered: true, maxPacketLifeTime: 100 }) : null;
     const dcOpen = new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('RTC DataChannel open timeout')), 10000);
-      dc.onOpen(() => { clearTimeout(timer); resolve(); });
+      let openCount = 0;
+      const needed = dual ? 2 : 1;
+      const onOpened = () => { if (++openCount >= needed) { clearTimeout(timer); resolve(); } };
+      dc.onOpen(onOpened);
+      dcU?.onOpen(onOpened);
       pc.onStateChange((s) => { if (s === 'failed') { clearTimeout(timer); reject(new Error('ICE failed')); } });
     });
 
@@ -300,8 +420,9 @@ test('WebRTC UDP DataChannel end-to-end join, delta snapshots, and multi-shard r
 
     const queue = [];
     const waiters = [];
-    dc.onMessage((raw) => {
+    const onRaw = (chan, raw) => {
       const msg = JSON.parse(typeof raw === 'string' ? raw : Buffer.from(raw).toString('utf8'));
+      msg._chan = chan;
       const idx = waiters.findIndex((w) => w.pred(msg));
       if (idx >= 0) {
         const [w] = waiters.splice(idx, 1);
@@ -310,7 +431,9 @@ test('WebRTC UDP DataChannel end-to-end join, delta snapshots, and multi-shard r
       } else {
         queue.push(msg);
       }
-    });
+    };
+    dc.onMessage((raw) => onRaw('cs2', raw));
+    dcU?.onMessage((raw) => onRaw('cs2-u', raw));
     const nextMsg = (pred, timeoutMs = 10000) => {
       const idx = queue.findIndex(pred);
       if (idx >= 0) return Promise.resolve(queue.splice(idx, 1)[0]);
@@ -322,9 +445,12 @@ test('WebRTC UDP DataChannel end-to-end join, delta snapshots, and multi-shard r
     return {
       pc,
       dc,
+      dcU,
       send(obj) { dc.sendMessage(JSON.stringify(obj)); },
+      sendUnreliable(obj) { (dcU || dc).sendMessage(JSON.stringify(obj)); },
       nextMsg,
       close() {
+        try { dcU?.close(); } catch {}
         try { dc.close(); } catch {}
         try { pc.close(); } catch {}
         peers.delete(pc);
@@ -390,9 +516,40 @@ test('WebRTC UDP DataChannel end-to-end join, delta snapshots, and multi-shard r
   assert.equal(changed.room, 'RTC101');
   c3.close();
 
+  // Client 4: dual-channel unreliable UDP ('cs2' + 'cs2-u') with ackDelta: 1
+  const c4 = await openRtcClient({ dual: true });
+  c4.send({
+    type: 'join',
+    mapId: config.id,
+    mapSignature: config.mapSignature,
+    name: 'RtcDualGuest',
+    room: 'RTC101',
+    existing: true,
+    rtcAsyncClose: 1,
+    ackDelta: 1,
+    mode: 'deathmatch',
+    bots: 0,
+    snapshotDelta: 1,
+  });
+  const w4 = await c4.nextMsg((m) => m.type === 'welcome');
+  assert.equal(w4.room, 'RTC101');
+  assert.equal(w4._chan, 'cs2');
+  const full4 = await c4.nextMsg((m) => m.type === 'snapshot' && Number.isInteger(m.sid));
+  assert.equal(full4._chan, 'cs2');
+  assert.equal(full4.sid, 1);
+  // Ack initial snapshot on unreliable channel and verify subsequent delta & pong arrive on 'cs2-u'!
+  c4.sendUnreliable({ type: 'snapAck', ackSid: full4.sid });
+  c4.sendUnreliable({ type: 'ping', time: 9876, ackSid: full4.sid });
+  const pong4 = await c4.nextMsg((m) => m.type === 'pong' && m.time === 9876);
+  assert.equal(pong4._chan, 'cs2-u', 'pong should travel over unreliable cs2-u channel');
+  const delta4 = await c4.nextMsg((m) => m.type === 'snapshotDelta' && Number.isInteger(m.sid) && m.baseSid === full4.sid);
+  assert.equal(delta4._chan, 'cs2-u', 'ack-tracked snapshotDelta should travel over unreliable cs2-u channel');
+  assert.ok(delta4.sid > full4.sid);
+  c4.close();
+
   const midHealth = await (await fetch(origin + '/perf/health')).json();
   assert.ok(midHealth.rtc.activePeers >= 2);
-  assert.ok(midHealth.rtc.opened >= 3);
+  assert.ok(midHealth.rtc.opened >= 4);
 
   c1.close();
   c2.close();

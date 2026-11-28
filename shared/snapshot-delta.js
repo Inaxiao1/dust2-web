@@ -5,7 +5,7 @@
  * snapshot object on the client.
  */
 
-const TOP_LEVEL_SKIP = new Set(['type', 'time', 'players', 'events']);
+const TOP_LEVEL_SKIP = new Set(['type', 'time', 'players', 'events', 'sid', 'baseSid']);
 
 function deepEqual(a, b) {
   if (Object.is(a, b)) return true;
@@ -124,7 +124,7 @@ export function applyDeltaSnapshot(packet, prevSnapshot) {
     for (const k of packet._del) delete full[k];
   }
   for (const key of Object.keys(packet)) {
-    if (key === 'type' || key === 'time' || key === 'p' || key === 'rm' || key === 'po' || key === '_del' || key === 'events') continue;
+    if (key === 'type' || key === 'time' || key === 'p' || key === 'rm' || key === 'po' || key === '_del' || key === 'events' || key === 'sid' || key === 'baseSid') continue;
     full[key] = packet[key];
   }
 

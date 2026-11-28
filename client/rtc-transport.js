@@ -14,10 +14,13 @@ const WS_CLOSING = 2;
 const WS_CLOSED = 3;
 
 const RTC_BACKOFF_MS = 5 * 60 * 1000;
+const WS_CANDIDATE_BACKOFF_MS = 5 * 60 * 1000;
 let rtcBackoffUntil = 0;
+const wsBackoffUntil = new Map();
 
 export function resetRtcBackoff() {
   rtcBackoffUntil = 0;
+  wsBackoffUntil.clear();
 }
 
 export function markRtcBackoff(durationMs = RTC_BACKOFF_MS) {
@@ -36,8 +39,24 @@ export function rtcOfferUrlForSocket(wsUrl) {
   }
 }
 
+function buildWsCandidates(primaryWsUrl, wsFallbackUrls) {
+  const now = Date.now();
+  const preferred = [];
+  if (Array.isArray(wsFallbackUrls)) {
+    for (const candidate of wsFallbackUrls) {
+      if (typeof candidate !== 'string' || !candidate || candidate === primaryWsUrl) continue;
+      if ((wsBackoffUntil.get(candidate) || 0) > now) continue;
+      if (!preferred.includes(candidate)) preferred.push(candidate);
+    }
+  }
+  preferred.push(primaryWsUrl);
+  return preferred;
+}
+
 export function createGameSocket(wsUrl, {
   rtcTimeoutMs = 2500,
+  wsConnectTimeoutMs = 3000,
+  wsFallbackUrls = null,
   enableRtc = true,
   onStatus = null,
   WebSocketCtor = globalThis.WebSocket,
@@ -47,22 +66,18 @@ export function createGameSocket(wsUrl, {
   const offerUrl = enableRtc && PeerConnectionCtor && fetchFn && Date.now() >= rtcBackoffUntil
     ? rtcOfferUrlForSocket(wsUrl)
     : null;
-
-  if (!offerUrl) {
-    onStatus?.({ phase: 'ws-direct', reason: enableRtc ? 'backoff-or-unsupported' : 'forced-ws' });
-    const ws = new WebSocketCtor(wsUrl);
-    ws.transportMode = 'WS';
-    ws.addEventListener?.('open', () => onStatus?.({ phase: 'ws-open', reason: 'direct' }), { once: true });
-    return ws;
-  }
+  const wsCandidates = buildWsCandidates(wsUrl, wsFallbackUrls);
 
   const target = new EventTarget();
   let state = WS_CONNECTING;
   let transportMode = 'CONNECTING';
   let activeWs = null;
+  let activeWsUrl = wsUrl;
+  let wsAttemptTimer = null;
   let pc = null;
   let dc = null;
-  let abortController = new AbortController();
+  let dcUnreliable = null;
+  let abortController = offerUrl ? new AbortController() : null;
   let fallbackTimer = null;
   let wsCloseGuardTimer = null;
   let closedByUser = false;
@@ -77,6 +92,7 @@ export function createGameSocket(wsUrl, {
   const dispatchCloseOnce = (detail, { async = false } = {}) => {
     if (closeDispatched) return;
     closeDispatched = true;
+    if (wsAttemptTimer) { clearTimeout(wsAttemptTimer); wsAttemptTimer = null; }
     if (wsCloseGuardTimer) { clearTimeout(wsCloseGuardTimer); wsCloseGuardTimer = null; }
     const emit = () => dispatch('close', detail);
     if (async) queueMicrotask(emit);
@@ -92,11 +108,86 @@ export function createGameSocket(wsUrl, {
       try { dc.close(); } catch {}
       dc = null;
     }
+    if (dcUnreliable) {
+      dcUnreliable.onopen = dcUnreliable.onmessage = dcUnreliable.onclose = dcUnreliable.onerror = null;
+      try { dcUnreliable.close(); } catch {}
+      dcUnreliable = null;
+    }
     if (pc) {
       pc.oniceconnectionstatechange = pc.onconnectionstatechange = null;
       try { pc.close(); } catch {}
       pc = null;
     }
+  };
+
+  const dialWsCandidate = (index, reason) => {
+    if (closedByUser || state === WS_OPEN || state === WS_CLOSED) return;
+    const candidateUrl = wsCandidates[index];
+    const hasNext = index + 1 < wsCandidates.length;
+    activeWsUrl = candidateUrl;
+    let ws;
+    try {
+      ws = new WebSocketCtor(candidateUrl);
+    } catch {
+      if (hasNext) {
+        wsBackoffUntil.set(candidateUrl, Date.now() + WS_CANDIDATE_BACKOFF_MS);
+        dialWsCandidate(index + 1, 'ws-construct-error');
+        return;
+      }
+      state = WS_CLOSED;
+      dispatchCloseOnce({ code: 1006, reason: 'WS construct failed', wasClean: false }, { async: true });
+      return;
+    }
+    activeWs = ws;
+    let settledThisAttempt = false;
+    const clearAttemptTimer = () => {
+      if (wsAttemptTimer) { clearTimeout(wsAttemptTimer); wsAttemptTimer = null; }
+    };
+    const failoverNext = (failReason) => {
+      if (settledThisAttempt || closedByUser || state === WS_OPEN || state === WS_CLOSED) return;
+      settledThisAttempt = true;
+      clearAttemptTimer();
+      wsBackoffUntil.set(candidateUrl, Date.now() + WS_CANDIDATE_BACKOFF_MS);
+      if (activeWs === ws) activeWs = null;
+      try { ws.close(1000, failReason); } catch {}
+      onStatus?.({ phase: 'ws-fallback', reason: failReason });
+      dialWsCandidate(index + 1, failReason);
+    };
+    if (hasNext && wsConnectTimeoutMs > 0) {
+      wsAttemptTimer = setTimeout(() => failoverNext('ws-candidate-timeout'), wsConnectTimeoutMs);
+    }
+    ws.addEventListener('open', () => {
+      if (settledThisAttempt || activeWs !== ws) { try { ws.close(1000, 'superseded'); } catch {} return; }
+      settledThisAttempt = true;
+      clearAttemptTimer();
+      if (closedByUser) { try { ws.close(1000, 'closed'); } catch {} return; }
+      state = WS_OPEN;
+      onStatus?.({ phase: 'ws-open', reason });
+      dispatch('open');
+    });
+    ws.addEventListener('message', (e) => {
+      if (activeWs !== ws || state === WS_CLOSED) return;
+      dispatch('message', { data: e.data });
+    });
+    ws.addEventListener('error', () => {
+      if (activeWs !== ws || state === WS_CLOSED) return;
+      if (state === WS_CONNECTING && hasNext) {
+        failoverNext('ws-candidate-error');
+        return;
+      }
+      dispatch('error');
+    });
+    ws.addEventListener('close', (e) => {
+      if (activeWs !== ws) return;
+      if (state === WS_CONNECTING && hasNext && !closedByUser) {
+        failoverNext('ws-candidate-closed');
+        return;
+      }
+      clearAttemptTimer();
+      if (state === WS_CLOSED && closeDispatched) return;
+      state = WS_CLOSED;
+      dispatchCloseOnce({ code: e.code, reason: e.reason || '', wasClean: !!e.wasClean });
+    });
   };
 
   const switchToWebSocket = (markBackoff = false, reason = 'rtc-fallback') => {
@@ -106,27 +197,7 @@ export function createGameSocket(wsUrl, {
     cleanupRtc();
     transportMode = 'WS';
     onStatus?.({ phase: 'ws-fallback', reason });
-    const ws = new WebSocketCtor(wsUrl);
-    activeWs = ws;
-    ws.addEventListener('open', () => {
-      if (closedByUser) { try { ws.close(1000, 'closed'); } catch {} return; }
-      state = WS_OPEN;
-      onStatus?.({ phase: 'ws-open', reason });
-      dispatch('open');
-    });
-    ws.addEventListener('message', (e) => {
-      if (state === WS_CLOSED) return;
-      dispatch('message', { data: e.data });
-    });
-    ws.addEventListener('error', () => {
-      if (state === WS_CLOSED) return;
-      dispatch('error');
-    });
-    ws.addEventListener('close', (e) => {
-      if (state === WS_CLOSED && closeDispatched) return;
-      state = WS_CLOSED;
-      dispatchCloseOnce({ code: e.code, reason: e.reason || '', wasClean: !!e.wasClean });
-    });
+    dialWsCandidate(0, reason);
   };
 
   const handle = {
@@ -135,7 +206,8 @@ export function createGameSocket(wsUrl, {
       return activeWs ? activeWs.readyState : state;
     },
     get transportMode() { return transportMode; },
-    get url() { return wsUrl; },
+    get hasUnreliable() { return Boolean(!activeWs && dcUnreliable && dcUnreliable.readyState === 'open'); },
+    get url() { return activeWsUrl; },
     get bufferedAmount() {
       if (activeWs) return activeWs.bufferedAmount;
       if (dc) return dc.bufferedAmount || 0;
@@ -152,8 +224,18 @@ export function createGameSocket(wsUrl, {
         dc.send(data);
       }
     },
+    sendUnreliable(data) {
+      if (!activeWs && dcUnreliable && dcUnreliable.readyState === 'open') {
+        try {
+          dcUnreliable.send(data);
+          return;
+        } catch {}
+      }
+      this.send(data);
+    },
     close(code = 1000, reason = '') {
       closedByUser = true;
+      if (wsAttemptTimer) { clearTimeout(wsAttemptTimer); wsAttemptTimer = null; }
       if (activeWs) {
         try { activeWs.close(code, reason); } catch {}
         // Guard against a stalled CONNECTING WebSocket that delays or skips its native close event.
@@ -176,6 +258,15 @@ export function createGameSocket(wsUrl, {
     },
   };
 
+  if (!offerUrl) {
+    fellBack = true;
+    transportMode = 'WS';
+    const directReason = enableRtc ? 'backoff-or-unsupported' : 'forced-ws';
+    onStatus?.({ phase: 'ws-direct', reason: directReason });
+    dialWsCandidate(0, directReason);
+    return handle;
+  }
+
   // Start fast WebRTC UDP negotiation with automatic fallback to WS.
   (async () => {
     try {
@@ -183,6 +274,19 @@ export function createGameSocket(wsUrl, {
       fallbackTimer = setTimeout(() => switchToWebSocket(true, 'timeout'), rtcTimeoutMs);
       pc = new PeerConnectionCtor({ iceServers: [] });
       dc = pc.createDataChannel('cs2', { ordered: true });
+      try {
+        // Use PR-SCTP timed reliability (100ms TTL) so stale unsent snapshots are expired inside
+        // usrsctp's send queue during cwnd drops instead of piling up into multi-second bufferbloat.
+        dcUnreliable = pc.createDataChannel('cs2-u', { ordered: false, maxPacketLifeTime: 100 });
+        dcUnreliable.onmessage = (e) => {
+          if (state !== WS_OPEN || closedByUser) return;
+          dispatch('message', { data: e.data });
+        };
+        dcUnreliable.onerror = () => {};
+        dcUnreliable.onclose = () => {};
+      } catch {
+        dcUnreliable = null;
+      }
 
       dc.onopen = () => {
         if (fellBack || closedByUser) { cleanupRtc(); return; }

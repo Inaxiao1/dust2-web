@@ -113,6 +113,8 @@ function saveStoredResume(mapId,roomCode,resumeToken,graceMs){
 }
 let stagedJoinTicket=consumeJoinTicket(privateMap?.mapId||'de_dust2');
 let activeResumeToken=null,activeReconnectGraceMs=30000,intentionalLeave=false,reconnectTimer=null,reconnectAttempts=0,lastFullSnapshot=null;
+const snapHistory=new Map();
+let lastAppliedSid=0,lastAckedSid=0,lastSentAckSid=0,lastAckSentAt=0,lastResyncReqAt=0;
 function clearReconnect(){if(reconnectTimer){clearTimeout(reconnectTimer);reconnectTimer=null;}reconnectAttempts=0;}
 const baseConnection = privateMap?{socketURL:privateMap.socketURL,inviteBase:null,offline:false}:connectionTarget(location.href, globalThis.__DUST2_PORTABLE__);
 const connection = stagedJoinTicket?{...baseConnection,socketURL:stagedJoinTicket.workerWsUrl}:baseConnection;
@@ -356,7 +358,8 @@ function loadError(error){
 }
 const paint=()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
 function send(data){if(socket?.readyState!==WebSocket.OPEN)return false;socket.send(JSON.stringify(data));return true;}
-function sendInput(input){if(input.seq<=lastSentInputSeq||socket?.readyState!==WebSocket.OPEN)return false;lastSentInputSeq=input.seq;return send({type:'input',bodyId:myId,lifeId:self?.lifeId,...input,...(movementSupported?{moves:movementPrediction.packet(),moveId:movementPrediction.nextId}: {})});}
+function sendUnreliable(data){if(socket?.readyState!==WebSocket.OPEN)return false;const raw=JSON.stringify(data);if(socket.sendUnreliable)socket.sendUnreliable(raw);else socket.send(raw);return true;}
+function sendInput(input){if(input.seq<=lastSentInputSeq||socket?.readyState!==WebSocket.OPEN)return false;lastSentInputSeq=input.seq;const ackPart=lastAckedSid>0?{ackSid:lastAckedSid}:{};if(lastAckedSid>0){lastSentAckSid=lastAckedSid;lastAckSentAt=performance.now();}return send({type:'input',bodyId:myId,lifeId:self?.lifeId,...ackPart,...input,...(movementSupported?{moves:movementPrediction.packet(),moveId:movementPrediction.nextId}: {})});}
 function cancelRevolverPrepare(){revolverTrigger.reset();viewWeapon?.prepareRevolver(false);audio.cancelChannel('revolver-prepare');}
 function clearGameInput(){touchControls?.clear();mobileAim.clear();controls.clear();mouseFire=false;pendingFirePress=false;pendingAltFirePress=false;shotPrediction.triggered=false;cancelRevolverPrepare();}
 function inputCaptured(){return document.pointerLockElement===canvas||!!(touchControls?.enabled&&touchPlaying);}
@@ -568,6 +571,9 @@ function connect(joinExisting,revision,resumeOpts=null,transportOpts=null){
   const wsTarget=new URL(baseWsUrl);
   if(ticket?.joinToken)wsTarget.searchParams.set('token',ticket.joinToken);
   const url=wsTarget.href;
+  const wsFallbackUrls=!ticket&&Array.isArray(privateMap?.wsFallbackUrls)
+    ? privateMap.wsFallbackUrls.map(raw=>{const u=new URL(raw);if(wsTarget.search)u.search=wsTarget.search;return u.href;})
+    : [];
   const forceWs=Boolean(transportOpts?.forceWs);
   let activeSocket=null;
   const onTransportStatus=({phase})=>{
@@ -583,7 +589,7 @@ function connect(joinExisting,revision,resumeOpts=null,transportOpts=null){
       $('load-files').textContent='正在同步房间与玩家状态';
     }
   };
-  socket=createGameSocket(url,{enableRtc:!forceWs,onStatus:onTransportStatus});activeSocket=socket;
+  socket=createGameSocket(url,{enableRtc:!forceWs,wsFallbackUrls,onStatus:onTransportStatus});activeSocket=socket;
   let settle;
   const outcome=new Promise(resolve=>{settle=resolve;});
   let rejected=false,gotServerReply=false,handingOff=false,udpWelcomeTimer=null;
@@ -603,8 +609,8 @@ function connect(joinExisting,revision,resumeOpts=null,transportOpts=null){
     const reqRoom=resumeOpts?.room||ticket?.roomCode||(joinExisting?$('room-code').value.trim().toUpperCase():undefined);
     const reqExisting=isResuming?true:(ticket?.action==='join'?true:(ticket?.action==='create'?false:joinExisting));
     const storedResume=resumeOpts?.resumeToken||(reqExisting?readStoredResume(privateMap?.mapId||'de_dust2',reqRoom):null);
-    lastFullSnapshot=null;
-    activeSocket.send(JSON.stringify({type:'join',clientBuild:CLIENT_BUILD,rulesVersion:RULES_VERSION,assetVersion:ASSET_VERSION,rtcAsyncClose:1,...(privateMap?{mapId:privateMap.mapId,mapSignature:privateMap.mapSignature,physicsSha256:privateMap.physicsSha256}:{}),existing:reqExisting,...(revision?{appearanceRevision:revision}:{}),...(ticket?.joinToken?{joinToken:ticket.joinToken}:{}),...(storedResume?{resumeToken:storedResume}:{}),playerUid:toyProgress.uid||getStoredOperatorUid(),reconnect:true,snapshotDelta:1,name,movementProtocol:1,shotProtocol:1,room:reqRoom,mode:ticket?.mode||$('mode').value,team:$('team').value,primary,skins:skins.loadout,weaponLoadout:armory.loadout,agents:agentsUI.loadout,musicKit:matchAudio.kit,bots:Number($('bots').value),botDifficulty:preferredBotDifficulty}));
+    lastFullSnapshot=null;snapHistory.clear();lastAppliedSid=0;lastAckedSid=0;lastSentAckSid=0;lastAckSentAt=0;lastResyncReqAt=0;
+    activeSocket.send(JSON.stringify({type:'join',clientBuild:CLIENT_BUILD,rulesVersion:RULES_VERSION,assetVersion:ASSET_VERSION,rtcAsyncClose:1,ackDelta:1,...(privateMap?{mapId:privateMap.mapId,mapSignature:privateMap.mapSignature,physicsSha256:privateMap.physicsSha256}:{}),existing:reqExisting,...(revision?{appearanceRevision:revision}:{}),...(ticket?.joinToken?{joinToken:ticket.joinToken}:{}),...(storedResume?{resumeToken:storedResume}:{}),playerUid:toyProgress.uid||getStoredOperatorUid(),reconnect:true,snapshotDelta:1,name,movementProtocol:1,shotProtocol:1,room:reqRoom,mode:ticket?.mode||$('mode').value,team:$('team').value,primary,skins:skins.loadout,weaponLoadout:armory.loadout,agents:agentsUI.loadout,musicKit:matchAudio.kit,bots:Number($('bots').value),botDifficulty:preferredBotDifficulty}));
     // Watchdog for half-open UDP: if DataChannel opened but no server reply arrives within 3s,
     // transparently fall back to WebSocket instead of leaving the player stuck on the loading screen.
     if(!forceWs&&activeSocket.transportMode==='UDP'){
@@ -650,12 +656,50 @@ function connect(joinExisting,revision,resumeOpts=null,transportOpts=null){
       hud.toast(data.resumed?'重连成功 · 已恢复战绩与经济':`已加入 ${data.team} 阵营 · 点击进入战场`);
       settle(null);
     } else if(data.type==='snapshot'||data.type==='snapshotDelta'){
-      const full=data.type==='snapshotDelta'?applyDeltaSnapshot(data,lastFullSnapshot):data;
-      if(!full)return;
+      let full=null;
+      if(Number.isInteger(data.sid)){
+        if(data.sid<=lastAppliedSid)return;
+        if(data.type==='snapshot'){
+          full=data;
+        }else{
+          const base=Number.isInteger(data.baseSid)?snapHistory.get(data.baseSid):lastFullSnapshot;
+          if(!base){
+            const nowMs=performance.now();
+            if(nowMs-lastResyncReqAt>350){lastResyncReqAt=nowMs;sendUnreliable({type:'snapAck',ackSid:0});}
+            return;
+          }
+          full=applyDeltaSnapshot(data,base);
+        }
+        if(!full)return;
+        snapHistory.set(data.sid,full);
+        if(snapHistory.size>25){
+          for(const oldSid of snapHistory.keys()){
+            if(oldSid<data.sid-20)snapHistory.delete(oldSid);
+            else break;
+          }
+        }
+        lastAppliedSid=data.sid;
+        lastAckedSid=data.sid;
+        const nowMs=performance.now();
+        if(lastAckedSid>lastSentAckSid&&nowMs-lastAckSentAt>150){
+          lastSentAckSid=lastAckedSid;lastAckSentAt=nowMs;
+          sendUnreliable({type:'snapAck',ackSid:lastAckedSid});
+        }
+      }else{
+        full=data.type==='snapshotDelta'?applyDeltaSnapshot(data,lastFullSnapshot):data;
+        if(!full)return;
+      }
       lastFullSnapshot=full;
       const mismatch=privateCompatibilityError(full,privateMap);
       if(mismatch){rejected=true;clearConnectTimers();clearGameInput();document.exitPointerLock?.();loadError(new Error(mismatch));connected=false;activeSocket.close();return;}
       handleSnapshot(full);
+    }
+    else if(data.type==='events'&&snapshot){
+      for(const ev of data.events||[]){
+        if(ev.id&&handledEvents.has(ev.id))continue;
+        if(ev.id){handledEvents.add(ev.id);if(handledEvents.size>512)handledEvents.delete(handledEvents.values().next().value);}
+        hud.event(ev,snapshot,myId);handleEvent(ev);
+      }
     }
     else if(data.type==='agentEquipped'){if(pendingAgentEquip?.id===data.agent)pendingAgentEquip.resolve();hud.toast(`已装备 ${getAgent(data.agent)?.name||'探员'}`);}
     else if(data.type==='skinEquipped'){if(pendingSkinEquip?.skin===data.skin)pendingSkinEquip.resolve();hud.toast(`已装备 ${getSkin(data.skin)?.name||'新皮肤'}`);}
@@ -1063,7 +1107,7 @@ function frame(now){
   const input=currentInput();
   while(fixed>=1/60){if(self.alive){if(movementSupported)movementPrediction.step(self,input,['live','ended'].includes(snapshot.round.phase));else if(['live','ended'].includes(snapshot.round.phase))stepPlayer(self,input,1/60);}localShoot(input,1/60);fixed-=1/60;}
   if(networkAcc>=1/30){networkAcc%=1/30;sendInput(input);}
-  if(pingAcc>=2){pingAcc=0;send({type:'ping',time:performance.now(),...(ping>0?{rtt:Math.round(ping)}:{}),...(fps>0?{fps:Math.round(fps)}:{}),tr:socket?.transportMode==='UDP'?'u':'w'});}
+  if(pingAcc>=2){pingAcc=0;const ackPart=lastAckedSid>0?{ackSid:lastAckedSid}:{};if(lastAckedSid>0){lastSentAckSid=lastAckedSid;lastAckSentAt=performance.now();}sendUnreliable({type:'ping',time:performance.now(),...ackPart,...(ping>0?{rtt:Math.round(ping)}:{}),...(fps>0?{fps:Math.round(fps)}:{}),tr:socket?.transportMode==='UDP'?'u':'w'});}
   if(self.grounded&&controlsEnabled()&&Math.hypot(self.vx,self.vz)>.8&&(self.stepDistance||0)-lastStep>(self.crouch?2.6:1.8)){audio.step();lastStep=self.stepDistance;}
   // Simulation, shot prediction and 30 Hz input above always run, even on skipped render frames.
   if(!framePacer.due(now,frameLimit))return;

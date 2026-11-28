@@ -48,6 +48,7 @@ class RtcSocketAdapter extends EventEmitter {
     super();
     this.pc = pc;
     this.dc = dc;
+    this.dcUnreliable = null;
     this.onDispose = onDispose;
     this.readyState = WS_OPEN;
     this._cs2Alive = true;
@@ -79,6 +80,23 @@ class RtcSocketAdapter extends EventEmitter {
         this._finalize(1006, `ICE ${state}`);
       }
     });
+  }
+
+  attachUnreliable(dcUnreliable) {
+    if (this._closed || !dcUnreliable || this.dcUnreliable) return;
+    this.dcUnreliable = dcUnreliable;
+    dcUnreliable.onMessage((msg) => this._onDataChannelMessage(msg));
+    dcUnreliable.onClosed(() => {
+      if (this.dcUnreliable === dcUnreliable) this.dcUnreliable = null;
+    });
+    dcUnreliable.onError(() => {
+      if (this.dcUnreliable === dcUnreliable) this.dcUnreliable = null;
+    });
+  }
+
+  get hasUnreliable() {
+    if (this._closed || !this.dcUnreliable) return false;
+    try { return Boolean(this.dcUnreliable.isOpen?.()); } catch { return false; }
   }
 
   _onDataChannelMessage(msg) {
@@ -121,6 +139,29 @@ class RtcSocketAdapter extends EventEmitter {
     }
   }
 
+  sendUnreliable(data, opts = {}) {
+    if (this._closed || this.readyState !== WS_OPEN) return;
+    const udc = this.dcUnreliable;
+    if (udc) {
+      try {
+        if (udc.isOpen?.()) {
+          if (opts?.binary) {
+            udc.sendMessageBinary(Buffer.isBuffer(data) ? data : Buffer.from(data));
+          } else {
+            const text = typeof data === 'string'
+              ? data
+              : (Buffer.isBuffer(data) ? data.toString('utf8') : Buffer.from(data).toString('utf8'));
+            udc.sendMessage(text);
+          }
+          return;
+        }
+      } catch {
+        // Fall back to reliable channel if unreliable channel momentarily fails.
+      }
+    }
+    this.send(data, opts);
+  }
+
   ping() {
     if (this._closed) return;
     // WebRTC ICE consent freshness already validates UDP liveness; drop only long-silent dead peers.
@@ -147,6 +188,8 @@ class RtcSocketAdapter extends EventEmitter {
       clearTimeout(this._disconnectTimer);
       this._disconnectTimer = null;
     }
+    try { this.dcUnreliable?.close(); } catch {}
+    this.dcUnreliable = null;
     try { this.dc.close(); } catch {}
     try { this.pc.close(); } catch {}
     this.readyState = WS_CLOSED;
@@ -177,13 +220,13 @@ export async function createRtcGateway({
   }
   if (!ndc?.PeerConnection) return null;
 
-  // Tune usrsctp for real-time FPS traffic: replace RFC 4960's 1000ms RTO.Min & 200ms delayed SACK
-  // defaults with low-latency recovery and H-TCP congestion control to prevent multi-second stalls.
+  // Tune usrsctp for real-time FPS traffic: cap association send queue to 64 KB / 64 chunks so
+  // cwnd drops never build multi-second bufferbloat, and tighten RTO/SACK with H-TCP recovery.
   try {
     ndc.setSctpSettings?.({
-      recvBufferSize: 512 * 1024,
-      sendBufferSize: 512 * 1024,
-      maxChunksOnQueue: 512,
+      recvBufferSize: 256 * 1024,
+      sendBufferSize: 64 * 1024,
+      maxChunksOnQueue: 64,
       initialCongestionWindow: 20,
       maxBurst: 16,
       congestionControlModule: 2,
@@ -199,6 +242,23 @@ export async function createRtcGateway({
   const effectivePublicIp = publicIp || localIp;
   let peerSeq = 0;
   let closed = false;
+
+  // Keep one permanent anchor PeerConnection bound to the single UDP mux port so libjuice's
+  // mux refcount never drops to 0. Without this, any map worker child process spawned while
+  // a peer was connected inherits the UDP socket FD (libjuice omits SOCK_CLOEXEC), causing
+  // re-bind failure ("Failed to gather local ICE candidates") after activePeers hits 0.
+  let muxAnchorPc = null;
+  try {
+    muxAnchorPc = new ndc.PeerConnection('cs2-mux-anchor', {
+      iceServers: [],
+      enableIceUdpMux: true,
+      portRangeBegin: udpPort,
+      portRangeEnd: udpPort,
+    });
+    muxAnchorPc.createDataChannel('anchor');
+  } catch {
+    muxAnchorPc = null;
+  }
 
   const stats = {
     offers: 0,
@@ -279,9 +339,21 @@ export async function createRtcGateway({
         }
       });
 
+      let adapter = null;
+      let pendingUnreliableDc = null;
       pc.onDataChannel((dc) => {
-        if (dcAttached || dc.getLabel() !== 'cs2') return;
-        let adapter = null;
+        const label = dc.getLabel();
+        if (label === 'cs2-u') {
+          const bindUnreliable = () => {
+            if (closed) return;
+            if (adapter) adapter.attachUnreliable(dc);
+            else pendingUnreliableDc = dc;
+          };
+          if (dc.isOpen()) bindUnreliable();
+          else dc.onOpen(bindUnreliable);
+          return;
+        }
+        if (dcAttached || label !== 'cs2') return;
         const earlyMessages = [];
         // Bind dc.onMessage exactly once so libdatachannel's initial mRecvQueue drain
         // can never be dropped across a handler replacement.
@@ -299,6 +371,10 @@ export async function createRtcGateway({
           pendingPeers.delete(pc);
           stats.opened++;
           adapter = new RtcSocketAdapter(pc, dc, releasePeer, { bindMessage: false });
+          if (pendingUnreliableDc) {
+            adapter.attachUnreliable(pendingUnreliableDc);
+            pendingUnreliableDc = null;
+          }
           onClientSocket(mapId, query, req, adapter);
           for (const msg of earlyMessages.splice(0)) {
             adapter._onDataChannelMessage(msg);
@@ -322,11 +398,16 @@ export async function createRtcGateway({
 
       try {
         pc.setRemoteDescription(offerBody.sdp, 'offer');
-      } catch {
+      } catch (err) {
         clearTimeout(handshakeTimer);
         releasePeer();
         try { pc.close(); } catch {}
-        resolve({ status: 400, body: { ok: false, error: 'INVALID_REMOTE_SDP' } });
+        const detail = String(err?.message || '');
+        const isServerSide = /gather|bind|socket|candidate/i.test(detail);
+        resolve({
+          status: isServerSide ? 503 : 400,
+          body: { ok: false, error: isServerSide ? 'RTC_GATHER_FAILED' : 'INVALID_REMOTE_SDP', detail },
+        });
         return;
       }
 
@@ -365,6 +446,10 @@ export async function createRtcGateway({
       }
       activePeers.clear();
       pendingPeers.clear();
+      if (muxAnchorPc) {
+        try { muxAnchorPc.close(); } catch {}
+        muxAnchorPc = null;
+      }
       if (cleanupNative) {
         try { ndc.cleanup?.(); } catch {}
       }
