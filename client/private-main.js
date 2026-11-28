@@ -10,6 +10,7 @@ import {privateMapDownloads,privateMapFetcher} from './private-map-download.js';
 import {mountPortalRoom} from './portal-room.js';
 import {consumeDirectoryJoin} from '../scripts/maps/mode-ui/room-directory.js';
 import {getStaticRuntime,gameApiURL,lobbyHref,parseMatchRoute} from '../shared/static-runtime.js';
+import {resourceResponseError,retryResource} from './resource-retry.js';
 
 // Single-lobby flow: /perf/ (or Toy ./) is the only lobby & armory/settings homepage.
 // /perf/play/<map>/ (or Toy play.html?map=<map>) is strictly the match runtime.
@@ -36,32 +37,47 @@ if(directoryRoute){
 async function bootstrap(){
  if(redirectedToLobby)return null;
  const rt=getStaticRuntime();
- const request=async url=>{const r=await fetch(url,{cache:'no-store'});if(!r.ok)throw Error('私有地图配置暂不可用 ('+r.status+')');return r.json();};
+ const request=(url,label,cache='no-store')=>retryResource(async()=>{
+  const response=await fetch(url,{cache});
+  if(!response.ok)throw resourceResponseError(response,label+'暂不可用 ('+response.status+')');
+  return response.json();
+ });
  const configEndpoint=rt&&parsedMatchRoute
   ? gameApiURL('/perf/play/'+parsedMatchRoute.mapId+'/private-map.json')
   : new URL('private-map.json',location.href);
- const originalConfig=privateConfig(await request(configEndpoint),location.href,{apiOrigin:rt?.gameServerOrigin||null});
- const delivery=await initDownloadOrigin({configURL:new URL('../../../download-config.json',originalConfig.renderUrl),pageURL:location.href});
+ const originalConfig=privateConfig(await request(configEndpoint,'私有地图配置'),location.href,{apiOrigin:rt?.gameServerOrigin||null});
+ const delivery=await retryResource(()=>initDownloadOrigin({configURL:new URL('../../../download-config.json',originalConfig.renderUrl),pageURL:location.href}));
  hydrateHomeImages();
  const config=privateMapDownloads(originalConfig,delivery),mapFetch=privateMapFetcher(config);
  const jumpLinks=config.id==='de_mirage'?MIRAGE_JUMP_LINKS:[];
  const jumpDigest=await sha256Hex(JSON.stringify(jumpLinks));
  if(config.jumpLinksSha256!==jumpDigest)throw Error('私有地图跳点与服务器版本不同');
- const verifiedJSON=async(url,expected,label)=>{const r=await mapFetch(url,{cache:'no-store'});if(!r.ok)throw Error(label+'暂不可用');const bytes=await r.arrayBuffer();const hash=await sha256Hex(bytes);if(hash!==expected)throw Error(label+'与服务器版本不同');return JSON.parse(new TextDecoder().decode(bytes));};
- const [meta,nav]=await Promise.all([verifiedJSON(config.metadataUrl,config.metadataSha256,'出生与包点信息'),verifiedJSON(config.navUrl,config.navigationSha256,'导航')]);
+ const verifiedJSON=async(url,expected,label)=>{
+  const bytes=await retryResource(async retry=>{
+   const response=await mapFetch(url,{cache:retry?'reload':'no-store'});
+   if(!response.ok)throw resourceResponseError(response,label+'暂不可用 ('+response.status+')');
+   return response.arrayBuffer();
+  });
+  if(await sha256Hex(bytes)!==expected)throw Error(label+'与服务器版本不同');
+  return JSON.parse(new TextDecoder().decode(bytes));
+ };
+ // Local Toy assets, a configured map CDN, or the game's own radar files.
+ const radarBase=rt
+  ? new URL('./radars/',document.baseURI)
+  : delivery.mapBaseURL
+    ? new URL('../radars/',delivery.mapBaseURL)
+    : new URL('../../../radars/',config.renderUrl);
+ const [meta,nav,transforms]=await Promise.all([
+  verifiedJSON(config.metadataUrl,config.metadataSha256,'出生与包点信息'),
+  verifiedJSON(config.navUrl,config.navigationSha256,'导航'),
+  request(new URL('transforms.json',radarBase),'地图雷达标定',rt?'force-cache':'default'),
+ ]);
  if(meta.id!==config.id||meta.public!==false||meta.sourceSha256!==config.sourceSha256)throw Error('原始地图版本与服务器不一致');
  if(config.movementModel===PRIVATE_MOVEMENT_MODEL){
   const ladderHash=await sha256Hex(JSON.stringify(laddersForMap(meta)));
   if(ladderHash!==config.laddersSha256)throw Error('梯子数据与服务器版本不同');
  }
  const map=configurePrivateMap(meta,nav,config);
- // Resolve radars & covers from Toy-local static dir (or CDN mapBaseURL) so zero static bytes hit the game server!
- const radarBase=rt
-  ? new URL('./radars/',document.baseURI)
-  : delivery.mapBaseURL
-    ? new URL('../radars/',delivery.mapBaseURL)
-    : new URL('../../../radars/',config.renderUrl);
- const transforms=await fetch(new URL('transforms.json',radarBase),{cache:rt?'force-cache':'default'}).then(r=>{if(!r.ok)throw Error('地图雷达标定暂不可用 ('+r.status+')');return r.json();});
  const radar=transforms[map.id];if(!radar||![radar.pos_x,radar.pos_y,radar.scale].every(Number.isFinite))throw Error('地图雷达标定缺失');
  map.overview={...radar,size:1024,image:new URL(map.id+'.png',radarBase).href};
  map.version='CS2 private '+meta.sourceBuild+' / '+config.mapSignature.slice(0,12);

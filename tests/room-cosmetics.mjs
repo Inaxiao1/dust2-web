@@ -33,7 +33,7 @@ test('real preflight lists active and dropped finishes without joining, then rea
   assert.equal(ids[0],appearance.activeSkinIds[0]);
   assert(!ids.includes(unowned.id));
   assert.equal(room.humanCount,1);assert.equal(server.rooms.size,1);
-  await assert.rejects(queryRoomSkins(url,'NOSUCH',{Socket:WebSocket}),/房间/);
+  await assert.rejects(queryRoomSkins(url,'NOSUCH',{Socket:WebSocket}),{code:'ROOM_GONE',message:/房间/});
   assert.equal(server.rooms.size,1);
   const cached=new Set(),network=[];
   const deps={pageURL:'https://example.test/game/',saved:async hash=>cached.has(hash),fetchAsset:async(url,options)=>{

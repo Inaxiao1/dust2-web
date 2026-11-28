@@ -636,9 +636,7 @@ function buildMapUI() {
     live.hidden = true;
     const name = document.createElement('strong');
     name.textContent = map.nameZh;
-    const en = document.createElement('small');
-    en.textContent = map.name;
-    btn.append(img, live, name, en);
+    btn.append(img, live, name);
     btn.addEventListener('mouseenter', () => setStageMapVisual(map));
     btn.addEventListener('click', () => {
       selected = map;

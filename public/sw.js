@@ -7,6 +7,8 @@ const local=url=>url.origin===SCOPE.origin&&url.pathname.startsWith(SCOPE.pathna
 const hashKey=hash=>new URL(`__asset_cache__/sha256/${hash}`,SCOPE).href;
 const indexKey=url=>new URL(`__asset_cache__/url/${encodeURIComponent(url.href)}`,SCOPE).href;
 const mapResource=url=>/(?:^|\/)assets\/(?:valve-dust2|map-cs2|map-mobile)(?:\/|$)|(?:^|\/)maps(?:\/|$)/.test(url.pathname);
+const validHash=value=>typeof value==='string'&&/^[a-f\d]{64}$/i.test(value);
+const manifestMaxAgeMs=5*60*1000;
 
 function dependencies(text,url,type){
   const found=new Set();let match;
@@ -41,22 +43,50 @@ self.addEventListener('message',event=>{
   if(event.data?.type==='CACHE_SHELL')event.waitUntil(cacheShell().then(()=>event.ports[0]?.postMessage({ok:true}),error=>event.ports[0]?.postMessage({ok:false,error:error.message})));
 });
 
+async function verifiedAsset(assets,file){
+  if(!validHash(file?.sha256))return;
+  const expected=file.sha256.toLowerCase(),key=hashKey(expected),response=await assets.match(key);
+  if(!response)return;
+  try{
+    const bytes=await response.arrayBuffer();
+    if(response.status===200&&(!Number.isSafeInteger(file.bytes)||file.bytes===bytes.byteLength)){
+      const digest=new Uint8Array(await crypto.subtle.digest('SHA-256',bytes));
+      const actual=Array.from(digest,byte=>byte.toString(16).padStart(2,'0')).join('');
+      if(actual===expected){
+        const headers=new Headers(response.headers);
+        headers.delete('content-encoding');headers.delete('transfer-encoding');
+        headers.set('content-length',String(bytes.byteLength));
+        return new Response(bytes,{headers});
+      }
+    }
+  }catch{}
+  await assets.delete(key).catch(()=>{});
+}
+
 async function cachedAsset(url){
-  const meta=await caches.open(META),assets=await caches.open(ASSETS);
-  // The manifest identifies the desired immutable content, independent of
-  // cache age. Old SHA versions remain available for interrupted updates.
-  for(const manifestURL of [MANIFEST,new URL('assets/asset-manifest-mobile.json',SCOPE).href]){
-  const manifestResponse=await meta.match(manifestURL);
-  if(manifestResponse){
-    const manifest=await manifestResponse.json();
-    const file=(manifest.files||[]).find(f=>new URL(f.path,SCOPE).pathname===url.pathname);
-    const version=url.searchParams.get('v');
-    if(file&&(!version||file.sha256.startsWith(version))){const response=await assets.match(hashKey(file.sha256.toLowerCase()));if(response)return response;}
+  try{
+    const meta=await caches.open(META),assets=await caches.open(ASSETS);
+    const version=url.searchParams.get('v'),offline=self.navigator?.onLine===false;
+    for(const manifestURL of [MANIFEST,new URL('assets/asset-manifest-mobile.json',SCOPE).href]){
+      const response=await meta.match(manifestURL);
+      if(!response)continue;
+      const savedAt=Number(response.headers.get('x-dust2-manifest-fetched-at')),age=Date.now()-savedAt;
+      if(!version&&!offline&&(!savedAt||age<0||age>manifestMaxAgeMs))continue;
+      const manifest=await response.json().catch(()=>null);
+      if(!Array.isArray(manifest?.files))continue;
+      const file=manifest.files.find(file=>typeof file?.path==='string'&&file.path.startsWith('assets/')
+        &&new URL(file.path,SCOPE).href===url.origin+url.pathname&&validHash(file.sha256)
+        &&(!version||file.sha256.toLowerCase().startsWith(version)));
+      const hit=await verifiedAsset(assets,file);
+      if(hit)return hit;
+    }
+    if(version||offline){
+      const indexed=await meta.match(indexKey(url));
+      if(indexed)return await verifiedAsset(assets,await indexed.json().catch(()=>null));
+    }
+  }catch{
+    // Unavailable storage falls through to a regular network request.
   }
-  }
-  const indexed=await meta.match(indexKey(url));
-  if(indexed){const entry=await indexed.json();return assets.match(hashKey(entry.sha256));}
-  return undefined;
 }
 
 self.addEventListener('fetch',event=>{
@@ -80,7 +110,10 @@ self.addEventListener('fetch',event=>{
   // The page owns integrity verification and writes large assets once. The
   // worker serves those bytes offline without creating a second map cache.
   if(relative.startsWith('assets/')&&!/\.(?:m?js|css)$/.test(url.pathname)){
-    event.respondWith((async()=>await cachedAsset(url)||await (await caches.open(SHELL)).match(request)||fetch(request))());return;
+    if(request.cache==='reload'||request.cache==='no-store')return;
+    event.respondWith((async()=>await cachedAsset(url)
+      ||await caches.open(SHELL).then(cache=>cache.match(request)).catch(()=>null)
+      ||fetch(request))());return;
   }
   event.respondWith((async()=>{
     const cache=await caches.open(SHELL),hit=await cache.match(request);

@@ -4,8 +4,9 @@ import {assetManifestName} from './device-profile.js';
 import { DefaultLoadingManager } from 'three';
 import {clientAssetManifest} from './private-game-config.js';
 import {fetchAssetDownload,getDownloadOrigin,initDownloadOrigin} from './download-origin.js';
+import {isTransientResourceError,resourceResponseError,retryResource} from './resource-retry.js';
 import {publicPoolAssetCacheBase} from '../shared/public-map-paths.js';
-import {getStaticRuntime} from '../shared/static-runtime.js';
+import {resolveStaticAsset} from '../shared/static-runtime.js';
 import {sha256Hex} from '../shared/sha256.js';
 const blobs=new Map(),inflight=new Map();let manifestMemory=null,manifestChecked=false,persistRequested=false;
 const MAPS_CACHE_NAME='dust2-maps-v1';
@@ -14,6 +15,9 @@ function requestPersistentStorage(){
   persistRequested=true;
   try{globalThis.navigator?.storage?.persist?.().catch?.(()=>{});}catch{}
 }
+const matchAnimations=new Set(['assets/characters-cs2/animations.glb','assets/viewmodel/animations.glb']);
+const manifestMaxAgeMs=5*60*1000;
+const validHash=value=>typeof value==='string'&&/^[a-f\d]{64}$/i.test(value);
 const base=()=>new URL('.',document.baseURI),absolute=value=>new URL(value,document.baseURI);
 const canonical=value=>{const u=absolute(value);return u.origin+u.pathname;};
 const cacheBase=()=>publicPoolAssetCacheBase(document.baseURI,{installed:bundled||!!globalThis.__DUST2_PORTABLE__});
@@ -90,7 +94,8 @@ export async function fetchCachedAsset(value,options={}){
     const file=manifest?.files.find(f=>canonical(f.path)===canonical(value));
     if(file){settings.sha256=file.sha256;settings.bytes??=file.bytes;}
   }
-  const key=canonical(value),existing=inflight.get(key);
+  const key=settings.sha256?canonical(value)+'#'+String(settings.sha256).toLowerCase():absolute(value).href;
+  const existing=inflight.get(key);
   if(existing){
     try{const response=await pendingResult(existing,settings.signal);check(settings.signal);
       if((!settings.sha256||response.headers.get('x-dust2-sha256')===settings.sha256.toLowerCase())&&(!Number.isFinite(settings.bytes)||Number(response.headers.get('x-dust2-bytes'))===settings.bytes)){
@@ -102,24 +107,43 @@ export async function fetchCachedAsset(value,options={}){
 }
 async function readCachedAsset(value,{sha256,bytes,signal,onProgress}={}){
   check(signal);const url=absolute(value);url.hash='';
-  if(sha256&&!/^[a-f\d]{64}$/i.test(sha256))throw new Error('无效的资源 SHA-256');
+  if(sha256&&!validHash(sha256))throw new Error('无效的资源 SHA-256');
   sha256=sha256?.toLowerCase();if(sha256)url.searchParams.set('v',sha256.slice(0,12));
   const cache=await stores();let expected=sha256;
-  if(!expected&&cache){const hit=await cache.meta.match(indexKey(url));if(hit)expected=(await hit.json()).sha256;}
-  if(expected&&cache){const hit=await cache.assets.match(hashKey(expected)),length=Number(hit?.headers.get('x-dust2-bytes'));
-    if(hit&&(!Number.isFinite(bytes)||length===bytes)){check(signal);onProgress?.({loaded:length,total:length,fromCache:true,cached:true});return hit;}}
+  if(!expected&&cache&&(url.searchParams.has('v')||globalThis.navigator?.onLine===false)){
+    const hit=await cache.meta.match(indexKey(url)).catch(()=>null);
+    const index=await hit?.json().catch(()=>null);
+    if(validHash(index?.sha256))expected=index.sha256.toLowerCase();
+  }
+  let damaged=false;
+  if(expected&&cache){
+    const key=hashKey(expected),hit=await cache.assets.match(key).catch(()=>null);
+    if(hit){
+      const blob=await hit.blob().catch(()=>null);
+      const actual=hit.status===200&&blob&&(!Number.isFinite(bytes)||blob.size===bytes)
+        ?await blob.arrayBuffer().then(digest).catch(()=>null):null;
+      check(signal);
+      if(actual===expected){
+        const headers=new Headers(hit.headers);
+        headers.delete('content-encoding');headers.delete('transfer-encoding');
+        headers.set('x-dust2-sha256',expected);
+        headers.set('x-dust2-bytes',String(blob.size));
+        headers.set('content-length',String(blob.size));
+        onProgress?.({loaded:blob.size,total:blob.size,fromCache:true,cached:true});
+        return new Response(blob,{status:200,headers});
+      }
+      damaged=true;
+      await cache.assets.delete(key).catch(()=>{});
+    }
+  }
   await ensureDownloadOrigin(signal);
-  const response=await fetchAssetDownload(url,{pageURL:document.baseURI,signal,cache:sha256?'force-cache':'default',fetcher:(target,request)=>fetch(remoteAsset(target),request)});
-  if(!response.ok||response.type==='opaque')throw new Error(`资源下载失败 (${response.status})：${url.pathname.split('/').pop()}`);
-  if(response.headers.get('content-type')?.includes('text/html')&&!url.pathname.endsWith('.html'))throw new Error(`资源地址返回了网页：${url.pathname.split('/').pop()}`);
-  const chunks=[];let received=0;const reader=response.body?.getReader();
-  try{if(reader){while(true){check(signal);const {done,value}=await reader.read();if(done)break;chunks.push(value);received+=value.byteLength;onProgress?.({loaded:received,total:bytes||received,fromCache:false,cached:false});}}
-    else{const value=new Uint8Array(await response.arrayBuffer());chunks.push(value);received=value.byteLength;}}
-  catch(error){await reader?.cancel(error).catch(()=>{});throw error;}
-  check(signal);if(Number.isFinite(bytes)&&received!==bytes)throw new Error(`资源不完整：${url.pathname.split('/').pop()}，请重试`);
-  const blob=new Blob(chunks,{type:response.headers.get('content-type')||'application/octet-stream'}),actual=await digest(await blob.arrayBuffer());
+  const {blob,headers,received}=await retryResource(retry=>{
+    if(retry)onProgress?.({loaded:0,total:bytes||0,fromCache:false,cached:false});
+    return readAssetBody(url,{signal,bytes,onProgress,cache:retry||damaged?'reload':sha256?'force-cache':'default'});
+  },signal);
+  const actual=await digest(await blob.arrayBuffer());
   check(signal);if(sha256&&actual!==sha256)throw new Error(`资源校验失败：${url.pathname.split('/').pop()}，请重试`);
-  const headers=new Headers(response.headers);headers.delete('content-encoding');headers.delete('transfer-encoding');headers.set('content-length',String(received));
+  headers.delete('content-encoding');headers.delete('transfer-encoding');headers.set('content-length',String(received));
   headers.set('x-dust2-sha256',actual);headers.set('x-dust2-bytes',String(received));headers.set('x-dust2-asset-url',url.href);
   const result=new Response(blob,{status:200,headers});let cached=false;
   if(cache){try{await cache.assets.put(hashKey(actual),result.clone());await cache.meta.put(indexKey(url),new Response(JSON.stringify({sha256:actual,bytes:received}),{headers:{'content-type':'application/json'}}));cached=true;requestPersistentStorage();changed();}
@@ -127,19 +151,122 @@ async function readCachedAsset(value,{sha256,bytes,signal,onProgress}={}){
   check(signal);onProgress?.({loaded:received,total:bytes||received,fromCache:false,cached});return result;
 }
 
-async function loadManifest({signal,refresh=true}={}){
-  check(signal);if(!refresh&&manifestMemory)return manifestMemory;const cache=await stores();
-  if(!refresh&&cache){const hit=await cache.meta.match(manifestURL());if(hit){manifestMemory=clientAssetManifest(await hit.json(),!!globalThis.__DUST2_PRIVATE_MAP__);return manifestMemory;}}
-  try{if(!bundled)await ensureDownloadOrigin(signal);
-    const manifestCacheMode=getStaticRuntime()?'force-cache':'no-cache';
-    const response=bundled?await fetch(manifestURL(),{cache:'no-cache',signal}):await fetchAssetDownload(manifestURL(),{pageURL:document.baseURI,cache:manifestCacheMode,signal});if(!response.ok)throw new Error(`资源清单加载失败 (${response.status})`);
-    const manifest=await response.clone().json();
-    if(!Array.isArray(manifest.files)||!manifest.files.every(f=>typeof f.path==='string'&&Number.isSafeInteger(f.bytes)&&f.bytes>=0&&/^[a-f\d]{64}$/i.test(f.sha256)))throw new Error('资源清单格式错误');
-    manifestMemory=clientAssetManifest(manifest,!!globalThis.__DUST2_PRIVATE_MAP__);manifestChecked=true;try{await cache?.meta.put(manifestURL(),response.clone());}catch{}return manifestMemory;
-  }catch(error){check(signal);const hit=await cache?.meta.match(manifestURL());if(hit){manifestMemory=clientAssetManifest(await hit.json(),!!globalThis.__DUST2_PRIVATE_MAP__);manifestChecked=true;return manifestMemory;}throw error;}
+async function readAssetBody(url,{signal,bytes,onProgress,cache}){
+  check(signal);
+  const name=url.pathname.split('/').pop(),controller=new AbortController();
+  const cancel=()=>controller.abort(signal.reason);
+  let timer,reader;
+  const touch=()=>{
+    clearTimeout(timer);
+    timer=setTimeout(()=>controller.abort(new Error(`资源长时间没有响应：${name}`)),20000);
+  };
+  signal?.addEventListener('abort',cancel,{once:true});
+  touch();
+  try{
+    const response=await fetchAssetDownload(url,{pageURL:document.baseURI,signal:controller.signal,cache,
+      fetcher:(target,request)=>fetch(remoteAsset(target),request)});
+    const type=response.headers.get('content-type')||'application/octet-stream';
+    if(!response.ok||response.type==='opaque')throw resourceResponseError(response,`资源下载失败 (${response.status})：${name}`);
+    if(type.includes('text/html')&&!url.pathname.endsWith('.html'))throw resourceResponseError(response,`资源地址返回了网页：${name}`);
+    touch();
+    const chunks=[];
+    let received=0;
+    reader=response.body?.getReader();
+    if(reader){
+      while(true){
+        const {done,value}=await reader.read();
+        if(done)break;
+        touch();
+        chunks.push(value);received+=value.byteLength;
+        onProgress?.({loaded:received,total:bytes||received,fromCache:false,cached:false});
+      }
+    }else{
+      const value=await response.arrayBuffer();
+      chunks.push(value);received=value.byteLength;
+    }
+    controller.signal.throwIfAborted();
+    if(Number.isFinite(bytes)&&received!==bytes)throw new Error(`资源不完整：${name}，请重试`);
+    return {blob:new Blob(chunks,{type}),headers:new Headers(response.headers),received};
+  }catch(error){
+    controller.abort(error);
+    await reader?.cancel(error).catch(()=>{});
+    throw controller.signal.reason;
+  }finally{
+    clearTimeout(timer);
+    signal?.removeEventListener('abort',cancel);
+    reader?.releaseLock();
+  }
 }
 
-async function matchManifest(manifest, flat, signal) {
+function validateManifest(manifest){
+  if(!Array.isArray(manifest?.files))throw new Error('资源清单格式错误');
+  const prefix=new URL('assets/',base()).href,seen=new Set();
+  for(const file of manifest.files){
+    if(typeof file?.path!=='string'||!file.path.startsWith('assets/')||/[\\?#]/.test(file.path)
+      ||!Number.isSafeInteger(file.bytes)||file.bytes<0||!validHash(file.sha256))throw new Error('资源清单格式错误');
+    const url=absolute(file.path).href;
+    if(url===prefix||!url.startsWith(prefix)||seen.has(url))throw new Error('资源清单路径错误');
+    seen.add(url);
+  }
+  return manifest;
+}
+
+async function cachedManifest(cache,{allowStale,signal}){
+  const url=manifestURL(),hit=await cache?.meta.match(url).catch(()=>null);
+  check(signal);
+  if(!hit)return null;
+  const savedAt=Number(hit.headers.get('x-dust2-manifest-fetched-at')),age=Date.now()-savedAt;
+  if(!allowStale&&(!savedAt||age<0||age>manifestMaxAgeMs))return null;
+  try{
+    const manifest=validateManifest(await hit.json());
+    check(signal);
+    return manifest;
+  }
+  catch{
+    check(signal);
+    await cache.meta.delete(url).catch(()=>{});
+    return null;
+  }
+}
+
+async function loadManifest({signal,refresh=true,offline=false}={}){
+  check(signal);if(!refresh&&manifestMemory)return manifestMemory;const cache=await stores();
+  const filtered=manifest=>clientAssetManifest(manifest,!!globalThis.__DUST2_PRIVATE_MAP__);
+  if(!refresh){
+    const cached=await cachedManifest(cache,{allowStale:true,signal});
+    if(cached)return filtered(cached);
+  }
+  try{if(!bundled)await ensureDownloadOrigin(signal);
+    const manifest=validateManifest(await retryResource(async()=>{
+      const localManifest=resolveStaticAsset('assets/'+assetManifestName(),document.baseURI)?.source==='toy';
+      const options={cache:!bundled&&localManifest?'force-cache':'no-cache',signal};
+      const response=bundled?await fetch(manifestURL(),options):await fetchAssetDownload(manifestURL(),{...options,pageURL:document.baseURI});
+      if(!response.ok)throw resourceResponseError(response,`资源清单加载失败 (${response.status})`);
+      return response.json();
+    },signal));
+    check(signal);
+    const response=new Response(JSON.stringify(manifest),{headers:{
+      'content-type':'application/json','x-dust2-manifest-fetched-at':String(Date.now()),
+    }});
+    await cache?.meta.put(manifestURL(),response).catch(()=>{});
+    manifestMemory=filtered(manifest);manifestChecked=true;return manifestMemory;
+  }catch(error){
+    check(signal);
+    if(isTransientResourceError(error)){
+      const cached=await cachedManifest(cache,{allowStale:offline,signal});
+      if(cached){manifestMemory=filtered(cached);manifestChecked=true;return manifestMemory;}
+    }
+    throw error;
+  }
+}
+
+async function matchManifest(manifest, flat, signal, matchOnly) {
+  // The other match resources verify their own files when they are first used.
+  if(matchOnly){
+    const files=manifest.files.filter(file=>matchAnimations.has(file.path));
+    if(files.length!==matchAnimations.size)throw new Error('资源清单缺少对局动画，请刷新后重试');
+    return {...manifest,files,totalBytes:files.reduce((sum,file)=>sum+file.bytes,0)};
+  }
   if (!flat) return manifest;
   const sceneFile = manifest.files.find(file => /\/dust2-(web|clear)\.gltf$/.test(file.path));
   if (!sceneFile) return flatMatchManifest(manifest);
@@ -147,10 +274,10 @@ async function matchManifest(manifest, flat, signal) {
   return flatMatchManifest(manifest, cutoutImagePaths(await response.json(), sceneFile.path));
 }
 
-async function collectAssets({signal,onProgress,makeBlobs=false,flat=false}={}){
+async function collectAssets({signal,onProgress,makeBlobs=false,flat=false,matchOnly=false,offline=false}={}){
   if(makeBlobs)releaseDownloads();const controller=new AbortController(),parent=signal,abort=()=>controller.abort(parent?.reason);
   parent?.addEventListener('abort',abort,{once:true});if(parent?.aborted)abort();signal=controller.signal;let workers=[];
-  try{const manifest=await matchManifest(await loadManifest({signal}),flat,signal),total=manifest.files.reduce((n,f)=>n+f.bytes,0);
+  try{const manifest=await matchManifest(await loadManifest({signal,offline}),flat,signal,matchOnly),total=manifest.files.reduce((n,f)=>n+f.bytes,0);
     let next=0,complete=0,bytes=0,lastBytes=0,lastTime=performance.now(),rate=0,cachedFiles=0;
     const tick=current=>{const now=performance.now(),elapsed=(now-lastTime)/1000;if(elapsed>.35){rate=(bytes-lastBytes)/elapsed;lastTime=now;lastBytes=bytes;}onProgress?.({bytes,total,complete,count:manifest.files.length,rate,current,cachedFiles});};tick('准备地图资源');
     workers=Array.from({length:2},async()=>{while(next<manifest.files.length){check(signal);const file=manifest.files[next++],url=absolute(file.path);url.searchParams.set('v',file.sha256.slice(0,12));let seen=0,fromCache=false;
@@ -161,7 +288,7 @@ async function collectAssets({signal,onProgress,makeBlobs=false,flat=false}={}){
   finally{parent?.removeEventListener('abort',abort);}
 }
 export async function downloadAssets(options={}){
-  if(bundled){const manifest=await matchManifest(await loadManifest({signal:options.signal}),options.flat,options.signal);const installed=await bundledManifest();const files=new Map(installed.files.map(f=>[f.path,f]));if(!manifest.files.every(f=>files.get(f.path)?.sha256===f.sha256))throw Error('基础资源不完整，请下载完整客户端。');options.onProgress?.({bytes:manifest.totalBytes,total:manifest.totalBytes,complete:manifest.files.length,count:manifest.files.length,rate:0,current:'读取已安装资源'});return manifest;}
+  if(bundled){const manifest=await matchManifest(await loadManifest({signal:options.signal,offline:options.offline}),options.flat,options.signal,options.matchOnly);const installed=await bundledManifest();const files=new Map(installed.files.map(f=>[f.path,f]));if(!manifest.files.every(f=>files.get(f.path)?.sha256===f.sha256))throw Error('基础资源不完整，请下载完整客户端。');options.onProgress?.({bytes:manifest.totalBytes,total:manifest.totalBytes,complete:manifest.files.length,count:manifest.files.length,rate:0,current:'读取已安装资源'});return manifest;}
   // A worker serves verified asset entries only in its own document directory.
   // The root worker deliberately passes /play/ through; those map pages need
   // Blob URLs so GLTF/texture readers reuse the bytes just fetched from CDN.

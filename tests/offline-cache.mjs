@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
+import { createHash, webcrypto } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 
@@ -10,6 +10,7 @@ class MemoryCache {
   entries=new Map(); fail=false;
   async match(value){return this.entries.get(key(value))?.clone();}
   async put(value,response){if(this.fail)throw new DOMException('Full','QuotaExceededError');this.entries.set(key(value),response.clone());}
+  async delete(value){return this.entries.delete(key(value));}
   async keys(){return [...this.entries.keys()].map(url=>new Request(url));}
 }
 class MemoryStorage {
@@ -54,6 +55,49 @@ test('SHA assets survive module reload, report decoded bytes and serve without n
   r=await second.fetchCachedAsset(file.path,{sha256:file.sha256,bytes:file.bytes});
   assert.equal(await r.text(),'map-one');assert.equal(f.requests.length,count);
   assert.equal(r.headers.get('content-length'),'7');assert.equal(r.headers.get('x-dust2-sha256'),file.sha256);
+});
+
+test('a damaged saved asset is removed and fetched again with the HTTP cache bypassed',async()=>{
+  const f=await fixture(),[file]=f.files({'assets/arms.bin':'whole','assets/sound.ogg':'sound'});
+  await f.api.saveBaseAssets();
+  const assets=await f.cache.open('dust2-assets-v1:/dust2/');
+  const cachedKey=f.base+'__asset_cache__/sha256/'+file.sha256;
+  const cached=await assets.match(cachedKey);
+  await assets.put(cachedKey,new Response('worn!',{headers:cached.headers}));
+  f.routes.set('/dust2/assets/arms.bin',(_,{cache})=>{
+    assert.equal(cache,'reload');
+    return new Response('whole');
+  });
+  assert.equal(await(await f.api.fetchCachedAsset(file.path)).text(),'whole');
+  assert.equal(await(await assets.match(cachedKey)).text(),'whole');
+  assert.equal(assets.entries.size,2);
+});
+
+test('online manifest fallback is fresh and validated, while offline play can use an older valid copy',async()=>{
+  const f=await fixture();f.files({'assets/arms.bin':'whole'});
+  await f.api.saveBaseAssets();
+  const url=f.base+'assets/asset-manifest.json',meta=await f.cache.open('dust2-meta-v1:/dust2/');
+  const manifest=await (await meta.match(url)).json();
+  const save=(body,age)=>meta.put(url,Response.json(body,{headers:{'x-dust2-manifest-fetched-at':String(Date.now()-age)}}));
+  f.routes.set('/dust2/assets/asset-manifest.json',new Response(null,{status:503}));
+  assert.equal((await f.api.downloadAssets()).files.length,1);
+  await save(manifest,6*60*1000);
+  assert.equal((await f.api.getAssetCacheStats()).complete,true);
+  await assert.rejects(f.api.downloadAssets(),/503/);
+  assert.equal((await f.api.downloadAssets({offline:true})).files.length,1);
+  await save({files:[{...manifest.files[0],path:'assets/../index.html'}]},0);
+  await assert.rejects(f.api.downloadAssets(),/503/);
+  assert.equal(await meta.match(url),undefined);
+  await save(manifest,0);
+  f.routes.set('/dust2/assets/asset-manifest.json',Response.json({files:[null]}));
+  await assert.rejects(f.api.downloadAssets(),/资源清单格式错误/);
+});
+
+test('concurrent unlisted asset versions each read their own URL',async()=>{
+  const f=await fixture();f.files({});
+  f.routes.set('/dust2/assets/optional.bin',url=>new Response(url.searchParams.get('v')));
+  const [one,two]=await Promise.all(['one','two'].map(v=>f.api.fetchCachedAsset('assets/optional.bin?v='+v)));
+  assert.deepEqual(await Promise.all([one.text(),two.text()]),['one','two']);
 });
 
 test('save/update only downloads changed SHA, retains earlier versions and counts optional assets',async()=>{
@@ -146,7 +190,7 @@ async function workerFixture(prefix='/dust2/'){
   put('assets/main-hash.css','@import "./fonts.css";.menu{background:url("./hero.webp")}');put('assets/fonts.css','@font-face{src:url("./text.woff2")}');
   put('assets/hero.webp','image');put('assets/text.woff2','font');
   put('manifest.webmanifest',JSON.stringify({icons:[{src:'icons/icon-192.png'}]}),'application/manifest+json');put('icons/icon-192.png','icon');
-  const context=vm.createContext({URL,Request,Response,Headers,console,caches:cache,fetch:async value=>{const url=key(value);requests.push(url);if(!routes.has(url))throw new TypeError('Offline');return routes.get(url).clone();},self:{registration:{scope:base},addEventListener:(name,fn)=>handlers[name]=fn,skipWaiting:async()=>{},clients:{claim:async()=>{}}}});
+  const context=vm.createContext({URL,Request,Response,Headers,console,crypto:webcrypto,caches:cache,fetch:async value=>{const url=key(value);requests.push(url);if(!routes.has(url))throw new TypeError('Offline');return routes.get(url).clone();},self:{registration:{scope:base},addEventListener:(name,fn)=>handlers[name]=fn,skipWaiting:async()=>{},clients:{claim:async()=>{}}}});
   vm.runInContext(await readFile(new URL('../public/sw.js',import.meta.url),'utf8'),context);
   async function install(){const promises=[];handlers.install({waitUntil:p=>promises.push(p)});await Promise.all(promises);}
   async function dispatch(path,mode='cors',method='GET'){
@@ -181,6 +225,21 @@ test('worker serves exact manifest SHA and optional index from the same persiste
   const optional=new URL('assets/optional.glb?v=1',f.base);await meta.put(f.base+'__asset_cache__/url/'+encodeURIComponent(optional.href),new Response(JSON.stringify({sha256:hash})));
   assert.equal(await(await f.dispatch(optional.href)).text(),'real asset');
   await assert.rejects(f.dispatch('assets/map.bin?v=unknown'),/Offline/);
+});
+
+test('worker bypasses damaged bytes and an expired unversioned manifest',async()=>{
+  const f=await workerFixture(),meta=await f.cache.open('dust2-meta-v1:/dust2/'),assets=await f.cache.open('dust2-assets-v1:/dust2/');
+  const hash=sha('whole'),path='assets/arms.glb',key=f.base+'__asset_cache__/sha256/'+hash;
+  const manifest={files:[{path,bytes:5,sha256:hash}]};
+  await meta.put(f.base+'assets/asset-manifest.json',Response.json(manifest,{headers:{'x-dust2-manifest-fetched-at':String(Date.now()-6*60*1000)}}));
+  await assets.put(key,new Response('whole'));
+  f.put(path,'updated');
+  assert.equal(await(await f.dispatch(path)).text(),'updated');
+  const versioned=path+'?v='+hash.slice(0,12);
+  f.put(versioned,'whole');
+  await assets.put(key,new Response('worn!'));
+  assert.equal(await(await f.dispatch(versioned)).text(),'whole');
+  assert.equal(await assets.match(key),undefined);
 });
 
 test('offline registration is scope-relative; persistence and install prompts require explicit API calls',async()=>{

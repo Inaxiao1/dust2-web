@@ -1,12 +1,12 @@
 import * as THREE from 'three';
 import {clone} from 'three/addons/utils/SkeletonUtils.js';
 import {loadedSkin,loadSkin,retainSkin,releaseSkin} from './skin-assets.js';
-import {getWeapon} from '../shared/weapons.js';
 import {getSkin} from '../shared/skins.js';
 import {disposeInstanceSkeletons} from './resource-lifecycle.js';
 import {raycastWorld} from '../shared/physics.js';
+import {DroppedWeaponPrompt} from './dropped-weapon-prompt.js';
 export class DroppedWeapons{
- constructor(scene){this.scene=scene;this.items=new Map();this.pending=new Map();this.retry=new Map();this.drops=[];this.hint=document.createElement('div');this.hint.id='pickup-prompt';this.hint.hidden=true;this.hint.style.cssText='position:fixed;left:50%;top:60%;transform:translateX(-50%);padding:10px 18px;background:#111b24c9;color:#ecf2f4;border-bottom:2px solid #cbd8df;font:15px sans-serif;pointer-events:none;z-index:8';document.body.append(this.hint);}
+ constructor(scene,renderer,weaponScene){this.scene=scene;this.items=new Map();this.pending=new Map();this.retry=new Map();this.drops=[];this.prompt=new DroppedWeaponPrompt(renderer,weaponScene);}
  sync(snapshot){this.drops=snapshot.droppedWeapons||[];}
  update(player,camera,active,binding='E'){
   const nearby=this.drops.map(d=>({d,distance:Math.hypot(d.x-camera.position.x,d.y-camera.position.y,d.z-camera.position.z)})).filter(o=>o.distance<28).sort((a,b)=>a.distance-b.distance).slice(0,12),keep=new Set(nearby.map(o=>o.d.id));
@@ -39,9 +39,8 @@ export class DroppedWeapons{
     const obstruction=raycastWorld(eye,delta,pickupDistance);if(obstruction===null||obstruction>=pickupDistance-.12)candidate={d,distance:pickupDistance};
    }
   }
-  this.hint.hidden=!candidate;
-  if(candidate)this.hint.textContent=`[${binding}] 拾取 ${getWeapon(candidate.d.weaponId).name} · ${getSkin(candidate.d.skinId)?.name||''} · ${candidate.d.ammo} / ${candidate.d.reserve}`;
+  this.prompt.update(candidate?.d,binding);
  }
- clear(){for(const item of this.items.values()){item.group.removeFromParent();disposeInstanceSkeletons(item.group);releaseSkin(item.skinId);}this.items.clear();this.drops=[];this.hint.hidden=true;}
- dispose(){this.clear();this.hint.remove();}
+ clear(){for(const item of this.items.values()){item.group.removeFromParent();disposeInstanceSkeletons(item.group);releaseSkin(item.skinId);}this.items.clear();this.drops=[];this.prompt.clear();}
+ dispose(){this.clear();this.prompt.dispose();}
 }

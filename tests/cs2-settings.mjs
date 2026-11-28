@@ -23,8 +23,9 @@ test('CS reference FOV is horizontal 4:3, while Three receives vertical degrees'
 test('CS mouse counts retain .022 degree base, and use linear engine FOV zoom ratio', () => {
   near(mouseRadiansPerCount(1) * 180 / Math.PI, 0.022);
   near(mouseRadiansPerCount(2, 'pitch'), 2 * mouseRadiansPerCount(1));
-  near(mouseRadiansPerCount(50, 'yaw'), 50 * mouseRadiansPerCount(1));
-  near(mouseRadiansPerCount(100, 'yaw'), 100 * mouseRadiansPerCount(1));
+  near(mouseRadiansPerCount(), 3.5 * mouseRadiansPerCount(1));
+  near(mouseRadiansPerCount(0.5), mouseRadiansPerCount(1));
+  near(mouseRadiansPerCount(100), 7 * mouseRadiansPerCount(1));
   near(mouseRadiansPerCount(1, 'yaw', 40) / mouseRadiansPerCount(1), 40 / 90);
   near(mouseRadiansPerCount(1, 'yaw', 10, 0.818933) / mouseRadiansPerCount(1), 10 / 90 * 0.818933);
   near(mouseRadiansPerCount(1, 'yaw', CS2_BASE_FOV, 0.5), mouseRadiansPerCount(1));
@@ -67,7 +68,11 @@ test('persisted/UI settings preserve zero, reject markup and clamp nonfinite val
   assert.equal(s.outlineThickness, 0); assert.equal(s.__unexpected, undefined);
   assert.deepEqual(normalizeCrosshair(null), normalizeCrosshair(DEFAULT_CROSSHAIR));
   assert.deepEqual(normalizeAimSettings({ sensitivity: NaN, zoomSensitivity: -100, invertY: '0' }),
-    { sensitivity: 1, zoomSensitivity: 0.01, invertY: false });
+    { sensitivity: 3.5, zoomSensitivity: 0.01, invertY: false });
+  assert.equal(normalizeAimSettings().sensitivity, 3.5);
+  assert.equal(normalizeAimSettings({ sensitivity: '0.8' }).sensitivity, 1);
+  assert.equal(normalizeAimSettings({ sensitivity: '25' }).sensitivity, 7);
+  assert.equal(normalizeAimSettings({ sensitivity: '2.75' }).sensitivity, 2.75);
 });
 
 test('style 4 never widens on movement; classic dynamic style and preview options work', () => {

@@ -1,0 +1,13 @@
+@font-face {
+  font-family: CS2Stratum;
+  src: url('./original-hud/stratum2_tf_bold.otf') format('opentype');
+  font-weight: 600 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: CS2Stratum;
+  src: url('./original-hud/stratum2-medium.otf') format('opentype');
+  font-weight: 400 500;
+  font-display: swap;
+}

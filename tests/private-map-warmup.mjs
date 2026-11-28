@@ -21,6 +21,13 @@ test('cancelled warmup never starts a first render',async()=>{
  const f=fixture(),abort=new AbortController();f.args.signal=abort.signal;f.args.yieldFrame=async()=>abort.abort();
  await assert.rejects(warmPrivateMap(f.args),{name:'AbortError'});assert(!f.log.some(e=>e[0]==='render'));
 });
+test('standard map entry uploads textures and renders just the spawn view',async()=>{
+ const f=fixture(),result=await warmPrivateMap({...f.args,viewCount:1});
+ assert.equal(result.textures,2);
+ assert.deepEqual(f.log.filter(e=>e[0]==='render').map(e=>e[1]),[.4,undefined]);
+ assert.equal(f.rotation.y,.4);
+ assert.equal(f.args.renderer.autoClear,false);
+});
 test('render failure restores camera and renderer; graphics loss fails before uploading',async()=>{
  const f=fixture();f.args.renderer.render=()=>{throw Error('upload failed');};
  await assert.rejects(warmPrivateMap(f.args),/upload failed/);assert.equal(f.rotation.y,.4);assert.equal(f.args.renderer.autoClear,false);

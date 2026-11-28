@@ -13,7 +13,7 @@ function fixture({download=async()=>{},privateMap=false,map=async()=>({positions
  const events=[],element={value:'T',textContent:''};
  const context=vm.createContext({
   AbortController,DOMException,setTimeout,clearTimeout,performance,Promise,
-  loaded:false,privateMap,downloadAbort:null,downloadProgress:()=>{},privateLoadProgress:()=>{},
+  loaded:false,privateMap,connection:{offline:false},downloadAbort:null,downloadProgress:()=>{},privateLoadProgress:()=>{},
   flatMapSelected:()=>false,downloadAssets:download,setLoadStage:()=>{},mobileDevice:()=>false,paint:async()=>{},
   modelsReady:true,mapResultCache:privateMap?null:{positions:[]},createMapScene:map,
   diagnostics:{event:()=>{}},audio:{start:async()=>events.push('audio-samples')},
@@ -57,6 +57,33 @@ test('cancelled original-map preparation does not leave audio sample work runnin
  if(!preparation.includes('if(privateMap'))return t.skip('Public baseline has no private-map preparation branch');
  const f=fixture({privateMap:true,map:async()=>{throw new DOMException('Cancelled','AbortError');}});
  await assert.rejects(f.run(),{name:'AbortError'});assert.deepEqual(f.events,[]);
+});
+
+test('standard map and animation loading overlap and cancel together on failure',async()=>{
+ const failure=new Error('map unavailable'),events=[];
+ const f=fixture({
+  privateMap:{flatOnly:true},
+  download:({signal,matchOnly})=>new Promise((_resolve,reject)=>{
+   assert.equal(matchOnly,true);
+   events.push('animations');
+   signal.addEventListener('abort',()=>{events.push('cancelled');reject(signal.reason);},{once:true});
+  }),
+  map:async()=>{events.push('map');throw failure;},
+ });
+ await assert.rejects(f.run(),error=>error===failure);
+ assert.deepEqual(events,['animations','map','cancelled']);
+ assert.deepEqual(f.events,[]);
+});
+
+test('a graphics preparation retry reuses the already installed collision data',async()=>{
+ const positions=[0,0,0],initialized=[];
+ const f=fixture({privateMap:true,map:async()=>({positions})});
+ f.context.PRIVATE_MOVEMENT_MODEL='private-movement';
+ f.context.initPhysics=source=>initialized.push(source);
+ f.context.renderer.compileAsync=async()=>{throw new Error('GPU preparation failed');};
+ await assert.rejects(f.run(),/GPU preparation failed/);
+ await assert.rejects(f.run(),/GPU preparation failed/);
+ assert.deepEqual(initialized,[positions]);
 });
 
 test('already prepared scene resumes audio without repeating base prefetch',async()=>{

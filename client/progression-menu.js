@@ -55,10 +55,7 @@ export class ProgressionMenu {
     modal.innerHTML = `
       <section class="prog-card">
         <header class="prog-header">
-          <div>
-            <span class="eyebrow">TOY PROGRESSION // 云端成长与互动福利</span>
-            <h2 id="prog-menu-title">成长任务 &amp; Toy 专属奖励</h2>
-          </div>
+          <h2 id="prog-menu-title">成长任务</h2>
           <div class="prog-header-actions">
             <button type="button" class="prog-btn-subtle" data-prog-sync>同步云存档</button>
             <button type="button" class="prog-close" aria-label="关闭成长任务">完成 ×</button>
@@ -74,7 +71,6 @@ export class ProgressionMenu {
                   <strong data-prog-name>干员读取中…</strong>
                   <span class="prog-rank-pill" data-prog-rank>Lv.1 列兵新秀</span>
                 </div>
-                <small data-prog-uid>干员状态</small>
                 <div class="prog-xp-bar"><i data-prog-xp-fill style="width:0%"></i></div>
                 <div class="prog-xp-meta">
                   <span data-prog-xp-text>经验 0 / 600</span>
@@ -89,19 +85,23 @@ export class ProgressionMenu {
 
           <section class="prog-section">
             <div class="prog-section-head">
-              <h3>B站 Toy 专属互动解锁（关注 &amp; 一键三连）</h3>
-              <small>通过官方 Toy SDK 自动核验，验证后即时永久写入 Toy 云存档</small>
+              <h3>实战解锁</h3>
+              <small data-prog-unlock-summary></small>
+            </div>
+            <div class="prog-roadmap" data-prog-roadmap></div>
+          </section>
+
+          <section class="prog-section">
+            <div class="prog-section-head">
+              <h3>B站 Toy 奖励</h3>
             </div>
             <div class="prog-social-grid">
               <article class="prog-social-card" data-social-card="follow">
                 <div class="prog-social-top">
-                  <div>
-                    <span class="prog-tag prog-tag-follow">关注 UP 主礼包</span>
-                    <h4>关注即领 2 名探员 + 10 款精选皮肤/匕首</h4>
-                  </div>
+                  <h4>关注礼包</h4>
                   <span class="prog-state-pill" data-follow-state>未解锁</span>
                 </div>
-                <p class="prog-social-items" data-follow-items></p>
+                <details><summary>查看奖励</summary><p class="prog-social-items" data-follow-items></p></details>
                 <div class="prog-social-actions">
                   <button type="button" class="prog-btn-subtle" data-go-follow>前往 UP 主主页</button>
                   <button type="button" class="prog-btn-gold" data-check-follow>验证关注并解锁</button>
@@ -111,13 +111,12 @@ export class ProgressionMenu {
               <article class="prog-social-card" data-social-card="triple">
                 <div class="prog-social-top">
                   <div>
-                    <span class="prog-tag prog-tag-triple">一键三连礼包</span>
-                    <h4>点赞+投币+收藏解锁 2 名王牌探员 + 蝴蝶刀/爪子刀/火神等 10 款</h4>
+                    <h4>三连礼包</h4>
                   </div>
                   <span class="prog-state-pill" data-triple-state>未解锁</span>
                 </div>
                 <div class="prog-triple-steps" data-triple-steps></div>
-                <p class="prog-social-items" data-triple-items></p>
+                <details><summary>查看奖励</summary><p class="prog-social-items" data-triple-items></p></details>
                 <div class="prog-social-actions">
                   <button type="button" class="prog-btn-subtle" data-go-video>前往视频三连</button>
                   <button type="button" class="prog-btn-gold" data-check-triple>验证三连并解锁</button>
@@ -126,20 +125,13 @@ export class ProgressionMenu {
             </div>
           </section>
 
-          <section class="prog-section">
-            <div class="prog-section-head">
-              <h3>实战成长解锁路线（武器专精 &amp; 生涯战绩）</h3>
-              <small data-prog-unlock-summary>已解锁 36 / 216 皮肤 · 2 / 10 探员</small>
-            </div>
-            <div class="prog-roadmap" data-prog-roadmap></div>
-          </section>
         </div>
 
         <footer class="prog-footer">
-          <div class="prog-status" role="status" aria-live="polite" data-prog-status>开局仅配备原厂基础枪械与默认匕首；使用对应武器累计击杀可解锁专属涂装，累计生涯战绩可解锁匕首与探员。</div>
+          <div class="prog-status" role="status" aria-live="polite" data-prog-status></div>
           <div class="prog-footer-links">
-            <button type="button" class="prog-btn-subtle" data-jump-agents>前往探员仓库</button>
-            <button type="button" class="prog-btn-subtle" data-jump-skins>前往皮肤库</button>
+            <button type="button" class="prog-btn-subtle" data-jump-agents>探员仓库</button>
+            <button type="button" class="prog-btn-subtle" data-jump-skins>皮肤库</button>
           </div>
         </footer>
       </section>
@@ -243,15 +235,12 @@ export class ProgressionMenu {
     }
     this.element.querySelector('[data-prog-name]').textContent = idState.displayName;
     this.element.querySelector('[data-prog-rank]').textContent = `Lv.${career.level} ${career.rankTitle}`;
-    this.element.querySelector('[data-prog-uid]').textContent = idState.source === 'toy' && idState.authenticated
-      ? 'B站 Toy 身份 · 云存档已同步'
-      : '本地干员 · 离线存档';
     this.element.querySelector('[data-prog-xp-fill]').style.width = `${career.pct}%`;
     this.element.querySelector('[data-prog-xp-text]').textContent = career.level >= 30
       ? `总经验 ${career.xp} · 已达满级`
-      : `经验 ${career.intoLevel} / ${career.stepXp}（累计 ${career.xp}）`;
+      : `经验 ${career.intoLevel} / ${career.stepXp}`;
     const cloudBadge = this.element.querySelector('[data-prog-cloud-badge]');
-    cloudBadge.textContent = cloud.message;
+    cloudBadge.textContent = this.store.isToy ? cloud.message : '本地存档';
     cloudBadge.dataset.status = cloud.status;
 
     const authBtn = this.element.querySelector('[data-prog-auth]');
@@ -259,15 +248,15 @@ export class ProgressionMenu {
     authBtn.disabled = this.busy;
 
     this.element.querySelector('[data-prog-stats]').innerHTML = [
-      ['累计击杀', p.kills],
-      ['爆头击杀', p.headshots],
-      ['完成局数', p.matches],
-      ['完成回合', p.rounds],
-      ['总胜场', p.wins],
+      ['击杀', p.kills],
+      ['爆头', p.headshots],
+      ['对局', p.matches],
+      ['回合', p.rounds],
+      ['胜场', p.wins],
     ].map(([label, val]) => `<div class="prog-stat-box"><strong>${val}</strong><span>${label}</span></div>`).join('');
 
     this.element.querySelector('[data-prog-unlock-summary]').textContent =
-      `已解锁 ${summary.skinsUnlocked} / ${summary.skinsTotal} 皮肤与匕首 · ${summary.agentsUnlocked} / ${summary.agentsTotal} 探员`;
+      `皮肤 ${summary.skinsUnlocked} / ${summary.skinsTotal} · 探员 ${summary.agentsUnlocked} / ${summary.agentsTotal}`;
 
     // Follow card
     const followNames = [
@@ -297,9 +286,9 @@ export class ProgressionMenu {
     ];
     this.element.querySelector('[data-triple-items]').textContent = `包含：${tripleNames.join('、')} 等共 ${TOY_TRIPLE_AGENT_IDS.length + TOY_TRIPLE_SKIN_IDS.length} 件`;
     this.element.querySelector('[data-triple-steps]').innerHTML = [
-      ['👍 点赞', p.social.liked || p.social.tripled],
-      ['🪙 投币', p.social.coined || p.social.tripled],
-      ['⭐ 收藏', p.social.favorited || p.social.tripled],
+      ['点赞', p.social.liked || p.social.tripled],
+      ['投币', p.social.coined || p.social.tripled],
+      ['收藏', p.social.favorited || p.social.tripled],
     ].map(([label, done]) => `<span class="prog-step ${done ? 'done' : ''}">${label} ${done ? '✓' : ''}</span>`).join('');
     const tripleState = this.element.querySelector('[data-triple-state]');
     tripleState.textContent = p.social.tripled ? '✓ 已解锁' : '待三连';
@@ -326,16 +315,15 @@ export class ProgressionMenu {
       const thumb = isAgent
         ? `<div class="prog-ms-badge">${obj.team}</div>`
         : `<img src="${skinPreviewURL(obj)}" alt="" loading="lazy" decoding="async">`;
-      const subtitle = isAgent ? `${obj.team} 探员` : (obj.weapon === 'knife' ? '近战匕首' : (getWeapon(obj.weapon)?.name || obj.weapon));
+      const name = isAgent ? obj.name.split(/\s*\|\s*|\s+·\s+/)[0] : obj.name;
+      card.title = obj.name;
       card.innerHTML = `
         <div class="prog-ms-art">${thumb}</div>
         <div class="prog-ms-info">
-          <span class="prog-ms-sub">${subtitle}</span>
-          <strong>${obj.name}</strong>
-          <small>${ev.progressText}</small>
-          <div class="prog-ms-bar"><i style="width:${ev.pct}%"></i></div>
+          <strong>${name}</strong>
+          <small>${ev.unlocked ? '已解锁' : ev.progressText}</small>
+          <div class="prog-ms-bar" aria-hidden="true"><i style="width:${ev.pct}%"></i></div>
         </div>
-        <span class="prog-ms-status">${ev.unlocked ? '去装备 →' : `${ev.pct}%`}</span>
       `;
       card.onclick = () => {
         this.close();

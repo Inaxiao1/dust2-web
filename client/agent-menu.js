@@ -36,8 +36,13 @@ export class AgentMenu {
     this.busy=false;this.destroyed=false;this.activeTeam='CT';
     const modal=document.createElement('div');modal.id='agent-menu';modal.className='overlay';modal.hidden=true;
     modal.setAttribute('role','dialog');modal.setAttribute('aria-modal','true');
-    modal.setAttribute('aria-labelledby','agent-menu-title');modal.setAttribute('aria-describedby','agent-menu-description');
-    modal.innerHTML=`<section class="agent-card"><header><div><span class="eyebrow">AGENT LOADOUT // 成长与 Toy 解锁</span><h2 id="agent-menu-title">探员仓库</h2></div><div class="agent-header-actions">${onProgression?'<button class="agent-sub-btn" type="button" data-agent-open-prog>成长任务</button>':''}<button class="agent-close" type="button" aria-label="关闭探员仓库">完成 ×</button></div></header><p id="agent-menu-description">开局配备 CT/T 基础探员；精英探员可通过实战击杀/局数或 B站 Toy 关注与三连免费解锁并同步云存档。</p><div class="agent-growth-bar"><div class="agent-growth-info" data-agent-growth-info></div><div class="agent-growth-actions"><button type="button" class="agent-social-btn" data-agent-verify-follow>关注解锁</button><button type="button" class="agent-social-btn agent-social-gold" data-agent-verify-triple>三连解锁</button></div></div><div class="agent-teams"></div><footer><p>探员只改变外观，战斗属性保持一致。</p><progress class="agent-progress" max="100" hidden aria-label="探员下载进度"></progress><div class="agent-status" role="status" aria-live="polite"></div></footer></section>`;
+    modal.setAttribute('aria-labelledby','agent-menu-title');
+    modal.innerHTML=`<section class="agent-card">
+      <header><h2 id="agent-menu-title">探员仓库</h2><div class="agent-header-actions">${onProgression?'<button class="agent-sub-btn" type="button" data-agent-open-prog>成长任务</button>':''}<button class="agent-close" type="button" aria-label="关闭探员仓库">完成 ×</button></div></header>
+      <div class="agent-growth-bar"><div class="agent-growth-info" data-agent-growth-info></div><div class="agent-growth-actions"><button type="button" class="agent-social-btn" data-agent-verify-follow>关注解锁</button><button type="button" class="agent-social-btn agent-social-gold" data-agent-verify-triple>三连解锁</button></div></div>
+      <div class="agent-teams"></div>
+      <footer><progress class="agent-progress" max="100" hidden aria-label="探员下载进度"></progress><div class="agent-status" role="status" aria-live="polite"></div></footer>
+    </section>`;
     document.body.append(modal);this.element=modal;
     modal.querySelector('.agent-close').onclick=()=>this.close();
     modal.querySelector('[data-agent-open-prog]')?.addEventListener('click',()=>{this.close();onProgression?.();});
@@ -62,7 +67,9 @@ export class AgentMenu {
     if(this.destroyed)return;
     this.loadout=readAgentLoadout(this.store);
     if(TEAMS.some(([id])=>id===team))this.activeTeam=team;
-    this.previousFocus=document.activeElement;this.element.hidden=false;this.render();
+    this.previousFocus=document.activeElement;this.element.hidden=false;
+    if(!this.busy)this.status('');
+    this.render();
     this.element.querySelector('.agent-close').focus();
   }
 
@@ -89,16 +96,12 @@ export class AgentMenu {
   render(){
     if(this.destroyed)return;
     const progress=this.store.progress;
-    const career=this.store.career;
     const summary=this.store.summary;
-    const info=this.element.querySelector('[data-agent-growth-info]');
-    if(info){
-      info.innerHTML=`<strong>Lv.${career.level} ${career.rankTitle}</strong><span>击杀 ${progress.kills}</span><span>局数 ${progress.matches}</span><span>已解锁 ${summary.agentsUnlocked}/${summary.agentsTotal}</span>`;
-    }
+    this.element.querySelector('[data-agent-growth-info]').textContent=`已解锁 ${summary.agentsUnlocked} / ${summary.agentsTotal}`;
     const fBtn=this.element.querySelector('[data-agent-verify-follow]');
     const tBtn=this.element.querySelector('[data-agent-verify-triple]');
-    if(fBtn){fBtn.textContent=progress.social.followed?'✓ 已关注解锁':'关注 UP 主解锁';fBtn.classList.toggle('done',progress.social.followed);fBtn.disabled=this.busy;}
-    if(tBtn){tBtn.textContent=progress.social.tripled?'✓ 已三连解锁':'一键三连解锁';tBtn.classList.toggle('done',progress.social.tripled);tBtn.disabled=this.busy;}
+    if(fBtn){fBtn.textContent=progress.social.followed?'已关注':'关注解锁';fBtn.classList.toggle('done',progress.social.followed);fBtn.disabled=this.busy;}
+    if(tBtn){tBtn.textContent=progress.social.tripled?'已三连':'三连解锁';tBtn.classList.toggle('done',progress.social.tripled);tBtn.disabled=this.busy;}
 
     const focusedAgent=this.element.contains(document.activeElement)?document.activeElement?.dataset?.agent:null;
     const teams=this.element.querySelector('.agent-teams');teams.replaceChildren();teams.setAttribute('aria-busy',String(this.busy));
@@ -118,43 +121,32 @@ export class AgentMenu {
         button.classList.toggle('locked',!ev.unlocked);
         button.disabled=this.busy;button.setAttribute('aria-pressed',String(selected));
         button.setAttribute('aria-label',`${label}：${agent.name}${selected?'，已装备':''}${!ev.unlocked?'，未解锁':''}`);
+        button.title=agent.name;
         const visual=document.createElement('div');visual.className='agent-visual';
         const fallback=document.createElement('div');fallback.className='agent-placeholder';fallback.setAttribute('aria-hidden','true');
         const letters=document.createElement('strong');letters.textContent=team;
-        const unit=document.createElement('span');unit.textContent=agent.englishName||agent.name;
-        fallback.append(letters,unit);visual.append(fallback);
+        fallback.append(letters);visual.append(fallback);
         const preview=typeof agent.preview==='string'?agent.preview:agent.preview?.file;
         if(preview){
           const image=document.createElement('img');image.alt='';image.loading='lazy';image.decoding='async';
-          image.onload=()=>{fallback.hidden=true;};image.onerror=()=>{image.remove();fallback.hidden=false;};
+          image.onload=()=>{fallback.hidden=true;};image.onerror=()=>{image.remove();};
           image.src=imageAssetURL(preview);visual.append(image);
         }
-        const badge=document.createElement('span');badge.className='agent-default';
-        if(agent.isDefault){badge.textContent='开局默认';}
-        else if(ev.unlocked){badge.textContent='✓ 已解锁';badge.dataset.kind='open';}
-        else if(req?.type==='toy_follow'){badge.textContent='🔒 关注 UP 主';badge.dataset.kind='toy_follow';}
-        else if(req?.type==='toy_triple'){badge.textContent='🔒 一键三连';badge.dataset.kind='toy_triple';}
-        else{badge.textContent='🔒 成长解锁';badge.dataset.kind='growth';}
-        visual.append(badge);
-
-        const name=document.createElement('b');name.className='agent-name';name.textContent=agent.name;
-        const english=document.createElement('span');english.className='agent-english';english.textContent=agent.englishName||'';
+        const name=document.createElement('b');name.className='agent-name';
+        const [character,unit]=agent.name.split(/\s*\|\s*|\s+·\s+/);
+        name.textContent=agent.isDefault&&unit?unit:character;
         const note=document.createElement('small');note.className='agent-item-state';
+        let state;
         if(!ev.unlocked){
-          note.textContent=req?.type==='toy_follow'
-            ?'点击验证 B站关注免费解锁'
-            :req?.type==='toy_triple'
-              ?ev.progressText
-              :`未解锁 · ${ev.progressText}`;
+          state=req?.type==='toy_follow'?'关注解锁':req?.type==='toy_triple'?'三连解锁':ev.progressText;
         }else{
-          note.textContent=selected?'✓ 已装备':agent.isDefault?'CS2 基础探员':Number(agent.bytes)>0?`装备 · ${((agent.bytes+(AGENT_ARM_ASSETS[agent.id]?.bytes||0))/1048576).toFixed(1)} MB`:'装备 · 按需下载';
+          state=selected?'已装备':'装备';
         }
-        button.append(visual,name,english);
-        if(!ev.unlocked){
-          const bar=document.createElement('div');bar.className='agent-unlock-bar';bar.innerHTML=`<i style="width:${ev.pct}%"></i>`;
-          button.append(bar);
+        for(const text of state.split(' · ')){
+          const detail=document.createElement('span');detail.textContent=text;note.append(detail);
         }
-        button.append(note);
+        button.setAttribute('aria-description',state);
+        button.append(visual,name,note);
         button.onclick=()=>this.equip(agent);grid.append(button);
       }
       section.append(heading,grid);teams.append(section);
