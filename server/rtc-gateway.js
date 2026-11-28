@@ -21,6 +21,7 @@ function rewriteSdpCandidates(rawSdp, candidates, { localIp, publicIp }) {
   };
   const isPublicMode = Boolean(publicIp && publicIp !== '127.0.0.1');
   const lines = mapIp(rawSdp).split(/\r?\n/).filter((line) => {
+    if (!line.trim()) return false;
     if (!line.startsWith('a=candidate:')) return true;
     if (isPublicMode && !line.includes(` ${publicIp} `)) return false;
     return true;
@@ -28,13 +29,14 @@ function rewriteSdpCandidates(rawSdp, candidates, { localIp, publicIp }) {
   const seen = new Set(lines.filter((l) => l.startsWith('a=candidate:')));
   for (const raw of candidates) {
     const line = mapIp(raw.startsWith('a=') ? raw : `a=${raw}`).trim();
+    if (!line) continue;
     if (isPublicMode && !line.includes(` ${publicIp} `)) continue;
     if (!seen.has(line)) {
       seen.add(line);
       lines.push(line);
     }
   }
-  return lines.filter((l, i, arr) => l.length > 0 || i < arr.length - 1).join('\r\n') + '\r\n';
+  return lines.join('\r\n') + '\r\n';
 }
 
 /**

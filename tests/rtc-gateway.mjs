@@ -263,6 +263,7 @@ test('WebRTC UDP DataChannel end-to-end join, delta snapshots, and multi-shard r
     const answer = await res.json();
     assert.equal(answer.ok, true);
     assert.equal(answer.type, 'answer');
+    assert.ok(!answer.sdp.includes('\r\n\r\n'), 'answer SDP must not contain blank lines (strict Chrome RFC 4566 parser)');
     assert.ok(answer.sdp.includes(String(udpPort)), 'answer SDP should advertise server UDP mux port');
     pc.setRemoteDescription(answer.sdp, 'answer');
     await dcOpen;
