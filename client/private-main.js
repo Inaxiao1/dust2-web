@@ -42,9 +42,15 @@ async function bootstrap(){
   if(!response.ok)throw resourceResponseError(response,label+'暂不可用 ('+response.status+')');
   return response.json();
  });
+ const configQuery=new URLSearchParams();
+ const hintNode=initialParams.get('node');
+ const hintRoom=initialParams.get('room');
+ if(hintNode&&/^[a-zA-Z0-9_-]{1,32}$/.test(hintNode))configQuery.set('node',hintNode);
+ if(hintRoom&&/^[A-Za-z0-9]{4,12}$/.test(hintRoom))configQuery.set('room',hintRoom.toUpperCase());
+ const configSuffix=configQuery.toString()?('?'+configQuery.toString()):'';
  const configEndpoint=rt&&parsedMatchRoute
-  ? gameApiURL('/perf/play/'+parsedMatchRoute.mapId+'/private-map.json')
-  : new URL('private-map.json',location.href);
+  ? gameApiURL('/perf/play/'+parsedMatchRoute.mapId+'/private-map.json'+configSuffix)
+  : new URL('private-map.json'+configSuffix,location.href);
  const originalConfig=privateConfig(await request(configEndpoint,'私有地图配置'),location.href,{apiOrigin:rt?.gameServerOrigin||null});
  const delivery=await retryResource(()=>initDownloadOrigin({configURL:new URL('../../../download-config.json',originalConfig.renderUrl),pageURL:location.href}));
  hydrateHomeImages();

@@ -303,12 +303,17 @@ const directory = mountRoomDirectory($('onlineRooms'), {
       location.assign(matchRouteUrl(room.mapId, new URLSearchParams({ room: room.code, join: '1', matchMode: room.mode })));
     }
   },
-  onCount: (rooms, humans) => {
+  onCount: (rooms, humans, cluster) => {
     const statusText = $('serverStatusText');
     if (statusText) {
-      statusText.textContent = rooms > 0
-        ? `${humans} 人在线 · ${rooms} 个活跃房间`
-        : '服务在线 · 5v5 实时联网';
+      if (cluster?.full && cluster?.totalCapacity) {
+        statusText.textContent = `全服满载 · ${humans}/${cluster.totalCapacity} 人在线`;
+      } else if (rooms > 0) {
+        const cap = cluster?.totalCapacity ? `/${cluster.totalCapacity}` : '';
+        statusText.textContent = `${humans}${cap} 人在线 · ${rooms} 个活跃房间`;
+      } else {
+        statusText.textContent = '服务在线 · 5v5 实时联网';
+      }
     }
     refreshQuickJoin();
     refreshMapActivity();
@@ -466,18 +471,25 @@ function renderQuickJoinUI(rec) {
   const title = $('quickJoinTitle');
   const hint = $('quickJoinHint');
   if (!rec || !title || !hint) return;
+  if (rec.action === 'full' || rec.clusterFull) {
+    title.textContent = '全服人数已满 · 暂缓进局';
+    hint.textContent = rec.message || '所有战区节点已达上限，请稍后再试';
+    return;
+  }
   if (rec.action === 'join' && rec.room) {
     const r = rec.room;
     const mapLabel = r.mapNameZh || r.mapName || r.mapId;
     const modeLabel = modeLabels[r.mode] || '对战';
+    const nodeTag = r.nodeLabel ? `${r.nodeLabel} · ` : '';
     title.textContent = `快速加入 · ${mapLabel}`;
-    hint.textContent = `${modeLabel} · ${r.humans}/${r.capacity} 真人在线 · 点击直连`;
+    hint.textContent = `${nodeTag}${modeLabel} · ${r.humans}/${r.capacity} 真人在线 · 点击直连`;
   } else {
     const mapObj = maps.find(m => m.id === rec.mapId) || selected;
     const mapLabel = mapObj?.nameZh || '炙热沙城 II';
     const modeLabel = modeLabels[rec.mode] || '竞技爆破';
+    const nodeTag = rec.nodeLabel ? `${rec.nodeLabel} · ` : '';
     title.textContent = `快速开战 · ${mapLabel}`;
-    hint.textContent = `秒开「${modeLabel}」新战局 · 自动补齐人机`;
+    hint.textContent = `${nodeTag}秒开「${modeLabel}」新战局 · 自动补齐人机`;
   }
 }
 
@@ -728,6 +740,10 @@ $('quickJoinBtn')?.addEventListener('click', async () => {
     }
     const params = new URLSearchParams({ mode: quickMode, preferredMap });
     const fresh = await json(apiUrl('/perf/quick-join.json?' + params)).catch(() => latestRecommendation);
+    if (fresh?.action === 'full' || fresh?.clusterFull) {
+      renderQuickJoinUI(fresh);
+      return;
+    }
     if (fresh?.joinUrl) {
       location.assign(toLocalMatchUrl(fresh.joinUrl));
       return;

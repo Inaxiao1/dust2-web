@@ -25,12 +25,15 @@ export function directoryJoinPath(room, graphics) {
   if (!mapId.test(room.mapId) || !roomCode.test(room.code) || !Object.hasOwn(modeLabels, room.mode)) return null;
   const quality = graphics === 'quality' && room.qualityAvailable;
   const rt = staticRuntime();
+  const nodeParam = typeof room.nodeId === 'string' && /^[a-zA-Z0-9_-]{1,32}$/.test(room.nodeId) ? room.nodeId : '';
   if (rt) {
     const params = new URLSearchParams({map:room.mapId, room:room.code, join:'1', matchMode:room.mode});
     if (quality) params.set('quality', '1');
+    if (nodeParam) params.set('node', nodeParam);
     return (rt.staticPlayPath || './play.html') + '?' + params;
   }
   const params = new URLSearchParams({room:room.code, join:'1', matchMode:room.mode});
+  if (nodeParam) params.set('node', nodeParam);
   return '/perf/' + (quality ? 'quality/' : '') + 'play/' + room.mapId + '/?' + params;
 }
 
@@ -65,7 +68,7 @@ export function mountRoomDirectory(section, {
   status.setAttribute('role', 'status');
   const list = node('div', 'directory-list', '');
   section.append(heading, status, list);
-  let rooms = null, signature = null, request = null, nextPoll, deadline;
+  let rooms = null, clusterMeta = null, signature = null, request = null, nextPoll, deadline;
   let away = false, disposed = false, partial = false;
 
   function setStatus(value) {
@@ -78,14 +81,15 @@ export function mountRoomDirectory(section, {
     const name = room.mapNameZh || room.mapName || room.mapId;
     details.append(node('h3', '', name + ' · ' + modeLabels[room.mode]));
     const seats = room.capacity - room.humans;
-    details.append(node('div', 'directory-meta', '房间 ' + room.code + ' · ' + room.humans + ' 名玩家 · '
+    const nodePrefix = room.nodeLabel ? room.nodeLabel + ' · ' : '';
+    details.append(node('div', 'directory-meta', nodePrefix + '房间 ' + room.code + ' · ' + room.humans + ' 名玩家 · '
       + room.bots + ' 名人机 · 可加入 ' + (room.joinable ? seats : 0) + ' 人'));
     details.append(node('div', 'directory-players', '在线玩家　' + room.players.join('、')));
     const joinable = room.joinable && seats > 0;
     const fallback = graphicsMode === 'quality' && !room.qualityAvailable;
     const rejoin = last?.room === room.code && (last.mapId ?? 'de_dust2') === room.mapId;
     const action = node(joinable ? 'a' : 'span', 'directory-join', joinable
-      ? (rejoin ? '重新加入' : '加入房间') + (fallback ? ' · 高帧率' : '') : (seats ? '已结束' : '已满员'));
+      ? (rejoin ? '重新加入' : '加入房间') + (fallback ? ' · 高帧率' : '') : (seats ? '节点已满' : '已满员'));
     if (joinable) {
       action.href = directoryJoinPath(room, graphicsMode);
       action.dataset.room = room.mapId + ':' + room.code;
@@ -111,9 +115,10 @@ export function mountRoomDirectory(section, {
       (next || refreshButton).focus({preventScroll:true});
     }
     const humans = rooms.reduce((count, room) => count + room.humans, 0);
-    const summary = rooms.length ? rooms.length + ' 个房间 · ' + humans + ' 名玩家在线' : (partial ? '已响应的地图暂无玩家在线' : '当前所有地图均无玩家在线。');
+    const capText = clusterMeta?.totalCapacity ? `（上限 ${clusterMeta.totalCapacity}）` : '';
+    const summary = rooms.length ? rooms.length + ' 个房间 · ' + humans + ' 名玩家在线' + capText : (partial ? '已响应的地图暂无玩家在线' : '当前所有地图均无玩家在线。');
     setStatus(summary + (partial ? ' · 部分地图暂未响应' : ''));
-    onCount?.(rooms.length, humans);
+    onCount?.(rooms.length, humans, clusterMeta);
   }
 
   function active() { return !disposed && !away && !document.hidden && visible(); }
@@ -137,6 +142,7 @@ export function mountRoomDirectory(section, {
       if (!Array.isArray(data.rooms)) throw Error('Invalid room directory');
       if (request !== current || !active()) return;
       rooms = availableRooms(data.rooms);
+      clusterMeta = data.cluster && typeof data.cluster === 'object' ? data.cluster : null;
       partial = data.partial === true;
       render();
     } catch {

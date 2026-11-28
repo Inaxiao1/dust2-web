@@ -1,6 +1,7 @@
 /** Loopback nine-map gateway. Start and retire game workers on demand. */
 import http from 'node:http';
 import net from 'node:net';
+import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
@@ -56,6 +57,63 @@ const preferredWsOrigins=(()=>{
   }
   return out.slice(0,4);
 })();
+const nodeId=(process.env.PERF_NODE_ID||'local').trim().replace(/[^a-zA-Z0-9_-]/g,'').slice(0,32)||'local';
+const nodeLabel=(process.env.PERF_NODE_LABEL||'').trim().slice(0,24);
+const publicWsOrigin=(()=>{
+  const raw=(process.env.PERF_PUBLIC_WS_ORIGIN||'').trim();
+  if(raw){
+    try{
+      const u=new URL(raw);
+      if((u.protocol==='https:'||u.protocol==='http:')&&!u.username&&!u.password)return u.origin;
+    }catch{}
+  }
+  return preferredWsOrigins[0]||'';
+})();
+const maxHumans=Math.max(0,Math.floor(Number(process.env.PERF_MAX_HUMANS)||0));
+const hardMaxHumans=maxHumans>0?Math.max(maxHumans,Math.floor(Number(process.env.PERF_HARD_MAX_HUMANS)||0)||maxHumans):0;
+const maxLoadPerCpu=Math.max(0,Number(process.env.PERF_MAX_LOAD_PER_CPU)||0);
+const clusterPeers=(()=>{
+  const raw=(process.env.PERF_CLUSTER_PEERS||'').trim();
+  if(!raw)return [];
+  const out=[];
+  const seen=new Set([nodeId]);
+  for(const entry of raw.split(',').map(v=>v.trim()).filter(Boolean)){
+    const parts=entry.split('|').map(v=>v.trim());
+    let id='',label='',originRaw='';
+    if(parts.length>=3){[id,label,originRaw]=parts;}
+    else if(parts.length===2){[id,originRaw]=parts;}
+    else{originRaw=parts[0];}
+    try{
+      const u=new URL(originRaw);
+      if((u.protocol!=='https:'&&u.protocol!=='http:')||u.username||u.password)continue;
+      const cleanId=(id||u.hostname.replace(/[^a-zA-Z0-9_-]/g,'')).slice(0,32);
+      if(!cleanId||seen.has(cleanId))continue;
+      seen.add(cleanId);
+      out.push({
+        id:cleanId,
+        label:(label||cleanId).slice(0,24),
+        origin:u.origin,
+        publicWsOrigin:u.origin,
+        healthy:false,
+        ready:false,
+        draining:false,
+        humans:0,
+        maxHumans:0,
+        hardMaxHumans:0,
+        overloaded:false,
+        full:false,
+        hardFull:false,
+        load1m:0,
+        cpus:1,
+        rooms:[],
+        failCount:0,
+        updatedAt:0,
+      });
+    }catch{}
+  }
+  return out;
+})();
+const clusterRoomToPeer=new Map();
 const allowedOrigins=(()=>{
   const raw=process.env.PERF_ALLOWED_ORIGINS;
   if(!raw)return null;
@@ -105,6 +163,170 @@ const mapWorkers=id=>workers.get(id)||[];
 const isLiveWorker=w=>!!(w&&!w.retiring&&!w.child.killed&&w.child.exitCode===null&&w.child.signalCode===null);
 const isReadyWorker=w=>!!(w?.port&&isLiveWorker(w));
 const totalWorkerCount=()=>allWorkers().length;
+const localActiveConnections=()=>{let total=0;for(const w of allWorkers())total+=w.connections||0;return total;};
+function localNodeSnapshot(){
+  const humans=localActiveConnections();
+  const cpus=Math.max(1,os.cpus().length||1);
+  const load1m=+os.loadavg()[0].toFixed(2);
+  const overloaded=maxLoadPerCpu>0&&(load1m/cpus)>=maxLoadPerCpu;
+  const full=maxHumans>0&&humans>=maxHumans;
+  const hardFull=hardMaxHumans>0&&humans>=hardMaxHumans;
+  return {
+    id:nodeId,
+    label:nodeLabel||nodeId,
+    local:true,
+    healthy:true,
+    ready:!draining,
+    draining,
+    publicWsOrigin,
+    humans,
+    maxHumans,
+    hardMaxHumans,
+    availableSlots:maxHumans>0?Math.max(0,maxHumans-humans):null,
+    full,
+    hardFull,
+    overloaded,
+    load1m,
+    cpus,
+  };
+}
+function peerNodeSnapshot(peer){
+  const stale=peer.updatedAt===0||(Date.now()-peer.updatedAt>15000);
+  const healthy=peer.healthy&&!stale;
+  return {
+    id:peer.id,
+    label:peer.label,
+    local:false,
+    healthy,
+    ready:healthy&&peer.ready,
+    draining:peer.draining,
+    origin:peer.origin,
+    publicWsOrigin:peer.publicWsOrigin||peer.origin,
+    humans:peer.humans,
+    maxHumans:peer.maxHumans,
+    hardMaxHumans:peer.hardMaxHumans,
+    availableSlots:peer.maxHumans>0?Math.max(0,peer.maxHumans-peer.humans):null,
+    full:peer.full,
+    hardFull:peer.hardFull,
+    overloaded:peer.overloaded,
+    load1m:peer.load1m,
+    cpus:peer.cpus,
+  };
+}
+function buildClusterSummary(){
+  const nodes=[localNodeSnapshot(),...clusterPeers.map(peerNodeSnapshot)];
+  const healthyNodes=nodes.filter(n=>n.healthy&&n.ready&&!n.draining);
+  const totalHumans=nodes.reduce((s,n)=>s+(n.humans||0),0);
+  const allBounded=healthyNodes.length>0&&healthyNodes.every(n=>n.maxHumans>0);
+  const totalCapacity=allBounded?healthyNodes.reduce((s,n)=>s+n.maxHumans,0):null;
+  const hasEligible=rankClusterNodesForNewRoom().length>0;
+  return {totalHumans,totalCapacity,full:!hasEligible,nodes};
+}
+function rankClusterNodesForNewRoom(){
+  const nodes=[localNodeSnapshot(),...clusterPeers.map(peerNodeSnapshot)];
+  const eligible=nodes.filter(n=>n.healthy&&n.ready&&!n.draining&&!n.overloaded&&!n.full&&!n.hardFull);
+  eligible.sort((a,b)=>{
+    const utilA=a.maxHumans>0?(a.humans/a.maxHumans):(a.humans/100);
+    const utilB=b.maxHumans>0?(b.humans/b.maxHumans):(b.humans/100);
+    const cpuA=a.cpus>0?Math.max(0,(a.load1m/a.cpus)-0.65)*0.5:0;
+    const cpuB=b.cpus>0?Math.max(0,(b.load1m/b.cpus)-0.65)*0.5:0;
+    return (utilA+cpuA)-(utilB+cpuB)||a.humans-b.humans;
+  });
+  return eligible;
+}
+function resolveClusterNodeById(id){
+  if(!id)return null;
+  if(id===nodeId)return localNodeSnapshot();
+  const peer=clusterPeers.find(p=>p.id===id);
+  return peer?peerNodeSnapshot(peer):null;
+}
+function resolveWsOriginsForRequest(mapId,requestedNodeId='',requestedRoomCode=''){
+  const cleanRoom=normalizeRoomCode(requestedRoomCode);
+  if(cleanRoom){
+    const localWorker=roomToWorker.get(mapId+':'+cleanRoom);
+    if(localWorker&&isLiveWorker(localWorker)){
+      return {wsOrigins:publicWsOrigin?[publicWsOrigin]:preferredWsOrigins,node:localNodeSnapshot(),clusterFull:false};
+    }
+    const peer=clusterRoomToPeer.get(mapId+':'+cleanRoom);
+    if(peer){
+      const snap=peerNodeSnapshot(peer);
+      if(snap.healthy)return {wsOrigins:[snap.publicWsOrigin],node:snap,clusterFull:false};
+    }
+  }
+  if(requestedNodeId){
+    const target=resolveClusterNodeById(requestedNodeId);
+    if(target&&target.healthy&&target.ready&&!target.draining){
+      const origins=[];
+      if(target.publicWsOrigin)origins.push(target.publicWsOrigin);
+      return {wsOrigins:origins.length?origins:preferredWsOrigins,node:target,clusterFull:false};
+    }
+  }
+  if(!clusterPeers.length){
+    const local=localNodeSnapshot();
+    const full=local.draining||local.full||local.hardFull||local.overloaded;
+    return {wsOrigins:preferredWsOrigins,node:local,clusterFull:full};
+  }
+  const ranked=rankClusterNodesForNewRoom();
+  if(ranked.length){
+    const origins=[];
+    for(const n of ranked){
+      if(n.publicWsOrigin&&!origins.includes(n.publicWsOrigin))origins.push(n.publicWsOrigin);
+    }
+    if(ranked[0].local){
+      for(const o of preferredWsOrigins){if(!origins.includes(o))origins.push(o);}
+    }
+    return {wsOrigins:origins.slice(0,4),node:ranked[0],clusterFull:false};
+  }
+  return {wsOrigins:preferredWsOrigins,node:localNodeSnapshot(),clusterFull:true};
+}
+let clusterPollRunning=false;
+async function pollClusterPeers(){
+  if(!clusterPeers.length||clusterPollRunning)return;
+  clusterPollRunning=true;
+  try{
+    await Promise.allSettled(clusterPeers.map(async(peer)=>{
+      try{
+        const [hRes,rRes]=await Promise.all([
+          fetch(peer.origin+'/perf/health?local=1',{cache:'no-store',signal:AbortSignal.timeout(2500)}),
+          fetch(peer.origin+'/perf/rooms.json?local=1',{cache:'no-store',signal:AbortSignal.timeout(2500)}),
+        ]);
+        if(!hRes.ok||!rRes.ok)throw Error('peer-status');
+        const [health,dir]=await Promise.all([hRes.json(),rRes.json()]);
+        const node=health.node||{};
+        peer.healthy=true;
+        peer.failCount=0;
+        peer.ready=health.ready===true&&health.draining!==true;
+        peer.draining=health.draining===true;
+        peer.humans=Number.isFinite(node.humans)?node.humans:(Number(health.network?.humans)||0);
+        peer.maxHumans=Number.isFinite(node.maxHumans)?node.maxHumans:0;
+        peer.hardMaxHumans=Number.isFinite(node.hardMaxHumans)?node.hardMaxHumans:peer.maxHumans;
+        peer.full=Boolean(node.full||(peer.maxHumans>0&&peer.humans>=peer.maxHumans));
+        peer.hardFull=Boolean(node.hardFull||(peer.hardMaxHumans>0&&peer.humans>=peer.hardMaxHumans));
+        peer.overloaded=Boolean(node.overloaded);
+        peer.load1m=Number.isFinite(node.load1m)?node.load1m:0;
+        peer.cpus=Number.isFinite(node.cpus)&&node.cpus>0?node.cpus:1;
+        if(typeof node.publicWsOrigin==='string'&&node.publicWsOrigin)peer.publicWsOrigin=node.publicWsOrigin;
+        peer.rooms=Array.isArray(dir.rooms)?dir.rooms:[];
+        peer.updatedAt=Date.now();
+      }catch{
+        peer.failCount++;
+        if(peer.failCount>=2){peer.healthy=false;peer.rooms=[];}
+      }
+    }));
+    clusterRoomToPeer.clear();
+    for(const peer of clusterPeers){
+      if(!peer.healthy)continue;
+      for(const row of peer.rooms){
+        if(row?.mapId&&row?.code)clusterRoomToPeer.set(row.mapId+':'+row.code,peer);
+      }
+    }
+  }finally{
+    clusterPollRunning=false;
+  }
+}
+const clusterPollTimer=clusterPeers.length?setInterval(()=>{void pollClusterPeers();},2500):null;
+clusterPollTimer?.unref();
+if(clusterPeers.length)void pollClusterPeers();
 const types={'.js':'text/javascript','.mjs':'text/javascript','.css':'text/css','.html':'text/html; charset=utf-8','.json':'application/json','.gltf':'model/gltf+json','.glb':'model/gltf-binary','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.avif':'image/avif','.webp':'image/webp','.svg':'image/svg+xml','.hdr':'application/octet-stream','.ogg':'audio/ogg','.mp3':'audio/mpeg','.woff2':'font/woff2','.ttf':'font/ttf'};
 const json=(res,code,data)=>res.writeHead(code,{'Content-Type':'application/json','Cache-Control':'no-store'}).end(JSON.stringify(data));
 function file(req,res,location,immutable=false){
@@ -405,7 +627,7 @@ async function fetchControlPlane(apiPath, options = {}) {
   return { status: response.status, ok: response.ok, data };
 }
 
-async function performanceRooms() {
+async function performanceRooms({localOnly=false}={}){
   if (controlPlaneUrl) {
     const { ok, data } = await fetchControlPlane('/api/v1/rooms');
     if (!ok || !Array.isArray(data.rooms)) throw Error('控制面房间目录暂时不可用');
@@ -423,6 +645,8 @@ async function performanceRooms() {
     }
   }
   const results = await Promise.allSettled(occupied.map(({worker}) => readWorkerRooms(worker)));
+  const localSnap = localNodeSnapshot();
+  const localBlocked = localSnap.draining || localSnap.hardFull;
   const rooms = [];
   let unavailable = 0, responding = 0;
   for (const [index, {map, worker}] of occupied.entries()) {
@@ -433,14 +657,49 @@ async function performanceRooms() {
       if (row?.phase === 'matchEnded') continue;
       roomToWorker.set(map.id + ':' + row.code, worker);
       worker.knownRooms.add(row.code);
-      rooms.push({...row, id:map.id+':'+row.code, mapId:map.id, mapName:map.name, mapNameZh:map.nameZh, qualityAvailable:qualityPacks.has(map.id)});
+      const joinable = !localBlocked && row.joinable === true && (Number(row.humans) || 0) < (Number(row.capacity) || 10);
+      rooms.push({
+        ...row,
+        joinable,
+        id: map.id + ':' + row.code,
+        mapId: map.id,
+        mapName: map.name,
+        mapNameZh: map.nameZh,
+        qualityAvailable: qualityPacks.has(map.id),
+        ...(clusterPeers.length || nodeLabel ? {nodeId: localSnap.id, nodeLabel: localSnap.label, wsOrigin: localSnap.publicWsOrigin || undefined} : {}),
+      });
     }
   }
-  if (unavailable && !responding) throw Error('地图房间目录暂时不可用');
+  if (!localOnly && clusterPeers.length) {
+    if (clusterPeers.some(p => p.updatedAt === 0)) await pollClusterPeers();
+    const seenIds = new Set(rooms.map(r => r.id));
+    for (const peer of clusterPeers) {
+      const pSnap = peerNodeSnapshot(peer);
+      if (!pSnap.healthy) continue;
+      const peerBlocked = pSnap.draining || pSnap.hardFull;
+      for (const row of peer.rooms) {
+        if (!row || !maps.has(row.mapId) || row.phase === 'matchEnded') continue;
+        const rid = row.mapId + ':' + row.code;
+        if (seenIds.has(rid)) continue;
+        seenIds.add(rid);
+        const joinable = !peerBlocked && row.joinable === true && (Number(row.humans) || 0) < (Number(row.capacity) || 10);
+        rooms.push({
+          ...row,
+          joinable,
+          id: rid,
+          nodeId: pSnap.id,
+          nodeLabel: pSnap.label,
+          wsOrigin: pSnap.publicWsOrigin,
+        });
+      }
+    }
+  }
+  if (unavailable && !responding && !rooms.length) throw Error('地图房间目录暂时不可用');
   rooms.sort((a,b) => Number(b.joinable)-Number(a.joinable) || b.humans-a.humans || a.id.localeCompare(b.id));
   const totalHumans = rooms.reduce((sum, r) => sum + r.humans, 0);
   const joinableRooms = rooms.filter(r => r.joinable && r.humans < r.capacity).length;
-  return {rooms, totalRooms: rooms.length, totalHumans, joinableRooms, ...(unavailable ? {partial:true} : {})};
+  const cluster = !localOnly && (clusterPeers.length > 0 || maxHumans > 0) ? buildClusterSummary() : undefined;
+  return {rooms, totalRooms: rooms.length, totalHumans, joinableRooms, ...(cluster ? {cluster} : {}), ...(unavailable ? {partial:true} : {})};
 }
 
 async function quickJoinRecommendation(modeParam, preferredMap) {
@@ -490,27 +749,47 @@ async function quickJoinRecommendation(modeParam, preferredMap) {
   });
   if (candidates.length) {
     const room = candidates[0];
-    const params = new URLSearchParams({ room: room.code, join: '1', matchMode: room.mode });
+    const params = new URLSearchParams({ room: room.code, join: '1', matchMode: room.mode, ...(room.nodeId ? { node: room.nodeId } : {}) });
     return {
       action: 'join',
       room,
+      ...(room.nodeId ? { nodeId: room.nodeId, nodeLabel: room.nodeLabel } : {}),
       joinUrl: '/perf/play/' + room.mapId + '/?' + params,
       totalRooms: directory.totalRooms,
       totalHumans: directory.totalHumans,
       joinableRooms: directory.joinableRooms,
+      ...(directory.cluster ? { cluster: directory.cluster } : {}),
     };
   }
+  const rankedNodes = rankClusterNodesForNewRoom();
+  if (!rankedNodes.length) {
+    const cluster = directory.cluster || buildClusterSummary();
+    return {
+      action: 'full',
+      clusterFull: true,
+      message: cluster.totalCapacity
+        ? `当前全服在线已达上限（${cluster.totalHumans}/${cluster.totalCapacity} 人），请稍后重试。`
+        : '当前服务器人数已满，请稍后重试。',
+      totalRooms: directory.totalRooms,
+      totalHumans: directory.totalHumans,
+      joinableRooms: 0,
+      cluster,
+    };
+  }
+  const bestNode = rankedNodes[0];
   const fallbackMap = maps.has(preferredMap) ? preferredMap : (maps.has('de_dust2') ? 'de_dust2' : [...maps][0]);
   const fallbackMode = wantedMode === 'deathmatch' ? 'deathmatch' : 'defuse';
-  const params = new URLSearchParams({ autostart: '1', matchMode: fallbackMode });
+  const params = new URLSearchParams({ autostart: '1', matchMode: fallbackMode, ...(clusterPeers.length ? { node: bestNode.id } : {}) });
   return {
     action: 'create',
     mapId: fallbackMap,
     mode: fallbackMode,
+    ...(clusterPeers.length ? { nodeId: bestNode.id, nodeLabel: bestNode.label } : {}),
     joinUrl: '/perf/play/' + fallbackMap + '/?' + params,
     totalRooms: directory.totalRooms,
     totalHumans: directory.totalHumans,
     joinableRooms: 0,
+    ...(directory.cluster ? { cluster: directory.cluster } : {}),
   };
 }
 
@@ -535,10 +814,11 @@ async function findRoomByCode(rawCode) {
   const directory = await performanceRooms();
   const room = directory.rooms.find(r => r.code === code);
   if (!room) return { found: false, error: '未找到该房间码对应的活跃公开房间。' };
-  const params = new URLSearchParams({ room: room.code, join: '1', matchMode: room.mode });
+  const params = new URLSearchParams({ room: room.code, join: '1', matchMode: room.mode, ...(room.nodeId ? { node: room.nodeId } : {}) });
   return {
     found: true,
     room,
+    ...(room.nodeId ? { nodeId: room.nodeId, nodeLabel: room.nodeLabel } : {}),
     joinUrl: '/perf/play/' + room.mapId + '/?' + params,
   };
 }
@@ -585,7 +865,7 @@ async function remoteWorkerOriginForMap(mapId) {
   }
 }
 
-function mapConfig(id,originOrWorker,quality){
+function mapConfig(id,originOrWorker,quality,{requestedNodeId='',requestedRoomCode=''}={}){
   const baseOrigin=typeof originOrWorker==='string'?originOrWorker:('http://127.0.0.1:'+originOrWorker.port);
   return fetch(baseOrigin+'/private-map.json').then(r=>r.json()).then(config=>{
     const remap=path.join(root,id,'flat-breakables.json');
@@ -611,7 +891,13 @@ function mapConfig(id,originOrWorker,quality){
         mobileUrl:hasMobileDust2?'/perf/assets/map-mobile/dust2-clear.gltf':'/perf/assets/map-cs2/dust2-web.gltf?v=e4f2b2d3903c',
       },
     }:{};
-    const wsRouteMeta={...(preferredWsOrigins.length?{wsOrigins:preferredWsOrigins}:{}),rtcEnabled:false};
+    const routed=resolveWsOriginsForRequest(id,requestedNodeId,requestedRoomCode);
+    const wsRouteMeta={
+      ...(routed.wsOrigins.length?{wsOrigins:routed.wsOrigins}:{}),
+      ...(clusterPeers.length||nodeLabel?{nodeId:routed.node.id,nodeLabel:routed.node.label}:{}),
+      ...(routed.clusterFull?{clusterFull:true}:{}),
+      rtcEnabled:false,
+    };
     if(quality)return {...config,...urls,...cosmetics,...wsRouteMeta,flatOnly:false,graphicsMode:'quality',renderUrl:'/perf/quality/maps/'+id+'/render/map.gltf'};
     return {...config,...urls,...cosmetics,...compactMeta,...texturedMeta,...wsRouteMeta,flatOnly:true,...(fs.existsSync(remap)?{flatBreakableVisuals:JSON.parse(fs.readFileSync(remap))}:{})};
   });
@@ -682,7 +968,7 @@ const server=http.createServer(async(req,res)=>{
     if(logicGatewayOnly){json(res,404,{ok:false,error:'UI_DISABLED_LOGIC_GATEWAY'});return;}
     file(req,res,path.join(reviewAssets,'mode-ui/index.html'));return;
   }
-  if(p==='/perf/rooms.json'){json(res,200,await performanceRooms());return;}
+  if(p==='/perf/rooms.json'){json(res,200,await performanceRooms({localOnly:url.searchParams.get('local')==='1'}));return;}
   if(p==='/perf/quick-join.json'){json(res,200,await quickJoinRecommendation(url.searchParams.get('mode'),url.searchParams.get('preferredMap')));return;}
   if(p==='/perf/find-room.json'){json(res,200,await findRoomByCode(url.searchParams.get('code')));return;}
   if(p==='/perf/graphics.json'){
@@ -739,8 +1025,11 @@ const server=http.createServer(async(req,res)=>{
     json(res,200,{ok:true,network,rtc:{enabled:false},...store});return;
   }
   if(p==='/perf/health'){
+    const localOnly=url.searchParams.get('local')==='1';
     const network=await refreshLiveNetwork(false);
-    json(res,200,{ok:true,ready:!draining,draining,disableLocalAssets,logicGatewayOnly,maxWorkers,workerMaxRooms:Number(workerMaxRooms),shardTargetRooms,controlPlane:!!controlPlaneUrl,maps:maps.size,rtc:{enabled:false},network,workers:allWorkers().map(w=>({id:w.id,shard:w.shard,active:w.connections>0,connections:w.connections}))});return;
+    const node=localNodeSnapshot();
+    const cluster=!localOnly&&(clusterPeers.length>0||maxHumans>0)?buildClusterSummary():undefined;
+    json(res,200,{ok:true,ready:!draining,draining,disableLocalAssets,logicGatewayOnly,maxWorkers,workerMaxRooms:Number(workerMaxRooms),shardTargetRooms,controlPlane:!!controlPlaneUrl,maps:maps.size,node,...(cluster?{cluster}:{}),rtc:{enabled:false},network,workers:allWorkers().map(w=>({id:w.id,shard:w.shard,active:w.connections>0,connections:w.connections}))});return;
   }
   if(p==='/perf/api/maps'){
     if(controlPlaneUrl){
@@ -801,12 +1090,16 @@ const server=http.createServer(async(req,res)=>{
       if(!html.includes('<base href="/perf/">'))html=html.replace('<head>','<head><base href="/perf/">');
       res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-cache'}).end(req.method==='HEAD'?undefined:html);return;
     }
+    const routeHint={requestedNodeId:url.searchParams.get('node')||'',requestedRoomCode:url.searchParams.get('room')||''};
+    if(play[2]==='private-map.json'&&clusterPeers.length&&clusterPeers.some(peer=>peer.updatedAt===0)){
+      await pollClusterPeers();
+    }
     const remoteOrigin=controlPlaneUrl?await remoteWorkerOriginForMap(play[1]):null;
     if(remoteOrigin){
-      json(res,200,play[2]==='private-map.json'?await mapConfig(play[1],remoteOrigin,quality):await fetch(remoteOrigin+'/health').then(r=>r.json()));return;
+      json(res,200,play[2]==='private-map.json'?await mapConfig(play[1],remoteOrigin,quality,routeHint):await fetch(remoteOrigin+'/health').then(r=>r.json()));return;
     }
     const w=await ensureWorker(play[1]);
-    json(res,200,play[2]==='private-map.json'?await mapConfig(play[1],w,quality):await fetch('http://127.0.0.1:'+w.port+'/health').then(r=>r.json()));return;
+    json(res,200,play[2]==='private-map.json'?await mapConfig(play[1],w,quality,routeHint):await fetch('http://127.0.0.1:'+w.port+'/health').then(r=>r.json()));return;
   }
   const resource=/^\/perf\/(?:play\/(de_[a-z0-9]+)\/)?maps\/(de_[a-z0-9]+)\/(map\.json|nav\.json|physics\.f32|physics\.vidx|physics-mask\.u8|physics-groups\.json|entity-collision-policy\.json|render-manifest\.json|render\/map\.(?:bin|gltf|mgp))$/.exec(p);
   if(resource&&maps.has(resource[2])&&(!resource[1]||resource[1]===resource[2])){
@@ -836,7 +1129,7 @@ const server=http.createServer(async(req,res)=>{
 const shardWss=new WebSocketServer({
   noServer:true,
   maxPayload:4096,
-  perMessageDeflate:{serverNoContextTakeover:true,clientNoContextTakeover:true,threshold:2048,concurrencyLimit:8,zlibDeflateOptions:{level:1,memLevel:7}},
+  perMessageDeflate:{serverNoContextTakeover:true,clientNoContextTakeover:true,threshold:256,concurrencyLimit:10,zlibDeflateOptions:{level:1,memLevel:7}},
 });
 const shardHeartbeat=setInterval(()=>{
   for(const ws of shardWss.clients){
@@ -1049,20 +1342,67 @@ function routeShardedWebSocket(mapId,query,req,clientWs){
     pending.push({data,isBinary});
     try{
       let target=null;
+      let peerBridgeUrl=null;
       const code=normalizeRoomCode(msg.room);
       if(msg.type==='roomCosmetics'){
         target=(code&&await findWorkerForRoom(mapId,code))||await ensureWorker(mapId);
       }else if(msg.type==='join'){
+        const isResume=typeof msg.resumeToken==='string'&&msg.resumeToken.length>0;
         if(code){
           target=await findWorkerForRoom(mapId,code);
-          if(!target)target=msg.existing===true?await ensureWorker(mapId):await selectWorkerForNewRoom(mapId);
+          if(!target&&clusterPeers.length){
+            const remotePeer=clusterRoomToPeer.get(mapId+':'+code);
+            const pSnap=remotePeer?peerNodeSnapshot(remotePeer):null;
+            if(pSnap&&pSnap.healthy){
+              const base=new URL('/perf/play/'+mapId+'/ws'+(query||''),pSnap.origin);
+              base.protocol=base.protocol==='https:'?'wss:':'ws:';
+              peerBridgeUrl=base.href;
+            }
+          }
+          if(!target&&!peerBridgeUrl){
+            if(hardMaxHumans>0&&!isResume&&localActiveConnections()>=hardMaxHumans){
+              sendWsJson(clientWs,{type:'error',code:'SERVER_FULL',message:`当前战区服务器已满载（上限 ${hardMaxHumans} 人），请返回大厅重新匹配或稍后再试。`});
+              cleanup(1013,'Server full');
+              return;
+            }
+            target=msg.existing===true?await ensureWorker(mapId):await selectWorkerForNewRoom(mapId);
+          }else if(target&&hardMaxHumans>0&&!isResume&&localActiveConnections()>=hardMaxHumans){
+            sendWsJson(clientWs,{type:'error',code:'SERVER_FULL',message:`当前战区服务器已满载（上限 ${hardMaxHumans} 人），请返回大厅重新匹配或稍后再试。`});
+            cleanup(1013,'Server full');
+            return;
+          }
         }else{
+          if(hardMaxHumans>0&&!isResume&&localActiveConnections()>=hardMaxHumans){
+            sendWsJson(clientWs,{type:'error',code:'SERVER_FULL',message:`当前战区服务器已满载（上限 ${hardMaxHumans} 人），请返回大厅重新匹配或稍后再试。`});
+            cleanup(1013,'Server full');
+            return;
+          }
           target=await selectWorkerForNewRoom(mapId);
         }
       }else{
         target=await ensureWorker(mapId);
       }
       if(state==='closed')return;
+      if(peerBridgeUrl){
+        const up=new WebSocket(peerBridgeUrl,{perMessageDeflate:false,headers:req.headers.origin?{origin:req.headers.origin}:{}});
+        upstreamWs=up;
+        up.on('error',()=>cleanup(1011,'Peer bridge error'));
+        up.on('close',(c,r)=>cleanup(c,r));
+        up.on('open',()=>{
+          try{up._socket?.setNoDelay?.(true);}catch{}
+          if(state==='closed'){safeCloseWs(up);return;}
+          state='bound';
+          for(const frame of pending){
+            if(up.readyState===WebSocket.OPEN)up.send(frame.data,{binary:frame.isBinary});
+          }
+          pending.length=0;
+        });
+        up.on('message',(uData,uBinary)=>{
+          if(state==='closed'||clientWs.readyState!==WebSocket.OPEN)return;
+          clientWs.send(uData,{binary:uBinary});
+        });
+        return;
+      }
       boundWorker=target;
       boundWorker.connections++;
       boundWorker.touched=Date.now();
@@ -1132,7 +1472,10 @@ server.on('upgrade',async(req,socket,head)=>{
   const match=/^\/perf\/(?:quality\/)?play\/(de_[a-z0-9]+)\/ws(\?.*)?$/.exec(req.url);
   if(!match||!maps.has(match[1])||(req.url.startsWith('/perf/quality/')&&!qualityPacks.has(match[1]))){socket.destroy();return;}
   const mapId=match[1],query=match[2]||'';
-  if(maxShardsForMap(mapId)>1||mapWorkers(mapId).length>1){
+  if(hardMaxHumans>0&&shardWss.clients.size>=hardMaxHumans+24){
+    socket.end('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n');return;
+  }
+  if(maxShardsForMap(mapId)>1||mapWorkers(mapId).length>1||hardMaxHumans>0||clusterPeers.length>0){
     shardWss.handleUpgrade(req,socket,head,clientWs=>routeShardedWebSocket(mapId,query,req,clientWs));
     return;
   }
@@ -1159,6 +1502,6 @@ server.listen(port,host,()=>{
   }
 });
 process.on('SIGUSR2',()=>{draining=true;for(const w of allWorkers())if(!w.retiring)w.child.kill('SIGUSR2');});
-function shutdown(){clearInterval(reap);clearInterval(shardHeartbeat);clearInterval(netLogTimer);void telemetryStore.close();for(const w of allWorkers())w.child.kill();server.close();const forceExit=setTimeout(()=>process.exit(0),1500);forceExit.unref?.();}
+function shutdown(){clearInterval(reap);clearInterval(shardHeartbeat);clearInterval(netLogTimer);if(clusterPollTimer)clearInterval(clusterPollTimer);void telemetryStore.close();for(const w of allWorkers())w.child.kill();server.close();const forceExit=setTimeout(()=>process.exit(0),1500);forceExit.unref?.();}
 for(const signal of ['SIGINT','SIGTERM'])process.once(signal,shutdown);
 if(process.send)process.once('disconnect',shutdown);
