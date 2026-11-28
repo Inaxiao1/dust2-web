@@ -4,10 +4,12 @@ import net from 'node:net';
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
+import crypto from 'node:crypto';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {WebSocketServer, WebSocket} from 'ws';
 import {createRtcGateway} from './rtc-gateway.js';
+import {createTelemetryStore, percentiles} from './telemetry-store.js';
 import {PERFORMANCE_MAPS, isPerformanceMap} from '../shared/performance-map-pool.js';
 import {findQualityPacks} from './performance-quality.js';
 import {SKINS} from '../shared/skins.js';
@@ -28,6 +30,13 @@ const logicGatewayOnly=process.env.PERF_LOGIC_GATEWAY_ONLY==='1';
 const controlPlaneUrl=(process.env.PERF_CONTROL_PLANE_URL||'').trim().replace(/\/+$/,'');
 const controlPlaneWorkerAuth=(process.env.PERF_WORKER_AUTH_TOKEN||process.env.DUST2_WORKER_AUTH_TOKEN||'').trim();
 const workerMaxRooms=String(Math.max(1,Math.min(24,Number(process.env.DUST2_PRIVATE_MAX_ROOMS)||6)));
+const telemetryStore=createTelemetryStore({dir:process.env.PERF_TELEMETRY_DIR||''});
+const telemetryToken=crypto.randomBytes(24).toString('hex');
+function isLoopbackReq(req){
+  if(req.headers['x-forwarded-for']||req.headers['x-real-ip'])return false;
+  const addr=req.socket?.remoteAddress||'';
+  return addr==='127.0.0.1'||addr==='::1'||addr==='::ffff:127.0.0.1';
+}
 const deliveryConfig=validateDownloadConfig({
   schemaVersion:1,
   assetBaseURL:process.env.PERF_ASSET_BASE_URL||process.env.DUST2_ASSET_DOWNLOAD_BASE||null,
@@ -175,6 +184,10 @@ async function spawnWorker(id){
     DUSTII_PRIVATE_MAP_ID:id,
     DUSTII_PRIVATE_MAP_DIRECTORY:path.join(root,id),
     DUSTII_PRIVATE_LIBRARY_URL:'/perf',
+    ...(server.address()?.port?{
+      PERF_TELEMETRY_URL:'http://127.0.0.1:'+server.address().port+'/internal/telemetry',
+      PERF_TELEMETRY_TOKEN:telemetryToken,
+    }:{}),
     ...(disableLocalAssets?{
       DUST2_LOGIC_ONLY:process.env.DUST2_LOGIC_ONLY??'1',
       DUST2_SERVE_MAP_FILES:process.env.DUST2_SERVE_MAP_FILES??'0',
@@ -601,6 +614,13 @@ const server=http.createServer(async(req,res)=>{
   const url=new URL(req.url,'http://localhost');
   let p=url.pathname;
   if(req.method==='POST'){
+    if(p==='/internal/telemetry'){
+      if(!isLoopbackReq(req)||req.headers.authorization!=='Bearer '+telemetryToken){json(res,403,{ok:false});return;}
+      const body=await readJsonBody(req);
+      const events=Array.isArray(body?.events)?body.events:(body&&typeof body==='object'&&body.k?[body]:[]);
+      for(const ev of events.slice(0,256))telemetryStore.record(ev);
+      json(res,200,{ok:true,accepted:Math.min(256,events.length)});return;
+    }
     const rtcMatch=/^\/perf\/(?:quality\/)?play\/(de_[a-z0-9]+)\/rtc-offer$/.exec(p);
     if(rtcMatch){
       if(draining){json(res,503,{ok:false,error:'SERVER_DRAINING'});return;}
@@ -712,7 +732,15 @@ const server=http.createServer(async(req,res)=>{
     file(req,res,catalogPath);return;
   }
   if(p==='/perf/ready'){json(res,draining?503:200,{ok:true,ready:!draining,draining,maps:maps.size,maxWorkers,workerMaxRooms:Number(workerMaxRooms),controlPlane:!!controlPlaneUrl,disableLocalAssets,logicGatewayOnly});return;}
-  if(p==='/perf/health'){json(res,200,{ok:true,ready:!draining,draining,disableLocalAssets,logicGatewayOnly,maxWorkers,workerMaxRooms:Number(workerMaxRooms),shardTargetRooms,controlPlane:!!controlPlaneUrl,maps:maps.size,rtc:rtcGateway?rtcGateway.status():{enabled:false},workers:allWorkers().map(w=>({id:w.id,shard:w.shard,active:w.connections>0,connections:w.connections}))});return;}
+  if(p==='/perf/internal/telemetry.json'){
+    if(!isLoopbackReq(req)){json(res,403,{ok:false,error:'LOOPBACK_ONLY'});return;}
+    const [network,store]=await Promise.all([refreshLiveNetwork(true),telemetryStore.summary()]);
+    json(res,200,{ok:true,network,rtc:rtcGateway?rtcGateway.status():{enabled:false},...store});return;
+  }
+  if(p==='/perf/health'){
+    const network=await refreshLiveNetwork(false);
+    json(res,200,{ok:true,ready:!draining,draining,disableLocalAssets,logicGatewayOnly,maxWorkers,workerMaxRooms:Number(workerMaxRooms),shardTargetRooms,controlPlane:!!controlPlaneUrl,maps:maps.size,rtc:rtcGateway?rtcGateway.status():{enabled:false},network,workers:allWorkers().map(w=>({id:w.id,shard:w.shard,active:w.connections>0,connections:w.connections}))});return;
+  }
   if(p==='/perf/api/maps'){
     if(controlPlaneUrl){
       const {status,data}=await fetchControlPlane('/api/v1/maps');
@@ -814,6 +842,7 @@ const shardHeartbeat=setInterval(()=>{
   for(const ws of shardWss.clients){
     if(ws._cs2Alive===false){ws.terminate();continue;}
     ws._cs2Alive=false;
+    ws._cs2PingAt=performance.now();
     try{ws.ping();}catch{}
   }
   for(const adapter of rtcAdapters){
@@ -821,6 +850,90 @@ const shardHeartbeat=setInterval(()=>{
   }
 },15000);
 shardHeartbeat.unref();
+
+let cachedLiveNet={at:0,data:null};
+function buildLiveNetworkSummary(){
+  let humans=0,udp=0,ws=0;
+  const allRtts=[],udpRtts=[],wsRtts=[];
+  const byMap=Object.create(null);
+  const ensureMap=id=>(byMap[id]||={humans:0,udp:0,ws:0,rtts:[]});
+  for(const w of allWorkers()){
+    const netInfo=w.lastLoad?.net;
+    if(!netInfo)continue;
+    const m=ensureMap(w.id);
+    humans+=netInfo.humans||0;udp+=netInfo.udp||0;ws+=netInfo.ws||0;
+    m.humans+=netInfo.humans||0;m.udp+=netInfo.udp||0;m.ws+=netInfo.ws||0;
+    for(const sample of netInfo.rtts||[]){
+      if(!Number.isFinite(sample?.ms))continue;
+      allRtts.push(sample.ms);
+      m.rtts.push(sample.ms);
+      if(sample.tr==='udp')udpRtts.push(sample.ms);
+      else wsRtts.push(sample.ms);
+    }
+  }
+  // Also collect gateway-measured WS ping/pong RTTs for legacy clients that do not report RTT in JSON pings.
+  const gwWsRtts=[];
+  for(const sock of shardWss.clients){
+    if(Number.isFinite(sock._cs2LastRtt)&&sock._cs2LastRtt>=1&&sock._cs2LastRtt<=5000){
+      gwWsRtts.push(sock._cs2LastRtt);
+      if(sock._cs2MapId){
+        const m=ensureMap(sock._cs2MapId);
+        if(!m.gwWsRtts)m.gwWsRtts=[];
+        m.gwWsRtts.push(sock._cs2LastRtt);
+      }
+    }
+  }
+  const effectiveWsRtts=wsRtts.length>=gwWsRtts.length?wsRtts:gwWsRtts;
+  const effectiveAllRtts=wsRtts.length>=gwWsRtts.length?allRtts:[...udpRtts,...gwWsRtts];
+  const mapSummary={};
+  for(const [id,m] of Object.entries(byMap)){
+    const rList=m.rtts.length?m.rtts:(m.gwWsRtts||[]);
+    const p=percentiles(rList);
+    mapSummary[id]={humans:m.humans,udp:m.udp,ws:m.ws,...(p?{p50:p.p50,p95:p.p95,samples:p.n}:{})};
+  }
+  return {
+    humans,
+    udp,
+    ws,
+    udpPct:humans?Math.round((udp/humans)*100):0,
+    rttAll:percentiles(effectiveAllRtts),
+    rttUdp:percentiles(udpRtts),
+    rttWs:percentiles(effectiveWsRtts),
+    gwWsRtt:percentiles(gwWsRtts),
+    byMap:mapSummary,
+  };
+}
+async function refreshLiveNetwork(force=false){
+  const now=Date.now();
+  if(!force&&cachedLiveNet.data&&now-cachedLiveNet.at<2000)return cachedLiveNet.data;
+  const active=allWorkers().filter(w=>isReadyWorker(w)&&w.connections>0);
+  if(active.length)await Promise.allSettled(active.map(w=>readWorkerInternal(w)));
+  const data=buildLiveNetworkSummary();
+  cachedLiveNet={at:Date.now(),data};
+  return data;
+}
+const netLogTimer=setInterval(async()=>{
+  try{
+    const netSnap=await refreshLiveNetwork(true);
+    if(netSnap.humans>0||netSnap.gwWsRtt){
+      const compactMaps={};
+      for(const [id,m] of Object.entries(netSnap.byMap)){
+        if(m.humans>0)compactMaps[id]={h:m.humans,u:m.udp,...(m.p50!=null?{p50:m.p50,p95:m.p95}:{})};
+      }
+      telemetryStore.record({
+        k:'net',
+        h:netSnap.humans,
+        u:netSnap.udp,
+        w:netSnap.ws,
+        ...(netSnap.rttAll?{all:{n:netSnap.rttAll.n,p50:netSnap.rttAll.p50,p95:netSnap.rttAll.p95}}:{}),
+        ...(netSnap.rttUdp?{ur:{n:netSnap.rttUdp.n,p50:netSnap.rttUdp.p50,p95:netSnap.rttUdp.p95}}:{}),
+        ...(netSnap.rttWs?{wr:{n:netSnap.rttWs.n,p50:netSnap.rttWs.p50,p95:netSnap.rttWs.p95}}:{}),
+        ...(Object.keys(compactMaps).length?{maps:compactMaps}:{}),
+      });
+    }
+  }catch{}
+},60000);
+netLogTimer.unref();
 let rtcGateway=null;
 createRtcGateway({
   onClientSocket:(mapId,query,req,adapter)=>{
@@ -854,8 +967,25 @@ async function listMapRoomsForWs(mapId){
 }
 function routeShardedWebSocket(mapId,query,req,clientWs){
   try{clientWs._socket?.setNoDelay?.(true);}catch{}
+  const isRtc=rtcAdapters.has(clientWs);
   clientWs._cs2Alive=true;
-  clientWs.on('pong',()=>{clientWs._cs2Alive=true;});
+  clientWs._cs2MapId=mapId;
+  clientWs.on('pong',()=>{
+    clientWs._cs2Alive=true;
+    if(clientWs._cs2PingAt>0){
+      const rtt=Math.round(performance.now()-clientWs._cs2PingAt);
+      if(rtt>=1&&rtt<=5000)clientWs._cs2LastRtt=rtt;
+      clientWs._cs2PingAt=0;
+    }
+  });
+  if(!isRtc){
+    // Sample real end-to-end WS RTT 2s after connect so even short sessions get measured.
+    const firstPing=setTimeout(()=>{
+      if(clientWs.readyState===WebSocket.OPEN){clientWs._cs2PingAt=performance.now();try{clientWs.ping();}catch{}}
+    },2000);
+    firstPing.unref?.();
+    clientWs.once('close',()=>clearTimeout(firstPing));
+  }
   let state='unbound',boundWorker=null,upstreamWs=null,released=false,welcomed=false;
   const pending=[];
   const idleTimer=setTimeout(()=>{if(state==='unbound')safeCloseWs(clientWs,1008,'Handshake timeout');},20000);
@@ -929,7 +1059,11 @@ function routeShardedWebSocket(mapId,query,req,clientWs){
       boundWorker.touched=Date.now();
       boundWorker.directoryRead=null;
       boundWorker.internalRead=null;
-      const forwardHeaders={};
+      const forwardHeaders={
+        'x-cs2-transport':isRtc?'udp':'ws',
+        'x-cs2-gateway':'1',
+        'x-cs2-client-ip-hash':telemetryStore.hashIp(req.headers['x-forwarded-for']||req.socket?.remoteAddress||''),
+      };
       if(req.headers.origin)forwardHeaders.origin=req.headers.origin;
       if(req.headers['x-forwarded-for'])forwardHeaders['x-forwarded-for']=req.headers['x-forwarded-for'];
       const up=new WebSocket('ws://127.0.0.1:'+boundWorker.port+'/ws'+(query||''),{perMessageDeflate:false,headers:forwardHeaders});
@@ -994,6 +1128,9 @@ server.on('upgrade',async(req,socket,head)=>{
     upstream.once('connect',()=>{
       const headers=['GET /ws'+query+' HTTP/1.1'];
       for(let i=0;i<req.rawHeaders.length;i+=2)headers.push(req.rawHeaders[i]+': '+req.rawHeaders[i+1]);
+      headers.push('X-CS2-Transport: ws');
+      headers.push('X-CS2-Gateway: 1');
+      headers.push('X-CS2-Client-Ip-Hash: '+telemetryStore.hashIp(req.headers['x-forwarded-for']||req.socket?.remoteAddress||''));
       upstream.write(headers.join('\r\n')+'\r\n\r\n');if(head.length)upstream.write(head);socket.pipe(upstream).pipe(socket);
     });
   }catch{socket.end('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n');}
@@ -1005,6 +1142,6 @@ server.listen(port,host,()=>{
   }
 });
 process.on('SIGUSR2',()=>{draining=true;for(const w of allWorkers())if(!w.retiring)w.child.kill('SIGUSR2');});
-function shutdown(){clearInterval(reap);clearInterval(shardHeartbeat);rtcGateway?.close({cleanupNative:true});for(const w of allWorkers())w.child.kill();server.close();}
+function shutdown(){clearInterval(reap);clearInterval(shardHeartbeat);clearInterval(netLogTimer);rtcGateway?.close({cleanupNative:true});void telemetryStore.close();for(const w of allWorkers())w.child.kill();server.close();}
 for(const signal of ['SIGINT','SIGTERM'])process.once(signal,shutdown);
 if(process.send)process.once('disconnect',shutdown);

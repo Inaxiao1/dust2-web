@@ -265,7 +265,7 @@ async function equipSkin(skin){
   if(!connected)throw new Error('连接已断开，请重试。');
   return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{pendingSkinEquip=null;reject(new Error('服务器确认超时，请重试。'));},5000);pendingSkinEquip={skin:skin.id,resolve:()=>{clearTimeout(timer);pendingSkinEquip=null;resolve();},reject:message=>{clearTimeout(timer);pendingSkinEquip=null;reject(new Error(message));}};lastSkinEquipAt=performance.now();send({type:'equipSkin',weapon:skin.weapon,skin:skin.id});});
 }
-const toyProgress=getSharedToyProgress(globalThis.__CS2_TOY_IDENTITY__||new ToyIdentity());
+const toyProgress=getSharedToyProgress(globalThis[Symbol.for('cs2.toyIdentity')]||new ToyIdentity());
 const progressionUI=new ProgressionMenu({progressStore:toyProgress,onOpenSkins:()=>skins.open(),onOpenAgents:()=>agentsUI.open(self?.team||$('team').value)});
 const skins=new SkinMenu({progressStore:toyProgress,onEquip:equipSkin,onLoadout:()=>armory.open(),onProgression:()=>progressionUI.open()});
 let pendingLoadout=null;
@@ -1013,7 +1013,7 @@ function frame(now){
   const input=currentInput();
   while(fixed>=1/60){if(self.alive){if(movementSupported)movementPrediction.step(self,input,['live','ended'].includes(snapshot.round.phase));else if(['live','ended'].includes(snapshot.round.phase))stepPlayer(self,input,1/60);}localShoot(input,1/60);fixed-=1/60;}
   if(networkAcc>=1/30){networkAcc%=1/30;sendInput(input);}
-  if(pingAcc>=2){pingAcc=0;send({type:'ping',time:performance.now()});}
+  if(pingAcc>=2){pingAcc=0;send({type:'ping',time:performance.now(),...(ping>0?{rtt:Math.round(ping)}:{}),...(fps>0?{fps:Math.round(fps)}:{}),tr:socket?.transportMode==='UDP'?'u':'w'});}
   if(self.grounded&&controlsEnabled()&&Math.hypot(self.vx,self.vz)>.8&&(self.stepDistance||0)-lastStep>(self.crouch?2.6:1.8)){audio.step();lastStep=self.stepDistance;}
   // Simulation, shot prediction and 30 Hz input above always run, even on skipped render frames.
   if(!framePacer.due(now,frameLimit))return;

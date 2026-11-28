@@ -74,7 +74,7 @@ export class ProgressionMenu {
                   <strong data-prog-name>干员读取中…</strong>
                   <span class="prog-rank-pill" data-prog-rank>Lv.1 列兵新秀</span>
                 </div>
-                <small data-prog-uid>ID · ----</small>
+                <small data-prog-uid>干员状态</small>
                 <div class="prog-xp-bar"><i data-prog-xp-fill style="width:0%"></i></div>
                 <div class="prog-xp-meta">
                   <span data-prog-xp-text>经验 0 / 600</span>
@@ -234,14 +234,18 @@ export class ProgressionMenu {
         img.alt = '';
         av.replaceChildren(img);
       } else {
-        av.innerHTML = `<span>${idState.shortId.slice(0, 2) || 'OP'}</span>`;
+        const badgeChar = (idState.displayName || '').replace(/^干员#?/, '').trim().slice(0, 1) || 'OP';
+        av.textContent = '';
+        const span = document.createElement('span');
+        span.textContent = badgeChar;
+        av.append(span);
       }
     }
     this.element.querySelector('[data-prog-name]').textContent = idState.displayName;
     this.element.querySelector('[data-prog-rank]').textContent = `Lv.${career.level} ${career.rankTitle}`;
     this.element.querySelector('[data-prog-uid]').textContent = idState.source === 'toy' && idState.authenticated
-      ? `TOY OPENID · ${idState.uid}`
-      : `本地干员 ID · ${idState.uid}`;
+      ? 'B站 Toy 身份 · 云存档已同步'
+      : '本地干员 · 离线存档';
     this.element.querySelector('[data-prog-xp-fill]').style.width = `${career.pct}%`;
     this.element.querySelector('[data-prog-xp-text]').textContent = career.level >= 30
       ? `总经验 ${career.xp} · 已达满级`

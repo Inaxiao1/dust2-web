@@ -174,7 +174,7 @@ function createHub() {
       'music-preview-cue': { variant: 'grid', compact: true },
     });
 
-    const progressStore = getSharedToyProgress(globalThis.__CS2_TOY_IDENTITY__ || null);
+    const progressStore = getSharedToyProgress(globalThis[Symbol.for('cs2.toyIdentity')] || null);
     void progressStore.init();
 
     const progression = new ProgressionMenu({

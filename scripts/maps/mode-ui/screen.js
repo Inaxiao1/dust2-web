@@ -101,8 +101,9 @@ async function postJson(url, body) {
 }
 
 /* 1. Bilibili Toy SDK Identity & Cloud Progression (Zero-UGC) */
-const toyIdentity = new ToyIdentity();
-window.__CS2_TOY_IDENTITY__ = toyIdentity;
+const TOY_ID_KEY = Symbol.for('cs2.toyIdentity');
+const toyIdentity = globalThis[TOY_ID_KEY] || new ToyIdentity();
+globalThis[TOY_ID_KEY] = toyIdentity;
 let lobbyProgressSummary = '';
 
 function readLocalCareerSummary(uid) {
@@ -133,8 +134,8 @@ function renderToyCard() {
   if (nameEl) nameEl.textContent = s.displayName;
   const careerTag = lobbyProgressSummary || readLocalCareerSummary(s.uid);
   if (idEl) idEl.textContent = s.source === 'toy' && s.authenticated
-    ? `TOY · ${s.shortId} · ${careerTag}`
-    : `ID #${s.shortId} · ${careerTag}`;
+    ? `B站干员 · ${careerTag}`
+    : `本地干员 · ${careerTag}`;
   if (avatarEl) {
     if (s.avatar) {
       const img = new Image();
@@ -143,7 +144,7 @@ function renderToyCard() {
       avatarEl.replaceChildren(img);
     } else {
       const span = document.createElement('span');
-      span.textContent = s.shortId.slice(0, 2) || 'OP';
+      span.textContent = (s.displayName || '').replace(/^干员#?/, '').trim().slice(0, 1) || 'OP';
       avatarEl.replaceChildren(span);
     }
   }

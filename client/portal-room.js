@@ -90,11 +90,12 @@ export function mountPortalRoom(id, graphicsMode) {
     if (label) label.textContent = '当前干员身份（Toy SDK 自动同步）';
     const opBadge = document.createElement('div');
     opBadge.className = 'portal-operator-badge';
-    opBadge.innerHTML = '<div class="portal-op-avatar" id="portalOpAvatar"><span>OP</span></div><div class="portal-op-info"><strong id="portalOpName">干员读取中…</strong><small id="portalOpId">TOY ID · ----</small></div><button type="button" id="portalToyAuth" class="portal-op-auth" hidden>授权 Toy</button>';
+    opBadge.innerHTML = '<div class="portal-op-avatar" id="portalOpAvatar"><span>OP</span></div><div class="portal-op-info"><strong id="portalOpName">干员读取中…</strong><small id="portalOpId">干员档案</small></div><button type="button" id="portalToyAuth" class="portal-op-auth" hidden>授权 Toy</button>';
     nicknameWrap.append(opBadge);
 
-    const toy = window.__CS2_TOY_IDENTITY__ || new ToyIdentity();
-    window.__CS2_TOY_IDENTITY__ = toy;
+    const toyKey = Symbol.for('cs2.toyIdentity');
+    const toy = globalThis[toyKey] || new ToyIdentity();
+    globalThis[toyKey] = toy;
     const syncToy = () => {
       const s = toy.state;
       nicknameInput.value = s.displayName;
@@ -103,7 +104,7 @@ export function mountPortalRoom(id, graphicsMode) {
       const avEl = opBadge.querySelector('#portalOpAvatar');
       const btnEl = opBadge.querySelector('#portalToyAuth');
       if (nameEl) nameEl.textContent = s.displayName;
-      if (idEl) idEl.textContent = s.source === 'toy' && s.authenticated ? `TOY OPENID · ${s.shortId}` : `OPERATOR · #${s.shortId}`;
+      if (idEl) idEl.textContent = s.source === 'toy' && s.authenticated ? 'B站 Toy 身份 · 已授权' : '本地干员 · 试玩模式';
       if (avEl) {
         if (s.avatar) {
           const img = new Image();
@@ -111,7 +112,9 @@ export function mountPortalRoom(id, graphicsMode) {
           img.alt = '';
           avEl.replaceChildren(img);
         } else {
-          avEl.innerHTML = `<span>${s.shortId.slice(0, 2) || 'OP'}</span>`;
+          const span = document.createElement('span');
+          span.textContent = (s.displayName || '').replace(/^干员#?/, '').trim().slice(0, 1) || 'OP';
+          avEl.replaceChildren(span);
         }
       }
       if (btnEl) {

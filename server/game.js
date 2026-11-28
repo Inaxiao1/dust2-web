@@ -486,7 +486,7 @@ export class GameRoom {
     this.fire(player,command.input,command);return true;
   }
 
-  rejectShot(player,input,reason){if(input.shotId)player.shotRejected={id:input.shotId,reason};}
+  rejectShot(player,input,reason){if(input.shotId)player.shotRejected={id:input.shotId,reason};this.onShotRejected?.(player.id,reason);}
 
   recordPoses(){this.poseHistory.push(this.clock(),[...this.players.values()].map(p=>({id:p.id,x:p.x,y:p.y,z:p.z,yaw:p.yaw,pitch:p.pitch,crouch:p.crouch,alive:p.alive,team:p.team,lifeId:p.lifeId,protectionUntil:p.protectionUntil})));}
   shotTargets(viewTime,receivedAt){

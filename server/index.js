@@ -23,6 +23,8 @@ import { verifyJoinToken } from './join-token.js';
 import { startControlPlaneReporter } from './control-plane-client.js';
 import { decodeInputBinary, encodeSnapshotBinary } from '../shared/binary-protocol.js';
 import { encodeDeltaSnapshot } from '../shared/snapshot-delta.js';
+import { createPlayerTelemetry } from './player-telemetry.js';
+import { createTelemetryStore } from './telemetry-store.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TYPES = { '.webmanifest': 'application/manifest+json; charset=utf-8', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.glb': 'model/gltf-binary', '.gltf': 'model/gltf+json', '.wasm': 'application/wasm', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav', '.ico': 'image/x-icon', '.txt': 'text/plain; charset=utf-8' };
@@ -167,6 +169,46 @@ export async function startGameServer({
   const startedAt = Date.now();
   const performanceMetrics=new ServerPerformance();
   const workerMetrics = { joinTokenRejected: 0, wsRateLimited: 0, wsConnectionsRejected: 0, slowClientDrops: 0 };
+  const telemetryUrl = (process.env.PERF_TELEMETRY_URL || '').trim();
+  const telemetryToken = (process.env.PERF_TELEMETRY_TOKEN || '').trim();
+  const localTelemetryStore = (!telemetryUrl && process.env.PERF_TELEMETRY_DIR)
+    ? createTelemetryStore({ dir: process.env.PERF_TELEMETRY_DIR })
+    : null;
+  const telemetryOutbox = [];
+  let telemetryFlushing = false;
+  let telemetrySessFlush = null;
+  async function flushTelemetryOutbox() {
+    if (!telemetryUrl || !telemetryToken || !telemetryOutbox.length || telemetryFlushing) return;
+    telemetryFlushing = true;
+    const batch = telemetryOutbox.splice(0, 64);
+    try {
+      await fetch(telemetryUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + telemetryToken },
+        body: JSON.stringify({ events: batch }),
+        signal: AbortSignal.timeout(3000),
+      });
+    } catch {} finally {
+      telemetryFlushing = false;
+    }
+  }
+  const telemetryFlushTimer = telemetryUrl && telemetryToken ? setInterval(() => { void flushTelemetryOutbox(); }, 5000) : null;
+  telemetryFlushTimer?.unref?.();
+  const telemetry = createPlayerTelemetry({
+    mapId: privateMap?.mapId || MAP.id || 'de_dust2',
+    hashIp: (ip) => (typeof ip === 'string' && /^[a-f0-9]{12}$/.test(ip) ? ip : (localTelemetryStore ? localTelemetryStore.hashIp(ip) : '')),
+    emitEvent: (ev) => {
+      if (localTelemetryStore) localTelemetryStore.record(ev);
+      else if (telemetryUrl && telemetryToken) {
+        if (telemetryOutbox.length < 512) telemetryOutbox.push(ev);
+        if (ev.k === 'ac' || telemetryOutbox.length >= 16) void flushTelemetryOutbox();
+        else if (ev.k === 'sess' && !telemetrySessFlush) {
+          telemetrySessFlush = setTimeout(() => { telemetrySessFlush = null; void flushTelemetryOutbox(); }, 400);
+          telemetrySessFlush.unref?.();
+        }
+      }
+    },
+  });
   const publicDir = path.join(ROOT, 'public');
   const downloadConfig=serverDownloadConfig();
   let draining = false;
@@ -216,6 +258,7 @@ export async function startGameServer({
         humans,
         bots,
         tickP95Ms: performanceMetrics.snapshot().tickP95Ms,
+        net: telemetry.liveNetworkSnapshot(),
       }));
       return;
     }
@@ -365,10 +408,22 @@ export async function startGameServer({
     if (wss.clients.size > maxWsConnections) { workerMetrics.wsConnectionsRejected++; socket.close(1013, 'Server busy'); return; }
     socket.isAlive = true; socket.playerId = null; socket.roomCode = null; socket.binaryProtocol = 0; socket.lastBinaryPlayers = null;
     socket.snapshotDelta = 0; socket.lastDeltaSnap = null; socket.reconnectOptIn = false; socket.resumeToken = null;
+    socket.transport = req?.headers?.['x-cs2-transport'] === 'udp' ? 'udp' : 'ws';
+    socket.fromGateway = req?.headers?.['x-cs2-gateway'] === '1';
+    socket.ipHash = typeof req?.headers?.['x-cs2-client-ip-hash'] === 'string'
+      ? req.headers['x-cs2-client-ip-hash'].slice(0, 16)
+      : String(req?.headers?.['x-forwarded-for'] || req?.socket?.remoteAddress || '');
+    socket.pingSentAt = 0;
     try { socket.handshakeToken = req?.url ? new URL(req.url, 'http://localhost').searchParams.get('token') : null; }
     catch { socket.handshakeToken = null; }
     socket.tokens = 150; socket.tokensAt = Date.now(); socket.strikes = 0; socket.connectedAt = Date.now(); socket.buyAt = 0;
-    socket.on('pong', () => { socket.isAlive = true; });
+    socket.on('pong', () => {
+      socket.isAlive = true;
+      if (!socket.fromGateway && socket.pingSentAt > 0 && socket.playerId) {
+        telemetry.recordServerRtt(socket.playerId, performance.now() - socket.pingSentAt);
+        socket.pingSentAt = 0;
+      }
+    });
     socket.on('message', (data, binary) => {
       const now = Date.now();
       socket.tokens = Math.min(150, socket.tokens + (now - socket.tokensAt) * 0.09); socket.tokensAt = now;
@@ -386,7 +441,11 @@ export async function startGameServer({
         }
       }
       catch { error(socket, 'BAD_MESSAGE', '消息格式无效。'); if (++socket.strikes > 5) socket.close(1008, 'Bad messages'); return; }
-      if (msg.type === 'ping') { send(socket, { type: 'pong', time: typeof msg.time === 'number' ? msg.time : null, serverTime: now }); return; }
+      if (msg.type === 'ping') {
+        if (socket.playerId) telemetry.recordClientPing(socket.playerId, { rtt: Number(msg.rtt), fps: Number(msg.fps), tr: msg.tr });
+        send(socket, { type: 'pong', time: typeof msg.time === 'number' ? msg.time : null, serverTime: now });
+        return;
+      }
       if(msg.type==='listRooms'){
         if(now-(socket.listRoomsAt||0)<1000)return;
         socket.listRoomsAt=now;
@@ -462,7 +521,9 @@ export async function startGameServer({
         }
         if (!room) {
           if (rooms.size >= maxRooms) { error(socket, 'SERVER_FULL', '服务器当前房间数量已达上限。'); return; }
-          room = new GameRoom(settings.room, { mode: settings.mode, bots: settings.bots, botDifficulty:settings.botDifficulty, visibility:settings.visibility, rules, privateMap }); rooms.set(settings.room, room); created = true;
+          room = new GameRoom(settings.room, { mode: settings.mode, bots: settings.bots, botDifficulty:settings.botDifficulty, visibility:settings.visibility, rules, privateMap });
+          room.onShotRejected = (pid, reason) => telemetry.recordShotRejected(pid, reason);
+          rooms.set(settings.room, room); created = true;
         }
         try {
           const player = room.addHuman(socket, settings); socket.playerId = player.id; socket.roomCode = room.code;
@@ -470,6 +531,15 @@ export async function startGameServer({
           socket.snapshotDelta = socket.binaryProtocol === 0 && msg.snapshotDelta === 1 ? 1 : 0;
           socket.reconnectOptIn = msg.reconnect === true;
           socket.resumeToken = player.resumeToken;
+          telemetry.startSession({
+            playerId: player.id,
+            uid: player.playerUid,
+            ip: socket.ipHash,
+            name: player.name,
+            room: room.code,
+            mode: room.mode,
+            transport: socket.transport,
+          });
           if (tokenClaims?.jti) usedJTIs.set(tokenClaims.jti, tokenClaims.exp);
           reporter?.reportNow();
           send(socket, { type: 'welcome', ...(privateMap?{mapId:privateMap.mapId,mapSignature:privateMap.mapSignature,physicsSha256:privateMap.config.physicsSha256}:{}),clientBuild:CLIENT_BUILD,rulesVersion:RULES_VERSION,assetVersion:ASSET_VERSION,id: player.id, room: room.code, mode: room.mode, team: player.team,teamId:player.teamId,hostId:room.hostId,desiredBots:room.desiredBots,botCount:room.botCount,botDifficulty:room.botDifficulty,match:room.matchSnapshot(), tickRate: TICK_RATE, snapshotRate: SNAPSHOT_RATE, serverTime: now, protocol: 1, binaryProtocol: socket.binaryProtocol, snapshotDelta: socket.snapshotDelta, resumeToken: player.resumeToken, resumed: player.resumed === true, reconnectGraceMs, movementProtocol:1,shotProtocol:1 });
@@ -492,7 +562,9 @@ export async function startGameServer({
       if(msg.type==='chat'){const result=room.chat(socket.playerId,msg.text,msg.channel);if(!result.ok)error(socket,'CHAT_REJECTED',result.message);}
       else if(msg.type==='requestWeapon'||msg.type==='donateWeapon'){const result=msg.type==='requestWeapon'?room.requestWeapon(socket.playerId,msg.weapon):room.donateWeapon(socket.playerId,msg.playerId,msg.weapon);if(!result.ok)error(socket,'TEAM_GEAR_REJECTED',result.message);else send(socket,{type:'teamGear',...result});}
       else if (msg.type === 'input') {
-        if (!room.receiveInput(socket.playerId, msg)) { if (++socket.strikes > 100) socket.close(1008, 'Invalid input'); }
+        const inputOk = room.receiveInput(socket.playerId, msg);
+        telemetry.recordInput(socket.playerId, msg, inputOk, Boolean(room.players.get(socket.playerId)?.alive));
+        if (!inputOk) { if (++socket.strikes > 100) socket.close(1008, 'Invalid input'); }
       } else if(msg.type==='takeBot'){
         if(now-(socket.takeBotAt||0)<300)return;
         socket.takeBotAt=now;const result=room.takeBot(socket.playerId,typeof msg.botId==='string'?msg.botId:null);
@@ -544,6 +616,7 @@ export async function startGameServer({
       } else error(socket, 'UNKNOWN_MESSAGE', '不支持的消息类型。');
     });
     socket.on('close', (code) => {
+      if (socket.playerId) telemetry.finishSession(socket.playerId, code === 1000 ? 'normal' : `code_${code}`);
       const room = rooms.get(socket.roomCode); if (!room) return;
       const matchEnded = room.match?.status === 'ended' || room.round?.phase === 'matchEnded';
       const abnormalDrop = !matchEnded && socket.reconnectOptIn && code !== 1000 && reconnectGraceMs > 0;
@@ -579,8 +652,12 @@ export async function startGameServer({
       }
       try {
         room.tick(1 / TICK_RATE);
+        if (tickNumber % TICK_RATE === 0) {
+          for (const pid of room.clients.keys()) telemetry.samplePlayerSpeed(room.players.get(pid));
+        }
         if (tickNumber % (TICK_RATE / SNAPSHOT_RATE) === 0) {
           const snapshot = room.snapshot(), sideSnaps = new Map(), jsonViews = new Map(), deltaViews = new Map();
+          telemetry.observeRoomEvents(room, snapshot.events);
           for (const socket of room.clients.values()) {
             if (socket.readyState === WebSocket.OPEN) {
               if (socket.bufferedAmount > 1024 * 1024) { workerMetrics.slowClientDrops++; socket.close(1008, 'Client too slow'); continue; }
@@ -647,7 +724,9 @@ export async function startGameServer({
     }
     for (const socket of wss.clients) {
       if (!socket.isAlive || (!socket.playerId && nowMs - socket.connectedAt > 20000)) { socket.terminate(); continue; }
-      socket.isAlive = false; socket.ping();
+      socket.isAlive = false;
+      if (!socket.fromGateway) socket.pingSentAt = performance.now();
+      socket.ping();
     }
   }, 10000);
   try { await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, host, () => { server.off('error', reject); resolve(); }); }); }
@@ -698,6 +777,10 @@ export async function startGameServer({
   let closed = false;
   const close = async () => {
     if (closed) return; closed = true; clearInterval(tickTimer); clearInterval(heartbeatTimer);
+    if (telemetryFlushTimer) clearInterval(telemetryFlushTimer);
+    telemetry.flushAll('shutdown');
+    await flushTelemetryOutbox();
+    await localTelemetryStore?.close();
     await reporter?.stop();
     for (const socket of wss.clients) socket.terminate();
     await Promise.all([new Promise(resolve => wss.close(resolve)), new Promise(resolve => server.close(resolve))]); rooms.clear();
