@@ -7,27 +7,37 @@ import { MinHeap } from '../shared/min-heap.js';
 export class MapTacticalGraph {
   constructor(map, areas, {edgeAllowed=()=>false, standAllowed=()=>false}={}) {
     this.map=map;
-    this.nodes=new Map(areas.filter(a=>a.hull===0).map(a=>[a.id,a]));
+    this.nodes=areas instanceof Map?areas:new Map(areas.filter(a=>a.hull===0).map(a=>[a.id,a]));
     this.edgeAllowed=edgeAllowed;
     this.standAllowed=standAllowed;
+    this._standNodes=null;
+    this._guardsCache=new Map();
   }
   nearest(point) {
-    let best=null, distance=Infinity;
-    for(const a of this.nodes.values()) {
-      if(!this.standAllowed(a))continue;
+    if(!this._standNodes){
+      const list=[];
+      for(const a of this.nodes.values())if(this.standAllowed(a))list.push(a);
+      this._standNodes=list;
+    }
+    const px=point.x,py=point.y,pz=point.z,list=this._standNodes;
+    let best=null, bestSq=Infinity;
+    for(let i=0;i<list.length;i++) {
+      const a=list[i];
       // Vertical distance must count, especially on Nuke. Do not snap to a
       // floor directly overhead because its horizontal distance is shorter.
-      const d=Math.hypot(point.x-a.x,2*(point.y-a.y),point.z-a.z);
-      if(d<distance){best=a;distance=d;}
+      const dx=px-a.x,dy=2*(py-a.y),dz=pz-a.z,sq=dx*dx+dy*dy+dz*dz;
+      if(sq<bestSq){best=a;bestSq=sq;}
     }
     return best;
   }
-  route(start, end, {penalties=new Map(), maxVisited=12000}={}) {
+  route(start, end, {penalties=null, maxVisited=12000}={}) {
     const from=typeof start==='number'?this.nodes.get(start):this.nearest(start);
     const to=typeof end==='number'?this.nodes.get(end):this.nearest(end);
     if(!from||!to||!this.standAllowed(from)||!this.standAllowed(to))return null;
+    const toX=to.x,toY=to.y,toZ=to.z,hasPenalties=!!(penalties&&penalties.size);
     const scores=new Map([[from.id,0]]),parent=new Map(),closed=new Set(),open=new MinHeap();
-    open.push({id:from.id,cost:Math.hypot(from.x-to.x,from.y-to.y,from.z-to.z)});
+    const fdx=from.x-toX,fdy=from.y-toY,fdz=from.z-toZ;
+    open.push({id:from.id,cost:Math.sqrt(fdx*fdx+fdy*fdy+fdz*fdz)});
     let visited=0;
     while(open.size&&visited<maxVisited) {
       const current=open.pop().id;
@@ -35,36 +45,52 @@ export class MapTacticalGraph {
       closed.add(current);
       visited++;
       if(current===to.id){const path=[];for(let id=current;id!==undefined;id=parent.get(id))path.push(this.nodes.get(id));return path.reverse();}
-      const a=this.nodes.get(current),base=scores.get(current);
-      for(const id of a.neighbors) {
+      const a=this.nodes.get(current),base=scores.get(current),ax=a.x,ay=a.y,az=a.z,neighbors=a.neighbors;
+      for(let i=0;i<neighbors.length;i++) {
+        const id=neighbors[i];
         if(closed.has(id))continue;
         const b=this.nodes.get(id);
         if(!b||!this.standAllowed(b)||!this.edgeAllowed(a,b))continue;
-        const cost=base+Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z)+(penalties.get(id)||0);
+        const dx=ax-b.x,dy=ay-b.y,dz=az-b.z;
+        const cost=base+Math.sqrt(dx*dx+dy*dy+dz*dz)+(hasPenalties?(penalties.get(id)||0):0);
         if(cost>=(scores.get(id)??Infinity))continue;
         scores.set(id,cost);parent.set(id,current);
-        open.push({id,cost:cost+Math.hypot(b.x-to.x,b.y-to.y,b.z-to.z)});
+        const hdx=b.x-toX,hdy=b.y-toY,hdz=b.z-toZ;
+        open.push({id,cost:cost+Math.sqrt(hdx*hdx+hdy*hdy+hdz*hdz)});
       }
     }
     return null;
   }
-  alternatives(start,end,count=3) {
+  alternatives(start,end,count=3,{firstPath=null}={}) {
+    const from=typeof start==='number'?this.nodes.get(start):this.nearest(start);
+    const to=typeof end==='number'?this.nodes.get(end):this.nearest(end);
+    if(!from||!to)return [];
     const paths=[],penalties=new Map();
     for(let i=0;i<count;i++){
-      const p=this.route(start,end,{penalties});
-      if(!p||paths.some(old=>old.map(n=>n.id).join(',')===p.map(n=>n.id).join(',')))break;
+      const p=i===0&&firstPath?firstPath:this.route(from.id,to.id,{penalties});
+      if(!p||paths.some(old=>old.length===p.length&&old.every((n,idx)=>n.id===p[idx].id)))break;
       paths.push(p);
-      for(const a of p.slice(1,-1))penalties.set(a.id,(penalties.get(a.id)||0)+8);
+      for(let j=1;j<p.length-1;j++){const id=p[j].id;penalties.set(id,(penalties.get(id)||0)+8);}
     }
     return paths;
   }
   guards(site, round=0, count=5) {
     const target=this.map.sites[site];
     if(!target)return [];
-    const candidates=[...this.nodes.values()].filter(a=>this.standAllowed(a)&&Math.abs(a.y-target.y)<2.2&&Math.hypot(a.x-target.x,a.z-target.z)<15);
+    const cacheKey=`${site}:${round}:${count}`;
+    const cached=this._guardsCache.get(cacheKey);
+    if(cached)return cached;
+    const candidates=[];
+    for(const a of this.nodes.values()){
+      if(this.standAllowed(a)&&Math.abs(a.y-target.y)<2.2&&Math.hypot(a.x-target.x,a.z-target.z)<15)candidates.push(a);
+    }
     candidates.sort((a,b)=>((a.id*31+round*79)%997)-((b.id*31+round*79)%997));
+    const targetNode=this.nearest(target);
+    if(!targetNode)return [];
     const chosen=[];
-    for(const p of candidates){if(chosen.every(a=>Math.hypot(a.x-p.x,a.z-p.z)>2.5)&&this.route(p,target))chosen.push(p);if(chosen.length===count)break;}
+    for(const p of candidates){if(chosen.every(a=>Math.hypot(a.x-p.x,a.z-p.z)>2.5)&&this.route(p.id,targetNode.id))chosen.push(p);if(chosen.length===count)break;}
+    if(this._guardsCache.size>=64)this._guardsCache.clear();
+    this._guardsCache.set(cacheKey,chosen);
     return chosen;
   }
 }

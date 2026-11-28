@@ -81,3 +81,19 @@ test('server movement queue cannot break an objective lock, and prediction repla
 test('a dropped defuse kit can be recovered by a living CT but never a T or duplicate owner',()=>{
   world();const {r,t,ct}=room(),ct2=r.addHuman({}, {name:'CT2',team:'CT'});Object.assign(ct,{x:0,y:0,z:0,alive:true,defuseKit:true});Object.assign(t,{x:0,y:0,z:0});Object.assign(ct2,{x:10,y:0,z:0,alive:true});r.kill(ct,t);assert.equal(r.defuseKits.length,1);r.pickupKits();assert.equal(t.defuseKit,false);assert.equal(r.defuseKits.length,1);ct2.x=0;r.pickupKits();assert.equal(ct2.defuseKit,true);assert.equal(r.defuseKits.length,0);r.startRound();assert.equal(r.defuseKits.length,0);
 });
+
+test('objective lock during C4 plant/defuse never throws when fireQueue is missing or uninitialized',()=>{
+  const bytes=fs.readFileSync(new URL('../public/assets/map/positions.f32',import.meta.url));initPhysics(new Float32Array(bytes.buffer,bytes.byteOffset,bytes.byteLength/4));
+  const {r,t,ct,step}=room(),site=MAP.sites.B;
+  assert.ok(Array.isArray(t.fireQueue),'newly created player initializes fireQueue');
+  delete t.fireQueue;
+  Object.assign(t,site,{grounded:true});r.selectSlot(t,5);
+  assert.doesNotThrow(()=>step(t,{fire:true,slot:5}));
+  assert.equal(r.bomb.action,'plant');assert.equal(t.objectiveLocked,true);
+  for(let i=0;i<91;i++)step(t,{fire:true,slot:5});
+  assert.equal(r.bomb.state,'planted');
+  delete ct.fireQueue;
+  Object.assign(ct,{x:r.bomb.x+.5,y:r.bomb.y,z:r.bomb.z,grounded:true});
+  assert.doesNotThrow(()=>step(ct,{interact:true}));
+  assert.equal(r.bomb.action,'defuse');assert.equal(ct.objectiveLocked,true);
+});

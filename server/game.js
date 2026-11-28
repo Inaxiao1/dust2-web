@@ -344,6 +344,7 @@ export class GameRoom {
       helmet:this.mode==='deathmatch',defuseKit:false,zoomLevel:0,flashBlindUntil:0,agents:{...DEFAULT_AGENT_IDS},agentId:DEFAULT_AGENT_IDS[team],
       weapon: 'pistol', input: neutralInput(), inputAt: 0, seq: -1, lastReceivedSeq: -1, lastShotTime: 0, nextShotAt: 0, reloadEndsAt: 0,
       respawnAt: 0, protectionUntil: this.clock() + this.rules.protectionSeconds * 1000, triggerWasDown: false, hasBomb: false,
+      fireQueue:[],burst:null,objectiveLocked:false,
       grenadeState:null,grenadeRequireRelease:false,pendingInteract:false,interactWasDown:false,
       botAI: { nextThinkAt: 0, targetId: null, path: [], goal: null, lastKnown: null, lastSeenAt: 0, reactionAt: 0, stuckAt: this.clock(), previous: null, wanderAt: 0, strafe: Math.random() < 0.5 ? -1 : 1 },
     };
@@ -1202,7 +1203,7 @@ export class GameRoom {
         const elapsed=Math.max(0,(now-(p.movementAt??now))/1000);p.movementAt=now;
         p.movementStream.advance(p,elapsed,movementOptions,shotMove||Infinity);
       }
-      if(p.objectiveLocked){if(p.fireQueue?.length)this.rejectShot(p,p.fireQueue.at(-1).input,'objective');p.fireQueue.length=0;this.cancelGrenade(p,'objective');}
+      if(p.objectiveLocked){if(p.fireQueue?.length)this.rejectShot(p,p.fireQueue.at(-1).input,'objective');if(p.fireQueue)p.fireQueue.length=0;this.cancelGrenade(p,'objective');}
       const queuedShot=canAct&&!p.objectiveLocked&&!automatic&&this.fireQueued(p);
       if(this.match.status==='ended')break;
       if(!canAct&&p.fireQueue)p.fireQueue.length=0;

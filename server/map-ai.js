@@ -72,8 +72,9 @@ export class MapSquadDirector {
     let hold=team==='CT'?(i%2?'B':'A'):site,role=team==='T'?(p.hasBomb?'carrier':['entry','trade','utility','flank'][i%4]):i<2?'anchor':'rotator';
     if(p.challengeProfile)role=team==='T'?(p.hasBomb?'carrier':p.challengeProfile.role):['mezii','flameZ'].includes(p.challengeProfile.id)?'anchor':'rotator';
     const guard=team==='CT'?this.graph.guards(hold,round,5)[Math.floor(i/2)]:null;
-    let goal=guard||this.graph.map.sites[hold],route=this.graph.route(p,goal),lane=0;
+    let goal=guard||this.graph.map.sites[hold],route=null,lane=0;
     if(team==='T'&&lanes.length){lane=((round-1)+(strategy?.tempo==='fast'||strategy?.economy==='eco'?0:i%lanes.length))%lanes.length;const ingress=this.graph.route(p,lanes[lane][0]);if(ingress)route=[...ingress,...lanes[lane].slice(1)];}
+    if(!route)route=this.graph.route(p,goal);
     const opening=room&&challengeOpeningPost(room,p,this.graph);
     const executeGoal=pos(goal),executeRoute=route;
     let stage=null;

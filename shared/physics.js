@@ -1,4 +1,4 @@
-import { BufferGeometry, BufferAttribute, Float32BufferAttribute, Vector3, Ray, Box3, DoubleSide } from 'three';
+import { BufferGeometry, BufferAttribute, Float32BufferAttribute, Vector3, Ray, Box3, Triangle, DoubleSide } from 'three';
 import { MeshBVH, CENTER } from 'three-mesh-bvh';
 import {HullContact} from './hull-collision.js';
 import {patchMapCollision} from './map-collision-patch.js';
@@ -32,6 +32,12 @@ let worldBounds = new Box3();
 const axis = new Vector3();
 const motion = new Vector3();
 const ray = new Ray();
+const stepHull = new Box3();
+const stepBefore = new Box3();
+const stepUpHull = new Box3();
+const stepSupportHull = new Box3();
+const stepUpVec = new Vector3();
+const crouchLiftVec = new Vector3(0, .0002, 0);
 
 // Broadphase BVH with a flat, axis-aligned player hull. Render meshes are not
 // used as the character collider; both peers use this same collision geometry.
@@ -40,43 +46,121 @@ class MapCollision {
     this.bvh=bvh||new MeshBVH(geometry,{strategy:CENTER,targetLeafSize:16,maxDepth:32});
     this.geometry=geometry;this.contact=new HullContact();this.enabled=enabled;
     this.channelMask=channelMask;this.channelBit=channelBit;
+    this.indexArray=geometry.index?.array||null;
+    this.posArray=geometry.attributes.position?.array||null;
+    this._resolved=new Box3();this._tri=new Triangle();
   }
   origEnabled(orig){return (!this.channelMask||(this.channelMask[orig]&this.channelBit)!==0)&&(!this.enabled||this.enabled(orig));}
-  triangleEnabled(index){return this.origEnabled(Math.floor(this.geometry.index.getX(index*3)/3));}
+  triangleEnabled(index){
+    const mask=this.channelMask,en=this.enabled;
+    if(!mask&&!en)return true;
+    const orig=((this.indexArray?this.indexArray[index*3]:this.geometry.index.getX(index*3))/3)|0;
+    return (!mask||(mask[orig]&this.channelBit)!==0)&&(!en||en(orig));
+  }
   hitEnabled(hit){return this.origEnabled(Math.floor(hit.face.a/3));}
   rayIntersect(r){const first=this.bvh.raycastFirst(r,DoubleSide);if(!first||this.hitEnabled(first))return first;return this.bvh.raycast(r,DoubleSide).filter(h=>this.hitEnabled(h)).sort((a,b)=>a.distance-b.distance)[0]||null;}
   sweepDown(c,maxDrop){
-    const bounds=c.clone();bounds.min.y-=maxDrop;let distance=Infinity,walkable=false;
-    this.bvh.shapecast({intersectsBounds:box=>box.intersectsBox(bounds),intersectsTriangle:(tri,index)=>{
-      if(!this.triangleEnabled(index))return false;
-      const hit=this.contact.sweepDown(tri,c,maxDrop);if(!hit)return false;
-      if(hit.distance<distance-.00001){distance=hit.distance;walkable=hit.walkable;}
-      else if(Math.abs(hit.distance-distance)<=.00001)walkable||=hit.walkable;
-      return false;
-    }});
-    return Number.isFinite(distance)&&walkable?distance:null;
-  }
-  hullIntersect(c){
-    const resolved=c.clone(),bounds=c.clone().expandByScalar(.002),contacts=[],push=new Vector3();
+    const cMinX=c.min.x,cMinY=c.min.y,cMinZ=c.min.z;
+    const cMaxX=c.max.x,cMaxY=c.max.y,cMaxZ=c.max.z;
+    const bMinY=cMinY-maxDrop;
+    const mask=this.channelMask,bit=this.channelBit,en=this.enabled,idxArr=this.indexArray,posArr=this.posArray,contact=this.contact,tri=this._tri;
+    const checkTri=mask||en;
+    let distance=Infinity,walkable=false;
     this.bvh.shapecast({
-      intersectsBounds:box=>box.intersectsBox(bounds),
-      intersectsTriangle:(tri,index)=>{
-        if(!this.triangleEnabled(index))return false;
-        const contact=this.contact.intersect(tri,resolved);
-        if(contact){
-          contacts.push(contact);resolved.translate(push.copy(contact.normal).multiplyScalar(contact.depth+.00001));
-          bounds.copy(resolved).expandByScalar(.002);
-        }else if(contacts.length){
-          // A vertical side's top edge may resolve upward before its adjacent
-          // tread is visited. Retain the tread's original support contact too.
-          const support=this.contact.intersect(tri,c);
-          if(support?.walkable)contacts.push({...support,depth:0});
+      intersectsBounds:box=>!(box.max.x<cMinX||box.min.x>cMaxX||box.max.y<bMinY||box.min.y>cMaxY||box.max.z<cMinZ||box.min.z>cMaxZ),
+      intersectsRange:(offset,count)=>{
+        for(let t=offset,end=offset+count;t<end;t++){
+          const i3=t*3,ia=idxArr[i3];
+          if(checkTri){
+            const orig=(ia/3)|0;
+            if((mask&&(mask[orig]&bit)===0)||(en&&!en(orig)))continue;
+          }
+          const a3=ia*3,b3=idxArr[i3+1]*3,c3=idxArr[i3+2]*3;
+          const ax=posArr[a3],bx=posArr[b3],cx=posArr[c3];
+          const minX=ax<bx?(ax<cx?ax:cx):(bx<cx?bx:cx);
+          const maxX=ax>bx?(ax>cx?ax:cx):(bx>cx?bx:cx);
+          if(minX>=cMaxX-1e-8||maxX<=cMinX+1e-8)continue;
+          const az=posArr[a3+2],bz=posArr[b3+2],cz=posArr[c3+2];
+          const minZ=az<bz?(az<cz?az:cz):(bz<cz?bz:cz);
+          const maxZ=az>bz?(az>cz?az:cz):(bz>cz?bz:cz);
+          if(minZ>=cMaxZ-1e-8||maxZ<=cMinZ+1e-8)continue;
+          const ay=posArr[a3+1],by=posArr[b3+1],cy=posArr[c3+1];
+          const minY=ay<by?(ay<cy?ay:cy):(by<cy?by:cy);
+          const maxY=ay>by?(ay>cy?ay:cy):(by>cy?by:cy);
+          if(maxY<bMinY-1e-8||minY>cMaxY+1e-8)continue;
+          tri.a.set(ax,ay,az);tri.b.set(bx,by,bz);tri.c.set(cx,cy,cz);
+          const hit=contact.sweepDown(tri,c,maxDrop);if(!hit)continue;
+          if(hit.distance<distance-.00001){distance=hit.distance;walkable=hit.walkable;}
+          else if(Math.abs(hit.distance-distance)<=.00001)walkable||=hit.walkable;
         }
         return false;
       }
     });
-    const normal=resolved.min.clone().sub(c.min),depth=normal.length();
-    return depth>1e-7?{normal:normal.multiplyScalar(1/depth),depth,contacts,walkable:contacts.some(c=>c.walkable)}:false;
+    return Number.isFinite(distance)&&walkable?distance:null;
+  }
+  hullIntersect(c){
+    const resolved=this._resolved.copy(c),contacts=[],tri=this._tri;
+    const cMinX=c.min.x,cMinY=c.min.y,cMinZ=c.min.z,cMaxX=c.max.x,cMaxY=c.max.y,cMaxZ=c.max.z;
+    let rMinX=cMinX,rMinY=cMinY,rMinZ=cMinZ,rMaxX=cMaxX,rMaxY=cMaxY,rMaxZ=cMaxZ;
+    let bMinX=cMinX-.002,bMinY=cMinY-.002,bMinZ=cMinZ-.002;
+    let bMaxX=cMaxX+.002,bMaxY=cMaxY+.002,bMaxZ=cMaxZ+.002;
+    const mask=this.channelMask,bit=this.channelBit,en=this.enabled,idxArr=this.indexArray,posArr=this.posArray,contactHelper=this.contact;
+    const checkTri=mask||en;
+    this.bvh.shapecast({
+      intersectsBounds:box=>!(box.max.x<bMinX||box.min.x>bMaxX||box.max.y<bMinY||box.min.y>bMaxY||box.max.z<bMinZ||box.min.z>bMaxZ),
+      intersectsRange:(offset,count)=>{
+        for(let t=offset,end=offset+count;t<end;t++){
+          const i3=t*3,ia=idxArr[i3];
+          if(checkTri){
+            const orig=(ia/3)|0;
+            if((mask&&(mask[orig]&bit)===0)||(en&&!en(orig)))continue;
+          }
+          const a3=ia*3,b3=idxArr[i3+1]*3,c3=idxArr[i3+2]*3;
+          const ax=posArr[a3],bx=posArr[b3],cx=posArr[c3];
+          const minX=ax<bx?(ax<cx?ax:cx):(bx<cx?bx:cx);
+          const maxX=ax>bx?(ax>cx?ax:cx):(bx>cx?bx:cx);
+          const inResX=maxX>rMinX+1e-8&&minX<rMaxX-1e-8;
+          const inOrigX=contacts.length>0&&maxX>cMinX+1e-8&&minX<cMaxX-1e-8;
+          if(!inResX&&!inOrigX)continue;
+          const ay=posArr[a3+1],by=posArr[b3+1],cy=posArr[c3+1];
+          const minY=ay<by?(ay<cy?ay:cy):(by<cy?by:cy);
+          const maxY=ay>by?(ay>cy?ay:cy):(by>cy?by:cy);
+          const inResY=inResX&&maxY>rMinY+1e-8&&minY<rMaxY-1e-8;
+          const inOrigY=inOrigX&&maxY>cMinY+1e-8&&minY<cMaxY-1e-8;
+          if(!inResY&&!inOrigY)continue;
+          const az=posArr[a3+2],bz=posArr[b3+2],cz=posArr[c3+2];
+          const minZ=az<bz?(az<cz?az:cz):(bz<cz?bz:cz);
+          const maxZ=az>bz?(az>cz?az:cz):(bz>cz?bz:cz);
+          const inRes=inResY&&maxZ>rMinZ+1e-8&&minZ<rMaxZ-1e-8;
+          const inOrig=inOrigY&&maxZ>cMinZ+1e-8&&minZ<cMaxZ-1e-8;
+          if(!inRes&&!inOrig)continue;
+          tri.a.set(ax,ay,az);tri.b.set(bx,by,bz);tri.c.set(cx,cy,cz);
+          const contact=inRes?contactHelper.intersect(tri,resolved):null;
+          if(contact){
+            contacts.push(contact);
+            const scale=contact.depth+.00001;
+            const dx=contact.normal.x*scale,dy=contact.normal.y*scale,dz=contact.normal.z*scale;
+            rMinX+=dx;rMinY+=dy;rMinZ+=dz;rMaxX+=dx;rMaxY+=dy;rMaxZ+=dz;
+            resolved.min.set(rMinX,rMinY,rMinZ);resolved.max.set(rMaxX,rMaxY,rMaxZ);
+            bMinX=rMinX-.002;bMinY=rMinY-.002;bMinZ=rMinZ-.002;
+            bMaxX=rMaxX+.002;bMaxY=rMaxY+.002;bMaxZ=rMaxZ+.002;
+          }else if(inOrig){
+            // A vertical side's top edge may resolve upward before its adjacent
+            // tread is visited. Retain the tread's original support contact too.
+            const support=contactHelper.intersect(tri,c);
+            if(support?.walkable)contacts.push({...support,depth:0});
+          }
+        }
+        return false;
+      }
+    });
+    const dx=rMinX-cMinX,dy=rMinY-cMinY,dz=rMinZ-cMinZ;
+    const depth=Math.hypot(dx,dy,dz);
+    if(depth<=1e-7)return false;
+    const inv=1/depth;
+    let walkable=false;
+    for(let i=0;i<contacts.length;i++)if(contacts[i].walkable){walkable=true;break;}
+    return {normal:new Vector3(dx*inv,dy*inv,dz*inv),depth,contacts,walkable};
   }
 }
 
@@ -170,10 +254,10 @@ export function floorHeight(x,z,fromY=80,maxDistance=200) {
   return d === null ? null : fromY-d;
 }
 
-function collide(hull,p) {
+function collide(hull,p,firstHit=undefined) {
   let grounded=false;
   for (let i=0;i<3;i++) {
-    const hit=world?.hullIntersect(hull);
+    const hit=i===0&&firstHit!==undefined?firstHit:world?.hullIntersect(hull);
     if (!hit) break;
     if(hit.walkable&&p.vy<=.1){grounded=true;p.vy=0;}
     for(const contact of hit.contacts){
@@ -200,7 +284,11 @@ function sweepDown(hull,maxDrop){
   // Previously a riser pushed the probe sideways before its tread was tested,
   // hiding valid support and permanently blocking even a 12 cm step.
   const distance=world.sweepDown(hull,maxDrop);
-  return distance===null?null:hull.clone().translate(new Vector3(0,-Math.max(0,distance-.0001),0));
+  if(distance===null)return null;
+  const dy=-Math.max(0,distance-.0001);
+  stepSupportHull.copy(hull);
+  stepSupportHull.min.y+=dy;stepSupportHull.max.y+=dy;
+  return stepSupportHull;
 }
 
 /** First collision with an outward-facing surface normal for projectile reflection. */
@@ -286,27 +374,30 @@ export function stepPlayer(p,input={},dt=1/60) {
   const substeps=Math.max(3,Math.ceil(dt*180)),h=dt/substeps;
   const beforeX=p.x,beforeZ=p.z;
   const incomingHorizontalSpeed=Math.hypot(p.vx,p.vz);
+  const height=p.height;
   for(let i=0;i<substeps;i++) {
     tryJump();
     const wasGrounded=p.grounded;
     const horizontalSpeed=Math.hypot(p.vx,p.vz);
     p.vy-=GRAVITY*h*.5;
-    const c=hullFor(p);
-    const before=c.clone();
+    const c=stepHull;
+    c.min.set(p.x-PLAYER_RADIUS,p.y,p.z-PLAYER_RADIUS);
+    c.max.set(p.x+PLAYER_RADIUS,p.y+height,p.z+PLAYER_RADIUS);
+    stepBefore.copy(c);
     motion.set(p.vx,p.vy,p.vz).multiplyScalar(h);
     c.translate(motion);
     const hit=world.hullIntersect(c);
     // Source stairs have 0.2–0.4 m risers. Try stepping only from grounded movement.
-    let ground=false;
+    let ground=false,steppedUp=false;
     if(hit&&hit.depth*Math.hypot(hit.normal.x,hit.normal.z)>.0001&&wasGrounded&&!jumped&&Math.hypot(motion.x,motion.z)>.001) {
-      const stepped=before.clone();
-      stepped.translate(new Vector3(motion.x,STEP_HEIGHT,motion.z));
-      if(!world.hullIntersect(stepped)) {
-        const support=sweepDown(stepped,STEP_HEIGHT+.06);
-        if(support){c.copy(support);p.vy=0;ground=true;}
+      stepUpHull.copy(stepBefore).translate(stepUpVec.set(motion.x,STEP_HEIGHT,motion.z));
+      if(!world.hullIntersect(stepUpHull)) {
+        const support=sweepDown(stepUpHull,STEP_HEIGHT+.06);
+        if(support){c.copy(support);p.vy=0;ground=true;steppedUp=true;}
       }
     }
-    ground=collide(c,p)||ground;
+    if(steppedUp)ground=collide(c,p)||ground;
+    else if(hit)ground=collide(c,p,hit)||ground;
     if(!ground&&wasGrounded&&!jumped&&p.vy<=0){
       const support=sweepDown(c,STEP_HEIGHT);
       if(support){c.copy(support);ground=true;}

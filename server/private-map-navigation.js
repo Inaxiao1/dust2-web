@@ -7,7 +7,7 @@ const signature=path=>path.map(n=>n.id).join(',');
 export function selectPrivateRoute(graph,start,goal,{preferred=null,teammates=[],reports=[],round=1,seat=0,role='',urgent=false}={}){
  const shortest=graph.route(start,goal);if(!shortest)return {path:null,variant:-1,reason:'no-verified-route'};
  if(preferred?.length&&['entry','trade','carrier','utility'].includes(role))return {path:preferred,variant:0,reason:'squad-lane'};
- const minimum=routeLength(shortest),limit=minimum*(urgent?1.15:1.4)+(urgent?2:6),candidates=graph.alternatives(start,goal,3).filter(p=>routeLength(p)<=limit);
+ const minimum=routeLength(shortest),limit=minimum*(urgent?1.15:1.4)+(urgent?2:6),candidates=graph.alternatives(start,goal,3,{firstPath:shortest}).filter(p=>routeLength(p)<=limit);
  if(!candidates.length)candidates.push(shortest);
  const allies=teammates.filter(p=>p.alive!==false),evidence=reports.filter(r=>r.point&&r.confidence>.12);
  const targetVariant=(round+seat)%candidates.length;
