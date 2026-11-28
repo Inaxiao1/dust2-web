@@ -20,7 +20,9 @@ import {
   diffNewUnlocks,
   computeCareerLevel,
   countUnlockedSummary,
+  hasUnclaimedSocialGifts,
 } from '../shared/progression.js';
+import { applyRewardsToProgress, mailHasClaimableRewards } from '../shared/rewards.js';
 import { normalizeWeaponLoadout } from '../shared/weapon-loadout.js';
 
 export const CLOUD_KEY_PROGRESS = 'cs_prog_v1';
@@ -99,7 +101,14 @@ export class ToyProgressStore extends EventTarget {
   get isToy() { return this.identity.isToy; }
   get career() { return computeCareerLevel(this._progress); }
   get summary() { return countUnlockedSummary(this._progress); }
+  get hasUnclaimedSocialGifts() { return hasUnclaimedSocialGifts(this._progress); }
   get cooldownRemainingMs() { return Math.max(0, this._cooldownUntil - this._now()); }
+
+  _emitWindowSync() {
+    if (typeof globalThis.window?.dispatchEvent === 'function') {
+      globalThis.window.dispatchEvent(new CustomEvent('cs2-progression-synced', { detail: { progress: this._progress } }));
+    }
+  }
 
   _readLocalProgress(uid) {
     try {
@@ -120,6 +129,7 @@ export class ToyProgressStore extends EventTarget {
     this._progress = this._readLocalProgress(nextUid);
     this._enforceStoredLoadouts();
     this.dispatchEvent(new Event('change'));
+    this._emitWindowSync();
   }
 
   _enforceStoredLoadouts() {
@@ -298,8 +308,61 @@ export class ToyProgressStore extends EventTarget {
     if (unlocked.skins.length || unlocked.agents.length) {
       this.dispatchEvent(new CustomEvent('unlock', { detail: unlocked }));
     }
+    this._emitWindowSync();
     if (flush) void this.flushCloud({ force: forceFlush });
     return unlocked;
+  }
+
+  /** Mark a mailbox announcement/reward mail as read. */
+  markMailRead(mailId) {
+    const clean = typeof mailId === 'string' ? mailId.trim() : '';
+    if (!clean || !/^[a-zA-Z0-9_.:-]{1,64}$/.test(clean)) return false;
+    if (this._progress.readMailIds.includes(clean)) return false;
+    this._applyProgressMutation((p) => {
+      if (!p.readMailIds.includes(clean)) p.readMailIds.push(clean);
+    }, { flush: true, forceFlush: false });
+    return true;
+  }
+
+  /** Claim abstract rewards attached to a single mail (idempotent & cloud-synced). */
+  claimMail(mail) {
+    if (!mail?.id || !/^[a-zA-Z0-9_.:-]{1,64}$/.test(String(mail.id))) {
+      return { ok: false, alreadyClaimed: false, summary: null, unlocked: { skins: [], agents: [] } };
+    }
+    if (!mailHasClaimableRewards(mail, this._progress)) {
+      this.markMailRead(mail.id);
+      return { ok: false, alreadyClaimed: true, summary: null, unlocked: { skins: [], agents: [] } };
+    }
+    let summary = null;
+    const unlocked = this._applyProgressMutation((p) => {
+      summary = applyRewardsToProgress(p, mail.rewards, this._now());
+      if (!p.claimedMailIds.includes(mail.id)) p.claimedMailIds.push(mail.id);
+      if (!p.readMailIds.includes(mail.id)) p.readMailIds.push(mail.id);
+    }, { flush: true, forceFlush: true });
+    return { ok: true, alreadyClaimed: false, summary, unlocked };
+  }
+
+  /** Claim all unclaimed reward mails in one atomic save + cloud sync. */
+  claimAllMails(mails) {
+    const claimable = (Array.isArray(mails) ? mails : []).filter((m) => mailHasClaimableRewards(m, this._progress));
+    if (!claimable.length) {
+      return { ok: false, count: 0, summary: null, unlocked: { skins: [], agents: [] } };
+    }
+    const aggregated = { skins: [], agents: [], xp: 0, items: [], duplicates: [] };
+    const unlocked = this._applyProgressMutation((p) => {
+      const ts = this._now();
+      for (const mail of claimable) {
+        const res = applyRewardsToProgress(p, mail.rewards, ts);
+        aggregated.skins.push(...res.skins);
+        aggregated.agents.push(...res.agents);
+        aggregated.xp += res.xp;
+        aggregated.items.push(...res.items);
+        aggregated.duplicates.push(...res.duplicates);
+        if (!p.claimedMailIds.includes(mail.id)) p.claimedMailIds.push(mail.id);
+        if (!p.readMailIds.includes(mail.id)) p.readMailIds.push(mail.id);
+      }
+    }, { flush: true, forceFlush: true });
+    return { ok: true, count: claimable.length, summary: aggregated, unlocked };
   }
 
   /** Record a credited combat kill in memory + local cache (NEVER calls cloud API directly!). */

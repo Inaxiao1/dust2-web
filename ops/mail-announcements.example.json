@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "mails": [
+    {
+      "id": "welcome-2026-launch",
+      "category": "reward",
+      "pinned": true,
+      "sender": "随时随地CS 运营组",
+      "title": "新版本更新说明 & 干员见面补给",
+      "body": "各位干员：\n\n1. 全服已升级为三节点智能分流集群，大幅降低延迟与波动。\n2. 新增「人机练习」离线模式，网络不稳定时也能本地畅玩 9 张经典地图。\n3. 移动端修复画面拉伸问题，新增左侧独立开火键与 2/3/4 指自定义按键布局。\n4. 自建房间已支持设置房间密码，方便与好友 1v1 约战。\n\n感谢支持，附赠见面补给一份，点击下方即可领取。",
+      "createdAt": 1795878000000,
+      "target": "all",
+      "rewards": [
+        { "type": "skin", "skinId": "deagle-conspiracy" },
+        { "type": "xp", "amount": 500 },
+        {
+          "type": "item",
+          "itemId": "badge-pioneer-s1",
+          "title": "S1 先锋干员纪念章",
+          "category": "badge",
+          "description": "随时随地CS 首发赛季纪念收藏品",
+          "quantity": 1,
+          "icon": "S1"
+        }
+      ]
+    },
+    {
+      "id": "notice-1v1-password",
+      "category": "announcement",
+      "pinned": false,
+      "sender": "随时随地CS 运营组",
+      "title": "自建 1v1 密码房使用指引",
+      "body": "如需与好友 1v1 单挑或开黑练图，可在大厅点击「自建房间」→ 选择「0 名 · 1v1 单挑」并填写房间密码。\n\n加密房间不会进入「快速加入」随机匹配队列，好友在联机大厅点击「输入密码」即可直连进入。",
+      "createdAt": 1795877500000,
+      "target": "all",
+      "rewards": []
+    },
+    {
+      "id": "example-targeted-gift",
+      "category": "compensation",
+      "pinned": false,
+      "sender": "随时随地CS 运营组",
+      "title": "定向皮肤补发示例（仅指定账号可见）",
+      "body": "此为定向发放模板示例，填写 targetUids 即可只向指定玩家发放任意皮肤、匕首、探员、经验或自定义物品。",
+      "createdAt": 1795877000000,
+      "target": "uids",
+      "targetUids": ["example_uid_only"],
+      "rewards": [
+        { "type": "skin", "skinId": "karambit-sapphire" },
+        { "type": "agent", "agentId": "ct-ava" }
+      ]
+    }
+  ]
+}

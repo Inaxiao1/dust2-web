@@ -1,6 +1,9 @@
-import {mountRoomDirectory} from './room-directory.js';
+import {mountRoomDirectory, directoryJoinPath} from './room-directory.js';
 import {ToyIdentity} from './toy-identity.js';
 import {fetchGameApi} from './origin-failover.js';
+
+const ROOM_PASSWORD_KEY = 'cs.room.password.v1';
+const MAIL_CACHE_KEY = 'cs.mail.cache.v1';
 
 const $ = (id) => document.getElementById(id);
 const RT = globalThis.__CS2_STATIC_RUNTIME__ && typeof globalThis.__CS2_STATIC_RUNTIME__ === 'object'
@@ -119,23 +122,106 @@ const toyIdentity = globalThis[TOY_ID_KEY] || new ToyIdentity();
 globalThis[TOY_ID_KEY] = toyIdentity;
 let lobbyProgressSummary = '';
 
-function readLocalCareerSummary(uid) {
+function readLocalProgressRecord(uid) {
   try {
     const clean = String(uid || 'guest').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64);
     const raw = JSON.parse(localStorage.getItem('cs.progression.v1.' + clean) || 'null');
-    if (!raw || typeof raw !== 'object') return 'Lv.1 · 0 杀';
+    return raw && typeof raw === 'object' ? raw : null;
+  } catch {
+    return null;
+  }
+}
+
+function readLocalCareerSummary(uid) {
+  try {
+    const raw = readLocalProgressRecord(uid);
+    if (!raw) return 'Lv.1 · 0 杀';
     const kills = Math.max(0, Math.floor(Number(raw.kills) || 0));
     const headshots = Math.max(0, Math.floor(Number(raw.headshots) || 0));
     const rounds = Math.max(0, Math.floor(Number(raw.rounds) || 0));
     const matches = Math.max(0, Math.floor(Number(raw.matches) || 0));
     const wins = Math.max(0, Math.floor(Number(raw.wins) || 0));
-    const xp = kills * 25 + headshots * 15 + rounds * 20 + matches * 120 + wins * 80;
+    const bonusXp = Math.max(0, Math.floor(Number(raw.bonusXp) || 0));
+    const xp = kills * 25 + headshots * 15 + rounds * 20 + matches * 120 + wins * 80 + bonusXp;
     let level = 1, floorXp = 0, stepXp = 600;
     while (level < 30 && xp >= floorXp + stepXp) { floorXp += stepXp; level++; stepXp = Math.round(600 + (level - 1) * 260); }
     return `Lv.${level} · ${kills} 杀 · ${matches} 局`;
   } catch {
     return 'Lv.1 · 0 杀';
   }
+}
+
+let latestLobbyMails = (() => {
+  try {
+    const raw = JSON.parse(localStorage.getItem(MAIL_CACHE_KEY) || 'null');
+    return Array.isArray(raw?.mails) ? raw.mails : [];
+  } catch {
+    return [];
+  }
+})();
+
+function updateProgressionRedDot(progressOverride = null) {
+  const dot = $('progRedDot');
+  if (!dot) return;
+  const p = progressOverride || readLocalProgressRecord(toyIdentity.uid);
+  const followed = Boolean(p?.social?.followed);
+  const tripled = Boolean(p?.social?.tripled || (p?.social?.liked && p?.social?.coined && p?.social?.favorited));
+  dot.hidden = followed && tripled;
+}
+
+function computeMailAttentionCount(mails, progress) {
+  const readSet = new Set(Array.isArray(progress?.readMailIds) ? progress.readMailIds : []);
+  const claimedSet = new Set(Array.isArray(progress?.claimedMailIds) ? progress.claimedMailIds : []);
+  let unclaimed = 0;
+  let attention = 0;
+  for (const mail of Array.isArray(mails) ? mails : []) {
+    if (!mail?.id) continue;
+    const isUnclaimed = Array.isArray(mail.rewards) && mail.rewards.length > 0 && !claimedSet.has(mail.id);
+    const isUnread = !readSet.has(mail.id);
+    if (isUnclaimed) unclaimed++;
+    if (isUnclaimed || isUnread) attention++;
+  }
+  return { unclaimed, attention };
+}
+
+function updateMailRedDot(progressOverride = null, badgesOverride = null) {
+  const badge = $('mailRedDot');
+  if (!badge) return;
+  const counts = badgesOverride || computeMailAttentionCount(
+    latestLobbyMails,
+    progressOverride || readLocalProgressRecord(toyIdentity.uid),
+  );
+  const n = Number(counts?.attention) || 0;
+  badge.hidden = n <= 0;
+  if (n > 0) {
+    badge.classList.toggle('dot-only', false);
+    badge.textContent = n > 9 ? '9+' : String(n);
+  }
+}
+
+async function refreshLobbyMailBadge() {
+  try {
+    const uid = toyIdentity.uid || '';
+    const q = uid ? '?uid=' + encodeURIComponent(uid) : '';
+    const data = await apiJson('/perf/mail.json' + q, 3500);
+    if (Array.isArray(data?.mails)) {
+      latestLobbyMails = data.mails;
+      try { localStorage.setItem(MAIL_CACHE_KEY, JSON.stringify({ updatedAt: Date.now(), mails: latestLobbyMails })); } catch {}
+    }
+  } catch {
+    // Keep cached mails if offline.
+  }
+  updateMailRedDot();
+}
+
+function stageRoomPassword(payload) {
+  try {
+    if (!payload || !payload.password) {
+      sessionStorage.removeItem(ROOM_PASSWORD_KEY);
+      return;
+    }
+    sessionStorage.setItem(ROOM_PASSWORD_KEY, JSON.stringify({ ...payload, at: Date.now() }));
+  } catch {}
 }
 
 function renderToyCard() {
@@ -173,6 +259,8 @@ function renderToyCard() {
 }
 toyIdentity.addEventListener('change', () => {
   renderToyCard();
+  updateProgressionRedDot();
+  void refreshLobbyMailBadge();
   if (toyIdentity.state.inToy && toyIdentity.state.authenticated) {
     void syncLobbyCloudProgression();
   }
@@ -184,13 +272,24 @@ $('toyPlayerCard')?.addEventListener('click', (e) => {
 });
 const playerCardEl = $('toyPlayerCard');
 if (playerCardEl) { playerCardEl.style.cursor = 'pointer'; playerCardEl.title = '点击查看成长任务与 Toy 云存档'; }
-window.addEventListener('cs2-progression-synced', () => {
+window.addEventListener('cs2-progression-synced', (ev) => {
   lobbyProgressSummary = '';
+  const progress = ev?.detail?.progress || null;
   renderToyCard();
+  updateProgressionRedDot(progress);
+  updateMailRedDot(progress);
   renderHeroAgent(false);
 });
+window.addEventListener('cs2-mail-updated', (ev) => {
+  if (Array.isArray(ev?.detail?.mails)) latestLobbyMails = ev.detail.mails;
+  updateMailRedDot(null, ev?.detail?.badges || null);
+});
 renderToyCard();
+updateProgressionRedDot();
+updateMailRedDot();
 toyIdentity.init().then((s) => {
+  updateProgressionRedDot();
+  void refreshLobbyMailBadge();
   if (s?.inToy && s?.authenticated) void syncLobbyCloudProgression();
 });
 
@@ -206,6 +305,8 @@ async function syncLobbyCloudProgression() {
         const p = store.progress;
         lobbyProgressSummary = `Lv.${c.level} · ${p.kills} 杀 · ${p.matches} 局`;
         renderToyCard();
+        updateProgressionRedDot(p);
+        updateMailRedDot(p);
         renderHeroAgent(false);
       };
       store.addEventListener('change', updateMeta);
@@ -295,11 +396,36 @@ window.addEventListener('cs2-agent-updated', (event) => {
 renderHeroAgent(false);
 
 /* 3. Live Online Rooms Directory (Docked Full-Height Right Sidebar) */
-const directory = mountRoomDirectory($('onlineRooms'), {
-  graphics: () => 'performance',
-  onJoin: async (event, room) => {
-    if (!controlPlaneEnabled) return;
-    event.preventDefault();
+let pendingLockedRoom = null;
+const roomPasswordModal = $('roomPasswordModal');
+const roomPasswordInput = $('roomPasswordInput');
+const roomPasswordError = $('roomPasswordError');
+
+function openRoomPasswordModal(room) {
+  if (!roomPasswordModal || !room) return;
+  pendingLockedRoom = room;
+  const mapLabel = room.mapNameZh || room.mapName || room.mapId;
+  const modeLabel = modeLabels[room.mode] || '对战';
+  const meta = $('pwModalRoomMeta');
+  if (meta) meta.textContent = `${mapLabel} · ${modeLabel} · 房间 ${room.code}（已设密码，输入正确密码后进入）`;
+  if (roomPasswordInput) {
+    roomPasswordInput.value = '';
+    roomPasswordInput.type = 'password';
+  }
+  if ($('toggleJoinPassword')) $('toggleJoinPassword').textContent = '显示';
+  if (roomPasswordError) { roomPasswordError.hidden = true; roomPasswordError.textContent = ''; }
+  roomPasswordModal.hidden = false;
+  setTimeout(() => roomPasswordInput?.focus(), 20);
+}
+
+function closeRoomPasswordModal() {
+  if (!roomPasswordModal || roomPasswordModal.hidden) return;
+  roomPasswordModal.hidden = true;
+  pendingLockedRoom = null;
+}
+
+async function navigateToRoom(room) {
+  if (controlPlaneEnabled) {
     try {
       const ticket = await postApiJson('/perf/api/rooms/' + encodeURIComponent(room.code) + '/join', {
         playerName: toyIdentity.playerName,
@@ -307,9 +433,56 @@ const directory = mountRoomDirectory($('onlineRooms'), {
       });
       stageJoinTicket({ ...ticket, action: 'join' });
       location.assign(toLocalMatchUrl(ticket.joinUrl) || matchRouteUrl(room.mapId, new URLSearchParams({ room: room.code, join: '1', matchMode: room.mode })));
-    } catch {
-      location.assign(matchRouteUrl(room.mapId, new URLSearchParams({ room: room.code, join: '1', matchMode: room.mode })));
+      return;
+    } catch {}
+  }
+  const href = directoryJoinPath(room, 'performance')
+    || matchRouteUrl(room.mapId, new URLSearchParams({ room: room.code, join: '1', matchMode: room.mode }));
+  location.assign(href);
+}
+
+$('closeRoomPasswordModal')?.addEventListener('click', closeRoomPasswordModal);
+$('cancelRoomPasswordBtn')?.addEventListener('click', closeRoomPasswordModal);
+roomPasswordModal?.addEventListener('click', (event) => {
+  if (event.target === roomPasswordModal) closeRoomPasswordModal();
+});
+$('toggleJoinPassword')?.addEventListener('click', () => {
+  if (!roomPasswordInput) return;
+  const show = roomPasswordInput.type === 'password';
+  roomPasswordInput.type = show ? 'text' : 'password';
+  $('toggleJoinPassword').textContent = show ? '隐藏' : '显示';
+  roomPasswordInput.focus();
+});
+$('roomPasswordForm')?.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (!pendingLockedRoom) return;
+  const pw = (roomPasswordInput?.value || '').trim().slice(0, 24);
+  if (!pw) {
+    if (roomPasswordError) {
+      roomPasswordError.textContent = '请输入房间密码。';
+      roomPasswordError.hidden = false;
     }
+    roomPasswordInput?.focus();
+    return;
+  }
+  const targetRoom = pendingLockedRoom;
+  stageRoomPassword({ mode: 'join', mapId: targetRoom.mapId, room: targetRoom.code, password: pw });
+  closeRoomPasswordModal();
+  await navigateToRoom(targetRoom);
+});
+
+const directory = mountRoomDirectory($('onlineRooms'), {
+  graphics: () => 'performance',
+  onJoin: async (event, room) => {
+    if (room?.locked) {
+      event.preventDefault();
+      openRoomPasswordModal(room);
+      return;
+    }
+    stageRoomPassword(null);
+    if (!controlPlaneEnabled) return;
+    event.preventDefault();
+    await navigateToRoom(room);
   },
   onCount: (rooms, humans, cluster) => {
     const statusText = $('serverStatusText');
@@ -351,9 +524,14 @@ customModal?.addEventListener('click', (event) => {
   if (event.target === customModal) closeCustomModal();
 });
 document.addEventListener('keydown', (event) => {
-  if (event.code === 'Escape' && customModal && !customModal.hidden) {
-    event.preventDefault();
-    closeCustomModal();
+  if (event.code === 'Escape') {
+    if (roomPasswordModal && !roomPasswordModal.hidden) {
+      event.preventDefault();
+      closeRoomPasswordModal();
+    } else if (customModal && !customModal.hidden) {
+      event.preventDefault();
+      closeCustomModal();
+    }
   }
 });
 if (location.hash === '#custom' || location.hash === '#maps') openCustomModal();
@@ -585,6 +763,8 @@ function syncCustomUI() {
   });
   const diffField = $('customDifficultyField');
   if (diffField) diffField.hidden = customMatchType !== 'offline';
+  const pwField = $('customPasswordField');
+  if (pwField) pwField.hidden = customMatchType === 'offline';
   const minus = $('customBotMinus'), plus = $('customBotPlus');
   if (minus) minus.disabled = customBots <= 0;
   if (plus) plus.disabled = customBots >= 9;
@@ -592,20 +772,22 @@ function syncCustomUI() {
   const readout = $('customBotsReadout');
   if (readout) {
     readout.textContent = customBots === 0
-      ? '0 名 · 纯真人'
+      ? '0 名 · 1v1 单挑'
       : customBots === 9
         ? '9 名 · 5v5 满员'
         : `${customBots} 名人机`;
   }
   const launchBtn = $('customLaunchBtn');
   if (launchBtn) {
-    launchBtn.textContent = customMatchType === 'offline' ? '⚡ 开始本地人机 →' : '创建并进入 →';
+    launchBtn.textContent = customMatchType === 'offline' ? '开始人机练习 →' : '创建并进入 →';
   }
   if (selected) {
     const modeTag = customMatchType === 'offline'
-      ? `本地人机 (${difficultyLabels[customDifficulty] || '普通'})`
+      ? `离线人机 (${difficultyLabels[customDifficulty] || '普通'})`
       : '在线联机';
-    $('customLaunchSummary').textContent = `${modeTag} · ${selected.nameZh} · ${modeLabels[customMode]} · ${teamLabels[customTeam]} · ${customBots} 名人机`;
+    const hasPw = customMatchType !== 'offline' && Boolean(($('customRoomPassword')?.value || '').trim());
+    const pwTag = hasPw ? ' · 已设密码' : '';
+    $('customLaunchSummary').textContent = `${modeTag} · ${selected.nameZh} · ${modeLabels[customMode]} · ${teamLabels[customTeam]} · ${customBots} 名人机${pwTag}`;
   }
 }
 
@@ -749,6 +931,15 @@ document.querySelectorAll('[data-custom-bots]').forEach(btn => {
 });
 $('customBotMinus')?.addEventListener('click', () => { if (customBots > 0) { customBots--; syncCustomUI(); remember(); } });
 $('customBotPlus')?.addEventListener('click', () => { if (customBots < 9) { customBots++; syncCustomUI(); remember(); } });
+$('customRoomPassword')?.addEventListener('input', () => syncCustomUI());
+$('toggleCustomPassword')?.addEventListener('click', () => {
+  const input = $('customRoomPassword');
+  if (!input) return;
+  const show = input.type === 'password';
+  input.type = show ? 'text' : 'password';
+  $('toggleCustomPassword').textContent = show ? '隐藏' : '显示';
+  input.focus();
+});
 
 $('customLaunchBtn')?.addEventListener('click', async () => {
   if (!selected) return;
@@ -760,10 +951,17 @@ $('customLaunchBtn')?.addEventListener('click', async () => {
     team: customTeam,
   });
   if (customMatchType === 'offline') {
+    stageRoomPassword(null);
     params.set('offline', '1');
     params.set('difficulty', customDifficulty || 'normal');
     location.assign(matchRouteUrl(selected.id, params));
     return;
+  }
+  const customPassword = ($('customRoomPassword')?.value || '').trim().slice(0, 24);
+  if (customPassword) {
+    stageRoomPassword({ mode: 'create', mapId: selected.id, password: customPassword });
+  } else {
+    stageRoomPassword(null);
   }
   if (controlPlaneEnabled) {
     if (btn) btn.disabled = true;

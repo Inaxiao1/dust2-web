@@ -19,6 +19,7 @@ import {packagedMusicAssets} from '../shared/packaged-music-assets.js';
 import {packagedSkinAssets} from '../shared/packaged-skin-assets.js';
 import {validateDownloadConfig} from '../shared/download-config.js';
 import {buildOfflineMapManifests} from './offline-map-manifests.js';
+import {createMailStore} from './mail-store.js';
 
 const repo=path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const root=path.resolve(process.env.PERF_MAP_ROOT || path.join(repo,'artifacts/performance-maps/maps-v1'));
@@ -34,6 +35,10 @@ const controlPlaneWorkerAuth=(process.env.PERF_WORKER_AUTH_TOKEN||process.env.DU
 const workerMaxRooms=String(Math.max(1,Math.min(24,Number(process.env.DUST2_PRIVATE_MAX_ROOMS)||6)));
 const telemetryStore=createTelemetryStore({dir:process.env.PERF_TELEMETRY_DIR||''});
 const telemetryToken=crypto.randomBytes(24).toString('hex');
+const mailConfigPath=(process.env.PERF_MAIL_CONFIG||'').trim()
+  ? path.resolve(process.env.PERF_MAIL_CONFIG.trim())
+  : (fs.existsSync('/opt/cs2-web/mail-announcements.json') ? '/opt/cs2-web/mail-announcements.json' : '');
+const mailStore=createMailStore({filePath:mailConfigPath,pollMs:2500});
 function isLoopbackReq(req){
   if(req.headers['x-forwarded-for']||req.headers['x-real-ip'])return false;
   const addr=req.socket?.remoteAddress||'';
@@ -751,6 +756,7 @@ function decorateClusterRoom(row) {
     capacity,
     full: humans >= capacity,
     joinable: row.joinable === true && humans < capacity,
+    ...(row.locked === true ? { locked: true } : {}),
     scores: row.scores || { CT: 0, T: 0 },
     phase: row.phase || 'live',
     players,
@@ -815,6 +821,7 @@ async function performanceRooms({localOnly=false}={}){
       rooms.push({
         ...row,
         joinable,
+        ...(row.locked === true ? { locked: true } : {}),
         id: map.id + ':' + row.code,
         mapId: map.id,
         mapName: map.name,
@@ -840,6 +847,7 @@ async function performanceRooms({localOnly=false}={}){
         rooms.push({
           ...row,
           joinable,
+          ...(row.locked === true ? { locked: true } : {}),
           id: rid,
           nodeId: pSnap.id,
           nodeLabel: pSnap.label,
@@ -891,7 +899,7 @@ async function quickJoinRecommendation(modeParam, preferredMap) {
     }
   }
   const directory = await performanceRooms().catch(() => ({ rooms: [], totalRooms: 0, totalHumans: 0, joinableRooms: 0 }));
-  const candidates = directory.rooms.filter(r => r.joinable && r.humans < r.capacity);
+  const candidates = directory.rooms.filter(r => r.joinable && !r.locked && r.humans < r.capacity);
   candidates.sort((a, b) => {
     const modeDiff = Number(wantedMode !== 'any' && b.mode === wantedMode) - Number(wantedMode !== 'any' && a.mode === wantedMode);
     if (modeDiff) return modeDiff;
@@ -1081,6 +1089,25 @@ const server=http.createServer(async(req,res)=>{
       if(clusterPeers.length)await pollClusterPeers();
       json(res,200,{ok:true,reloaded,config:clusterConfigMeta,node:localNodeSnapshot(),cdn:deliveryConfig,peers:clusterPeers.map(peerNodeSnapshot)});return;
     }
+    if(p==='/perf/internal/reload-mail'){
+      if(!isLoopbackReq(req)){json(res,403,{ok:false,error:'LOOPBACK_ONLY'});return;}
+      const reloaded=mailStore.load(true);
+      json(res,200,{ok:true,reloaded,meta:mailStore.meta()});return;
+    }
+    if(p==='/perf/internal/mail'){
+      if(!isLoopbackReq(req)){json(res,403,{ok:false,error:'LOOPBACK_ONLY'});return;}
+      try{
+        const body=await readJsonBody(req);
+        if(Array.isArray(body?.mails)){
+          const saved=body.mails.map(item=>mailStore.upsert(item));
+          json(res,200,{ok:true,count:saved.length,mails:saved,meta:mailStore.meta()});return;
+        }
+        const saved=mailStore.upsert(body);
+        json(res,200,{ok:true,mail:saved,meta:mailStore.meta()});return;
+      }catch(err){
+        json(res,400,{ok:false,error:String(err?.message||'INVALID_MAIL')});return;
+      }
+    }
     const rtcMatch=/^\/perf\/(?:quality\/)?play\/(de_[a-z0-9]+)\/rtc-offer$/.exec(p);
     if(rtcMatch){
       if(draining){json(res,503,{ok:false,error:'SERVER_DRAINING'});return;}
@@ -1128,6 +1155,15 @@ const server=http.createServer(async(req,res)=>{
     }
     res.writeHead(404).end();return;
   }
+  if(req.method==='DELETE'){
+    const mailDel=/^\/perf\/internal\/mail\/([a-zA-Z0-9_.:-]{1,64})$/.exec(p);
+    if(mailDel){
+      if(!isLoopbackReq(req)){json(res,403,{ok:false,error:'LOOPBACK_ONLY'});return;}
+      const removed=mailStore.remove(mailDel[1]);
+      json(res,removed?200:404,{ok:removed,id:mailDel[1],meta:mailStore.meta()});return;
+    }
+    res.writeHead(404).end();return;
+  }
   if(req.method!=='GET'&&req.method!=='HEAD'){res.writeHead(405).end();return;}
   const requestPath=req.url.split('?')[0];
   if(/^\/perf\/(?:ui|mode-previews)\//.test(requestPath) && /(?:^|\/)\.{1,2}(?:\/|$)|[%\\]/.test(requestPath)){
@@ -1142,6 +1178,10 @@ const server=http.createServer(async(req,res)=>{
     file(req,res,path.join(reviewAssets,'mode-ui/index.html'));return;
   }
   if(p==='/perf/rooms.json'){json(res,200,await performanceRooms({localOnly:url.searchParams.get('local')==='1'}));return;}
+  if(p==='/perf/mail.json'){
+    const uid=url.searchParams.get('uid')||'';
+    json(res,200,{ok:true,version:mailStore.meta().version,mails:mailStore.listForUser(uid)});return;
+  }
   if(p==='/perf/quick-join.json'){json(res,200,await quickJoinRecommendation(url.searchParams.get('mode'),url.searchParams.get('preferredMap')));return;}
   if(p==='/perf/find-room.json'){json(res,200,await findRoomByCode(url.searchParams.get('code')));return;}
   if(p==='/perf/graphics.json'){
@@ -1569,7 +1609,23 @@ function routeShardedWebSocket(mapId,query,req,clientWs){
       let peerBridgeUrl=null;
       const code=normalizeRoomCode(msg.room);
       if(msg.type==='roomCosmetics'){
-        target=(code&&await findWorkerForRoom(mapId,code))||await ensureWorker(mapId);
+        if(code){
+          target=await findWorkerForRoom(mapId,code);
+          if(!target&&clusterPeers.length){
+            let remotePeer=clusterRoomToPeer.get(mapId+':'+code);
+            if(!remotePeer){
+              await pollClusterPeers();
+              remotePeer=clusterRoomToPeer.get(mapId+':'+code);
+            }
+            const pSnap=remotePeer?peerNodeSnapshot(remotePeer):null;
+            if(pSnap&&pSnap.healthy){
+              const base=new URL('/perf/play/'+mapId+'/ws'+(query||''),pSnap.origin);
+              base.protocol=base.protocol==='https:'?'wss:':'ws:';
+              peerBridgeUrl=base.href;
+            }
+          }
+        }
+        if(!target&&!peerBridgeUrl)target=await ensureWorker(mapId);
       }else if(msg.type==='join'){
         const isResume=typeof msg.resumeToken==='string'&&msg.resumeToken.length>0;
         const curHardMax=runtimeLocal.hardMaxHumans;
@@ -1581,7 +1637,11 @@ function routeShardedWebSocket(mapId,query,req,clientWs){
         if(code){
           target=await findWorkerForRoom(mapId,code);
           if(!target&&clusterPeers.length){
-            const remotePeer=clusterRoomToPeer.get(mapId+':'+code);
+            let remotePeer=clusterRoomToPeer.get(mapId+':'+code);
+            if(!remotePeer&&msg.existing===true){
+              await pollClusterPeers();
+              remotePeer=clusterRoomToPeer.get(mapId+':'+code);
+            }
             const pSnap=remotePeer?peerNodeSnapshot(remotePeer):null;
             if(pSnap&&pSnap.healthy){
               const base=new URL('/perf/play/'+mapId+'/ws'+(query||''),pSnap.origin);
@@ -1754,6 +1814,6 @@ server.listen(port,host,()=>{
   }
 });
 process.on('SIGUSR2',()=>{draining=true;for(const w of allWorkers())if(!w.retiring)w.child.kill('SIGUSR2');});
-function shutdown(){clearInterval(reap);clearInterval(shardHeartbeat);clearInterval(netLogTimer);if(clusterPollTimer)clearInterval(clusterPollTimer);if(clusterConfigTimer)clearInterval(clusterConfigTimer);void telemetryStore.close();for(const w of allWorkers())w.child.kill();server.close();const forceExit=setTimeout(()=>process.exit(0),1500);forceExit.unref?.();rtcGateway?.close({cleanupNative:true});}
+function shutdown(){clearInterval(reap);clearInterval(shardHeartbeat);clearInterval(netLogTimer);if(clusterPollTimer)clearInterval(clusterPollTimer);if(clusterConfigTimer)clearInterval(clusterConfigTimer);mailStore.close();void telemetryStore.close();for(const w of allWorkers())w.child.kill();server.close();const forceExit=setTimeout(()=>process.exit(0),1500);forceExit.unref?.();rtcGateway?.close({cleanupNative:true});}
 for(const signal of ['SIGINT','SIGTERM'])process.once(signal,shutdown);
 if(process.send)process.once('disconnect',shutdown);

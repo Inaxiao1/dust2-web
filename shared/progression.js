@@ -195,6 +195,8 @@ for (const [weapon, list] of weaponSkinBuckets) {
   for (const skin of list) {
     if (STARTER_SKIN_SET.has(skin.id)) {
       skinRequirements.set(skin.id, Object.freeze({
+        kind: 'skin',
+        itemId: skin.id,
         type: 'starter',
         tier: 0,
         title: '开局原厂装备',
@@ -202,6 +204,8 @@ for (const [weapon, list] of weaponSkinBuckets) {
       }));
     } else if (FOLLOW_SKIN_SET.has(skin.id)) {
       skinRequirements.set(skin.id, Object.freeze({
+        kind: 'skin',
+        itemId: skin.id,
         type: 'toy_follow',
         tier: 3,
         title: '关注 UP 主专属',
@@ -209,6 +213,8 @@ for (const [weapon, list] of weaponSkinBuckets) {
       }));
     } else if (TRIPLE_SKIN_SET.has(skin.id)) {
       skinRequirements.set(skin.id, Object.freeze({
+        kind: 'skin',
+        itemId: skin.id,
         type: 'toy_triple',
         tier: 5,
         title: '一键三连专属',
@@ -217,6 +223,8 @@ for (const [weapon, list] of weaponSkinBuckets) {
     } else if (EXPLICIT_SKIN_TASKS[skin.id]) {
       const cfg = EXPLICIT_SKIN_TASKS[skin.id];
       skinRequirements.set(skin.id, Object.freeze({
+        kind: 'skin',
+        itemId: skin.id,
         type: 'growth',
         weapon,
         ...cfg,
@@ -235,6 +243,8 @@ for (const [weapon, list] of weaponSkinBuckets) {
         label: tierCfg.label,
       };
       skinRequirements.set(skin.id, Object.freeze({
+        kind: 'skin',
+        itemId: skin.id,
         type: 'growth',
         weapon,
         ...cfg,
@@ -249,6 +259,8 @@ const agentRequirements = new Map();
 for (const agent of AGENT_CATALOG) {
   if (STARTER_AGENT_SET.has(agent.id)) {
     agentRequirements.set(agent.id, Object.freeze({
+      kind: 'agent',
+      itemId: agent.id,
       type: 'starter',
       tier: 0,
       title: '开局基础探员',
@@ -256,6 +268,8 @@ for (const agent of AGENT_CATALOG) {
     }));
   } else if (FOLLOW_AGENT_SET.has(agent.id)) {
     agentRequirements.set(agent.id, Object.freeze({
+      kind: 'agent',
+      itemId: agent.id,
       type: 'toy_follow',
       tier: 3,
       title: '关注 UP 主专属',
@@ -263,6 +277,8 @@ for (const agent of AGENT_CATALOG) {
     }));
   } else if (TRIPLE_AGENT_SET.has(agent.id)) {
     agentRequirements.set(agent.id, Object.freeze({
+      kind: 'agent',
+      itemId: agent.id,
       type: 'toy_triple',
       tier: 5,
       title: '一键三连专属',
@@ -271,6 +287,8 @@ for (const agent of AGENT_CATALOG) {
   } else {
     const cfg = EXPLICIT_AGENT_TASKS[agent.id] || { kills: 30, matches: 3, mode: 'or', tier: 3, label: '战功解锁' };
     agentRequirements.set(agent.id, Object.freeze({
+      kind: 'agent',
+      itemId: agent.id,
       type: 'growth',
       ...cfg,
       title: cfg.label,
@@ -301,6 +319,12 @@ export function createEmptyProgress(uid = '') {
     rounds: 0,
     wins: 0,
     weaponKills: {},
+    grantedSkins: [],
+    grantedAgents: [],
+    bonusXp: 0,
+    customItems: {},
+    readMailIds: [],
+    claimedMailIds: [],
     social: {
       followed: false,
       tripled: false,
@@ -316,6 +340,55 @@ export function createEmptyProgress(uid = '') {
 function clampInt(value, max = 10000000) {
   const n = Math.floor(Number(value));
   return Number.isFinite(n) && n > 0 ? Math.min(max, n) : 0;
+}
+
+function cleanIdList(raw, maxItems, validator) {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const item of raw) {
+    if (typeof item !== 'string') continue;
+    const clean = item.trim();
+    if (!clean || seen.has(clean)) continue;
+    if (validator && !validator(clean)) continue;
+    seen.add(clean);
+    out.push(clean);
+    if (out.length >= maxItems) break;
+  }
+  return out;
+}
+
+function normalizeCustomItems(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  let count = 0;
+  for (const [key, val] of Object.entries(raw)) {
+    if (count >= 200) break;
+    if (!val || typeof val !== 'object' || Array.isArray(val)) continue;
+    const id = String(val.id || key || '').replace(/[^a-zA-Z0-9_.:-]/g, '').slice(0, 64);
+    const title = typeof val.title === 'string' ? val.title.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 48) : '';
+    if (!id || !title) continue;
+    const quantity = Math.max(1, clampInt(val.quantity, 999999) || 1);
+    const category = typeof val.category === 'string' && val.category.trim() ? val.category.trim().slice(0, 20) : 'misc';
+    const description = typeof val.description === 'string' ? val.description.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 160) : '';
+    const icon = typeof val.icon === 'string' ? val.icon.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 16) : '';
+    const previewUrl = typeof val.previewUrl === 'string' && /^(?:https?:\/\/|\/|assets\/|\.\/)/i.test(val.previewUrl.trim())
+      ? val.previewUrl.trim().slice(0, 300)
+      : '';
+    const acquiredAt = clampInt(val.acquiredAt, Number.MAX_SAFE_INTEGER);
+    out[id] = {
+      id,
+      title,
+      category,
+      quantity,
+      ...(description ? { description } : {}),
+      ...(icon ? { icon } : {}),
+      ...(previewUrl ? { previewUrl } : {}),
+      acquiredAt,
+    };
+    count++;
+  }
+  return out;
 }
 
 export function normalizeProgress(raw, fallbackUid = '') {
@@ -335,6 +408,13 @@ export function normalizeProgress(raw, fallbackUid = '') {
       }
     }
   }
+  base.grantedSkins = cleanIdList(raw.grantedSkins, 500, (id) => Boolean(getSkin(id)));
+  base.grantedAgents = cleanIdList(raw.grantedAgents, 100, (id) => Boolean(getAgent(id)));
+  base.bonusXp = clampInt(raw.bonusXp);
+  base.customItems = normalizeCustomItems(raw.customItems);
+  const mailIdOk = (id) => /^[a-zA-Z0-9_.:-]{1,64}$/.test(id);
+  base.claimedMailIds = cleanIdList(raw.claimedMailIds, 300, mailIdOk);
+  base.readMailIds = cleanIdList([...(Array.isArray(raw.readMailIds) ? raw.readMailIds : []), ...base.claimedMailIds], 300, mailIdOk);
   const s = raw.social && typeof raw.social === 'object' ? raw.social : {};
   base.social.followed = Boolean(s.followed);
   base.social.liked = Boolean(s.liked || s.tripled);
@@ -347,7 +427,7 @@ export function normalizeProgress(raw, fallbackUid = '') {
 }
 
 /**
- * Monotone union merge of local & Toy cloud saves so player kills, matches, and social unlocks
+ * Monotone union merge of local & Toy cloud saves so player kills, matches, rewards, and social unlocks
  * NEVER roll back across devices or reconnects.
  */
 export function mergeProgress(localRaw, remoteRaw, uid = '') {
@@ -356,6 +436,24 @@ export function mergeProgress(localRaw, remoteRaw, uid = '') {
   const weaponKills = { ...a.weaponKills };
   for (const [w, count] of Object.entries(b.weaponKills)) {
     weaponKills[w] = Math.max(weaponKills[w] || 0, count);
+  }
+  const grantedSkins = [...new Set([...a.grantedSkins, ...b.grantedSkins])].slice(0, 500);
+  const grantedAgents = [...new Set([...a.grantedAgents, ...b.grantedAgents])].slice(0, 100);
+  const claimedMailIds = [...new Set([...a.claimedMailIds, ...b.claimedMailIds])].slice(0, 300);
+  const readMailIds = [...new Set([...a.readMailIds, ...b.readMailIds, ...claimedMailIds])].slice(0, 300);
+  const customItems = { ...a.customItems };
+  for (const [id, item] of Object.entries(b.customItems)) {
+    const prev = customItems[id];
+    if (!prev) {
+      customItems[id] = { ...item };
+    } else {
+      customItems[id] = {
+        ...prev,
+        ...item,
+        quantity: Math.max(prev.quantity || 1, item.quantity || 1),
+        acquiredAt: prev.acquiredAt && item.acquiredAt ? Math.min(prev.acquiredAt, item.acquiredAt) : (prev.acquiredAt || item.acquiredAt || 0),
+      };
+    }
   }
   const liked = a.social.liked || b.social.liked;
   const coined = a.social.coined || b.social.coined;
@@ -369,6 +467,12 @@ export function mergeProgress(localRaw, remoteRaw, uid = '') {
     rounds: Math.max(a.rounds, b.rounds),
     wins: Math.max(a.wins, b.wins),
     weaponKills,
+    grantedSkins,
+    grantedAgents,
+    bonusXp: Math.max(a.bonusXp, b.bonusXp),
+    customItems,
+    readMailIds,
+    claimedMailIds,
     social: {
       followed: a.social.followed || b.social.followed,
       liked,
@@ -379,6 +483,11 @@ export function mergeProgress(localRaw, remoteRaw, uid = '') {
     },
     updatedAt: Math.max(a.updatedAt, b.updatedAt),
   };
+}
+
+export function hasUnclaimedSocialGifts(progressRaw) {
+  const p = normalizeProgress(progressRaw);
+  return !p.social.followed || !p.social.tripled;
 }
 
 export function getSkinUnlockRequirement(skinId) {
@@ -396,6 +505,12 @@ export function getAgentUnlockRequirement(agentId) {
 export function evaluateRequirement(req, progressRaw) {
   if (!req) return { unlocked: false, pct: 0, progressText: '未知物品', actionLabel: '未解锁' };
   const p = normalizeProgress(progressRaw);
+  if (req.kind === 'skin' && p.grantedSkins.includes(req.itemId)) {
+    return { unlocked: true, pct: 100, progressText: '已通过邮件/活动赠送解锁', actionLabel: '已拥有' };
+  }
+  if (req.kind === 'agent' && p.grantedAgents.includes(req.itemId)) {
+    return { unlocked: true, pct: 100, progressText: '已通过邮件/活动赠送解锁', actionLabel: '已拥有' };
+  }
   if (req.type === 'starter') {
     return { unlocked: true, pct: 100, progressText: '开局原厂基础装备', actionLabel: '已拥有' };
   }
@@ -464,12 +579,18 @@ export function evaluateRequirement(req, progressRaw) {
 }
 
 export function isSkinUnlocked(skinId, progress) {
-  const req = getSkinUnlockRequirement(skinId);
+  const skin = getSkin(skinId);
+  if (!skin) return false;
+  if (Array.isArray(progress?.grantedSkins) && progress.grantedSkins.includes(skin.id)) return true;
+  const req = skinRequirements.get(skin.id) || null;
   return evaluateRequirement(req, progress).unlocked;
 }
 
 export function isAgentUnlocked(agentId, progress) {
-  const req = getAgentUnlockRequirement(agentId);
+  const agent = getAgent(agentId);
+  if (!agent) return false;
+  if (Array.isArray(progress?.grantedAgents) && progress.grantedAgents.includes(agent.id)) return true;
+  const req = agentRequirements.get(agent.id) || null;
   return evaluateRequirement(req, progress).unlocked;
 }
 
@@ -523,7 +644,7 @@ const RANK_TITLES = [
 
 export function computeCareerLevel(progressRaw) {
   const p = normalizeProgress(progressRaw);
-  const xp = p.kills * 25 + p.headshots * 15 + p.rounds * 20 + p.matches * 120 + p.wins * 80;
+  const xp = p.kills * 25 + p.headshots * 15 + p.rounds * 20 + p.matches * 120 + p.wins * 80 + p.bonusXp;
   let level = 1;
   let floorXp = 0;
   let stepXp = 600;

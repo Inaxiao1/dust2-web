@@ -89,6 +89,7 @@ function publicRoomDirectory(rooms, includeNames = false, draining = false) {
       code: room.code, mode: room.mode, botDifficulty: room.botDifficulty,
       humans: players.length, bots: room.botCount, capacity: room.humanCapacity,
       full: room.humanCount >= room.humanCapacity, joinable: !draining && room.joinable,
+      ...(room.locked ? { locked: true } : {}),
       scores: { CT: room.scores.CT, T: room.scores.T }, phase: room.round.phase,
       ...(includeNames ? {players} : {})
     });
@@ -110,9 +111,11 @@ function joinSettings(msg) {
   // JSON objects can override toString/valueOf; do not coerce protocol fields.
   if (msg.name !== undefined && typeof msg.name !== 'string') return { error: '玩家名称必须是文字。' };
   if (msg.room !== undefined && typeof msg.room !== 'string') return { error: '房间码必须是文字。' };
+  if (msg.password !== undefined && typeof msg.password !== 'string') return { error: '房间密码必须是文字。' };
   if (msg.visibility !== undefined && !['public','private'].includes(msg.visibility)) return { error: '无效的房间可见性。' };
   const name = (msg.name || 'Player').replace(/[\u0000-\u001f\u007f<>]/g, '').trim().slice(0, 20) || 'Player';
   const room = (msg.room || '').trim().toUpperCase();
+  const password = (msg.password || '').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 24);
   if (room && !/^[A-Z0-9]{4,12}$/.test(room)) return { error: '房间码应为 4–12 位英文字母或数字。' };
   const mode = msg.mode === 'deathmatch' ? 'deathmatch' : 'defuse';
   const team = ['T', 'CT'].includes(msg.team) ? msg.team : 'auto';
@@ -123,7 +126,7 @@ function joinSettings(msg) {
   const primary = PRIMARY_WEAPONS.includes(msg.primary) ? msg.primary : 'auto';
   const resumeToken = typeof msg.resumeToken === 'string' && /^[a-f0-9]{16,64}$/i.test(msg.resumeToken.trim()) ? msg.resumeToken.trim() : null;
   const playerUid = typeof msg.playerUid === 'string' && /^[A-Za-z0-9._:@-]{1,128}$/.test(msg.playerUid.trim()) ? msg.playerUid.trim() : null;
-  return { name, room, mode, team, bots, botDifficulty, primary, musicKit:msg.musicKit, visibility:msg.visibility, weaponLoadout:msg.weaponLoadout,skins:normalizeSkinLoadout(msg.skins),agents:normalizeAgentLoadout(msg.agents),movementProtocol:msg.movementProtocol===1?1:0,shotProtocol:msg.shotProtocol===1?1:0, resumeToken, playerUid };
+  return { name, room, password, mode, team, bots, botDifficulty, primary, musicKit:msg.musicKit, visibility:msg.visibility, weaponLoadout:msg.weaponLoadout,skins:normalizeSkinLoadout(msg.skins),agents:normalizeAgentLoadout(msg.agents),movementProtocol:msg.movementProtocol===1?1:0,shotProtocol:msg.shotProtocol===1?1:0, resumeToken, playerUid };
 }
 
 function tokensMatch(expected, actual) {
@@ -541,6 +544,16 @@ export async function startGameServer({
         if (room && effectiveMsg.existing === true && !room.joinable) {
           error(socket,'ROOM_UNAVAILABLE','房间已满或对局已结束，请在大厅重新选择。'); return;
         }
+        if (room && room.locked && !room.hasValidResumeToken(settings.resumeToken, settings.playerUid)) {
+          if (!settings.password) {
+            error(socket, 'PASSWORD_REQUIRED', '该房间已设置密码，请输入房间密码后加入。');
+            return;
+          }
+          if (!tokensMatch(room.password, settings.password)) {
+            error(socket, 'WRONG_PASSWORD', '房间密码错误，请核对后重试。');
+            return;
+          }
+        }
         const skipLegacyUdpCosmeticsBounce = socket.transport === 'udp' && effectiveMsg.rtcAsyncClose !== 1;
         if(room && effectiveMsg.existing===true && typeof effectiveMsg.appearanceRevision==='string' && !skipLegacyUdpCosmeticsBounce){
           const appearance=roomAppearance(room);
@@ -551,7 +564,7 @@ export async function startGameServer({
         }
         if (!room) {
           if (rooms.size >= maxRooms) { error(socket, 'SERVER_FULL', '服务器当前房间数量已达上限。'); return; }
-          room = new GameRoom(settings.room, { mode: settings.mode, bots: settings.bots, botDifficulty:settings.botDifficulty, visibility:settings.visibility, rules, privateMap });
+          room = new GameRoom(settings.room, { mode: settings.mode, bots: settings.bots, botDifficulty:settings.botDifficulty, visibility:settings.visibility, password:settings.password, rules, privateMap });
           room.onShotRejected = (pid, reason) => telemetry.recordShotRejected(pid, reason);
           rooms.set(settings.room, room); created = true;
         }
@@ -577,7 +590,7 @@ export async function startGameServer({
           });
           if (tokenClaims?.jti) usedJTIs.set(tokenClaims.jti, tokenClaims.exp);
           reporter?.reportNow();
-          send(socket, { type: 'welcome', ...(privateMap?{mapId:privateMap.mapId,mapSignature:privateMap.mapSignature,physicsSha256:privateMap.config.physicsSha256}:{}),clientBuild:CLIENT_BUILD,rulesVersion:RULES_VERSION,assetVersion:ASSET_VERSION,id: player.id, room: room.code, mode: room.mode, team: player.team,teamId:player.teamId,hostId:room.hostId,desiredBots:room.desiredBots,botCount:room.botCount,botDifficulty:room.botDifficulty,match:room.matchSnapshot(), tickRate: TICK_RATE, snapshotRate: SNAPSHOT_RATE, serverTime: now, protocol: 1, binaryProtocol: socket.binaryProtocol, snapshotDelta: socket.snapshotDelta, resumeToken: player.resumeToken, resumed: player.resumed === true, reconnectGraceMs, movementProtocol:1,shotProtocol:1 });
+          send(socket, { type: 'welcome', ...(privateMap?{mapId:privateMap.mapId,mapSignature:privateMap.mapSignature,physicsSha256:privateMap.config.physicsSha256}:{}),clientBuild:CLIENT_BUILD,rulesVersion:RULES_VERSION,assetVersion:ASSET_VERSION,id: player.id, room: room.code, locked: room.locked, mode: room.mode, team: player.team,teamId:player.teamId,hostId:room.hostId,desiredBots:room.desiredBots,botCount:room.botCount,botDifficulty:room.botDifficulty,match:room.matchSnapshot(), tickRate: TICK_RATE, snapshotRate: SNAPSHOT_RATE, serverTime: now, protocol: 1, binaryProtocol: socket.binaryProtocol, snapshotDelta: socket.snapshotDelta, resumeToken: player.resumeToken, resumed: player.resumed === true, reconnectGraceMs, movementProtocol:1,shotProtocol:1 });
           const initialSnap = snapshotForSide(room.snapshot({ drainEvents: false }), player.team);
           if (socket.binaryProtocol === 2) {
             socket.lastBinaryPlayers = new Map(initialSnap.players.map(p => [p.id, { ...p }]));

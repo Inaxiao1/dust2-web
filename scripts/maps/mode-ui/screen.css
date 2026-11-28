@@ -128,12 +128,76 @@ body[data-faction="T"] .lobby-bg-aura {
   background: linear-gradient(180deg, transparent 30%, rgba(227, 189, 107, 0.12) 100%);
 }
 .lobby-tab:disabled { opacity: 0.55; cursor: wait; }
+.nav-red-dot {
+  position: absolute;
+  top: 11px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ef4444;
+  box-shadow: 0 0 0 2px rgba(17, 27, 32, 0.96);
+  pointer-events: none;
+}
 
 .lobby-topbar-right {
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  gap: 8px;
   min-width: 0;
+}
+.lobby-mail-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 11px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(29, 43, 50, 0.86);
+  color: #dce6ea;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex: none;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.lobby-mail-btn:hover:not(:disabled) {
+  background: rgba(42, 60, 70, 0.94);
+  border-color: var(--portal-gold);
+  color: #f6df9e;
+}
+.lobby-mail-btn:disabled { opacity: 0.55; cursor: wait; }
+.lobby-mail-ico {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+.nav-mail-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 800;
+  line-height: 15px;
+  text-align: center;
+  box-shadow: 0 0 0 2px rgba(17, 27, 32, 0.96);
+  font-variant-numeric: tabular-nums;
+}
+.nav-mail-badge.dot-only {
+  min-width: 8px;
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  top: -3px;
+  right: -3px;
 }
 .lobby-player-chip {
   display: flex;
@@ -481,26 +545,44 @@ body[data-faction="T"] .stage-agent-plate { border-left-color: var(--portal-gold
   flex-direction: column;
   align-items: flex-start;
   justify-content: center;
-  gap: 2px;
-  padding: 9px 11px;
+  gap: 3px;
+  padding: 10px 12px;
   color: var(--portal-ink);
   text-align: left;
   transition: background 0.15s, border-color 0.15s;
 }
+.lobby-action-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+.lobby-action-ico {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
 .lobby-offline-btn {
-  border: 1px solid rgba(227, 189, 107, 0.52);
-  background: rgba(227, 189, 107, 0.13);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-left: 2px solid var(--portal-blue);
+  background: rgba(29, 43, 50, 0.92);
 }
-.lobby-offline-btn span { font-size: 12.5px; font-weight: 750; color: #f6e0aa; white-space: nowrap; }
-.lobby-offline-btn small { font-size: 10.5px; color: rgba(239, 242, 237, 0.72); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.lobby-offline-btn:hover { background: rgba(227, 189, 107, 0.24); border-color: var(--portal-gold); }
+.lobby-offline-btn .lobby-action-head { color: #e2eef3; }
+.lobby-offline-btn .lobby-action-ico { color: var(--portal-blue); }
+.lobby-offline-btn small { font-size: 10.5px; color: var(--portal-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.lobby-offline-btn:hover { background: rgba(39, 57, 67, 0.98); border-color: rgba(133, 191, 217, 0.55); border-left-color: var(--portal-blue); }
 .lobby-create-btn {
-  border: 1px solid rgba(133, 191, 217, 0.42);
-  background: rgba(133, 191, 217, 0.10);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-left: 2px solid var(--portal-gold);
+  background: rgba(29, 43, 50, 0.92);
 }
-.lobby-create-btn span { font-size: 12.5px; font-weight: 700; color: #d6edf7; white-space: nowrap; }
+.lobby-create-btn .lobby-action-head { color: #f3e2b5; }
+.lobby-create-btn .lobby-action-ico { color: var(--portal-gold); }
 .lobby-create-btn small { font-size: 10.5px; color: var(--portal-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.lobby-create-btn:hover { background: rgba(133, 191, 217, 0.20); border-color: var(--portal-blue); }
+.lobby-create-btn:hover { background: rgba(45, 53, 56, 0.98); border-color: rgba(227, 189, 107, 0.55); border-left-color: var(--portal-gold); }
 
 /* =========================================================================
    5. Full-Width Anchored Bottom Command Dock
@@ -554,17 +636,19 @@ body[data-faction="T"] .stage-agent-plate { border-left-color: var(--portal-gold
   white-space: nowrap;
 }
 .command-offline-mobile {
-  border: 1px solid rgba(227, 189, 107, 0.55);
-  background: rgba(227, 189, 107, 0.14);
-  color: #f6e0aa;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-left: 2px solid var(--portal-blue);
+  background: rgba(29, 43, 50, 0.92);
+  color: #e2eef3;
 }
-.command-offline-mobile:hover { background: rgba(227, 189, 107, 0.24); border-color: var(--portal-gold); }
+.command-offline-mobile:hover { background: rgba(39, 57, 67, 0.98); border-color: var(--portal-blue); }
 .command-custom-mobile {
-  border: 1px solid rgba(133, 191, 217, 0.45);
-  background: rgba(133, 191, 217, 0.12);
-  color: #d6edf7;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-left: 2px solid var(--portal-gold);
+  background: rgba(29, 43, 50, 0.92);
+  color: #f3e2b5;
 }
-.command-custom-mobile:hover { background: rgba(133, 191, 217, 0.22); border-color: var(--portal-blue); }
+.command-custom-mobile:hover { background: rgba(45, 53, 56, 0.98); border-color: var(--portal-gold); }
 
 .command-go-btn {
   position: relative;
@@ -729,6 +813,61 @@ body[data-faction="T"] .stage-agent-plate { border-left-color: var(--portal-gold
 .cs-chip { padding: 5px 10px; border: 1px solid var(--portal-line); background: var(--portal-card); color: var(--portal-muted); font-size: 11.5px; }
 .cs-chip:hover { border-color: var(--portal-gold); color: var(--portal-ink); }
 .cs-chip.active { border-color: var(--portal-gold); background: var(--portal-gold-bg); color: #f5dfac; box-shadow: inset 0 -2px var(--portal-gold); }
+.cs-field-note { font-size: 11px; color: #8da1a8; }
+.cs-password-wrap {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--portal-line-strong);
+  background: var(--portal-inset);
+}
+.cs-password-wrap:focus-within {
+  border-color: var(--portal-gold);
+}
+.cs-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--portal-ink);
+  padding: 9px 11px;
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.cs-input::placeholder { color: #7e939a; }
+.cs-pw-toggle {
+  border: 0;
+  border-left: 1px solid var(--portal-line);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--portal-muted);
+  padding: 0 11px;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.cs-pw-toggle:hover { color: var(--portal-ink); background: rgba(255, 255, 255, 0.09); }
+.cs-pw-modal-card {
+  width: min(440px, 94vw);
+  padding: 22px 24px;
+}
+.cs-pw-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cs-pw-error {
+  font-size: 12px;
+  color: #f4a4a4;
+  background: rgba(224, 68, 68, 0.14);
+  border: 1px solid rgba(224, 68, 68, 0.36);
+  padding: 7px 10px;
+}
+.cs-pw-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
 .cs-modal-footer { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--portal-line); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; flex: none; }
 .cs-modal-summary { font-size: 12px; color: var(--portal-gold-soft); }
 .cs-modal-actions { display: flex; gap: 10px; }
@@ -841,12 +980,15 @@ body[data-faction="T"] .stage-agent-plate { border-left-color: var(--portal-gold
   .lobby-topbar { padding: 6px 12px 0; row-gap: 4px; }
   .portal-brand strong { font-size: 17px; }
   .portal-mark { width: 19px; height: 15px; }
+  .lobby-mail-btn { height: 30px; padding: 0 8px; font-size: 11px; gap: 4px; }
+  .lobby-mail-ico { width: 14px; height: 14px; }
   .lobby-player-chip { padding: 3px 8px 3px 4px; gap: 7px; }
   .lobby-player-avatar { width: 24px; height: 24px; }
   .lobby-player-meta strong { font-size: 11px; }
   .lobby-player-meta small { display: none; }
   .lobby-topnav { margin: 0 -12px; padding: 0 4px; }
   .lobby-tab { padding: 8px 2px; font-size: 11.5px; letter-spacing: 0; }
+  .nav-red-dot { top: 5px; right: 2px; width: 6px; height: 6px; }
 
   .lobby-workspace {
     grid-template-columns: 1fr;
@@ -956,6 +1098,9 @@ body[data-faction="T"] .stage-agent-plate { border-left-color: var(--portal-gold
   .portal-mark { width: 18px; height: 14px; }
   .lobby-topnav { justify-content: center; overflow-x: auto; }
   .lobby-tab { padding: 0 10px; font-size: 11.5px; }
+  .nav-red-dot { top: 6px; right: 2px; width: 6px; height: 6px; }
+  .lobby-mail-btn { height: 28px; padding: 0 8px; font-size: 11px; gap: 4px; }
+  .lobby-mail-ico { width: 13px; height: 13px; }
   .lobby-player-chip { padding: 2px 7px 2px 3px; gap: 6px; }
   .lobby-player-avatar { width: 22px; height: 22px; }
   .lobby-player-meta strong { font-size: 11px; }
@@ -982,8 +1127,8 @@ body[data-faction="T"] .stage-agent-plate { border-left-color: var(--portal-gold
   .lobby-sidebar-actions { gap: 6px; }
   .lobby-offline-btn,
   .lobby-create-btn { padding: 6px 8px; align-items: center; text-align: center; }
-  .lobby-offline-btn span,
-  .lobby-create-btn span { font-size: 11px; }
+  .lobby-action-head { font-size: 11px; gap: 4px; }
+  .lobby-action-ico { width: 12px; height: 12px; }
   .lobby-offline-btn small,
   .lobby-create-btn small { display: none; }
 

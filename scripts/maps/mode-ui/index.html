@@ -31,15 +31,23 @@
 
     <nav class="lobby-topnav" aria-label="主导航">
       <button type="button" class="lobby-tab active" data-tab-home aria-current="page">对战大厅</button>
-      <button type="button" class="lobby-tab" data-hub="progression">成长福利</button>
+      <button type="button" class="lobby-tab" data-hub="progression" id="progNavTab">成长福利<span class="nav-red-dot" id="progRedDot" hidden aria-label="有未领取福利"></span></button>
       <button type="button" class="lobby-tab" data-hub="agents">探员仓库</button>
       <button type="button" class="lobby-tab" data-hub="loadout">装备携带</button>
       <button type="button" class="lobby-tab" data-hub="skins">皮肤库</button>
       <button type="button" class="lobby-tab" data-hub="settings">游戏设置</button>
     </nav>
 
-    <!-- Top-Right Non-UGC Operator Card (Bilibili Toy SDK) -->
+    <!-- Top-Right Mailbox + Non-UGC Operator Card (Bilibili Toy SDK) -->
     <div class="lobby-topbar-right">
+      <button type="button" class="lobby-mail-btn" data-hub="mail" id="mailNavBtn" aria-label="系统邮箱">
+        <svg class="lobby-mail-ico" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <rect x="2.25" y="4.25" width="15.5" height="11.5" rx="1" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M2.75 5.25 10 10.75l7.25-5.5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+        </svg>
+        <span class="lobby-mail-label">邮箱</span>
+        <span class="nav-mail-badge" id="mailRedDot" hidden aria-label="有未读或待领邮件"></span>
+      </button>
       <div class="lobby-player-chip" id="toyPlayerCard" aria-label="当前干员身份">
         <div class="lobby-player-avatar" id="toyPlayerAvatar" aria-hidden="true"><span>OP</span></div>
         <div class="lobby-player-meta">
@@ -59,7 +67,7 @@
       <div id="problem" class="lobby-toast lobby-toast-error" hidden role="alert">
         <span>服务器目录连接失败</span>
         <button id="retry" class="cs-btn" type="button">重试</button>
-        <button id="offlineFromError" class="cs-btn-gold" type="button">⚡ 玩本地人机</button>
+        <button id="offlineFromError" class="cs-btn-gold" type="button">进入人机练习</button>
       </div>
 
       <!-- Top-Left Open Stage Typography (Map Signature & Live Telemetry) -->
@@ -109,12 +117,25 @@
       <div class="lobby-sidebar-foot">
         <div class="lobby-sidebar-actions">
           <button type="button" id="quickOfflineBtn" class="lobby-offline-btn">
-            <span>⚡ 本地人机</span>
-            <small>0ms 离线 · 网卡畅玩</small>
+            <span class="lobby-action-head">
+              <svg class="lobby-action-ico" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+                <circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M9 1.5v3M9 13.5v3M1.5 9h3M13.5 9h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"/>
+                <circle cx="9" cy="9" r="1.4" fill="currentColor"/>
+              </svg>
+              <span>人机练习</span>
+            </span>
+            <small>离线本地 · 随时开练</small>
           </button>
           <button type="button" id="openCustomModal" class="lobby-create-btn">
-            <span>＋ 自建房间</span>
-            <small>联机 / 离线自定义</small>
+            <span class="lobby-action-head">
+              <svg class="lobby-action-ico" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+                <rect x="2.5" y="2.5" width="13" height="13" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M9 5.5v7M5.5 9h7" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"/>
+              </svg>
+              <span>自建房间</span>
+            </span>
+            <small>支持 1v1 密码房</small>
           </button>
         </div>
       </div>
@@ -134,8 +155,8 @@
       </div>
       <div class="command-meta">
         <span class="command-meta-tag" id="commandSelectedMap">首选地图：炙热沙城 II</span>
-        <button type="button" class="command-offline-mobile" id="quickOfflineMobile">⚡ 人机</button>
-        <button type="button" class="command-custom-mobile" id="openCustomFromBar">＋ 自建</button>
+        <button type="button" class="command-offline-mobile" id="quickOfflineMobile">人机练习</button>
+        <button type="button" class="command-custom-mobile" id="openCustomFromBar">自建房间</button>
       </div>
     </div>
 
@@ -180,8 +201,8 @@
                 <small>实时联网 · 好友可加入</small>
               </button>
               <button type="button" class="cs-choice" data-custom-match-type="offline">
-                <strong>⚡ 本地人机（0ms）</strong>
-                <small>纯本地运算 · 断网/网卡可玩</small>
+                <strong>离线人机练习</strong>
+                <small>纯本地运行 · 不依赖网络</small>
               </button>
             </div>
           </div>
@@ -220,9 +241,20 @@
               <button type="button" class="cs-step-btn" id="customBotPlus" aria-label="增加人机">+</button>
             </div>
             <div class="cs-bot-presets">
-              <button type="button" class="cs-chip" data-custom-bots="0">0 名 · 纯真人</button>
+              <button type="button" class="cs-chip" data-custom-bots="0">0 名 · 1v1 单挑</button>
               <button type="button" class="cs-chip" data-custom-bots="5">5 名 · 3v3</button>
               <button type="button" class="cs-chip active" data-custom-bots="9">9 名 · 5v5 满员</button>
+            </div>
+          </div>
+
+          <div class="cs-field" id="customPasswordField">
+            <div class="cs-field-head">
+              <span class="cs-field-label">房间密码（可选 · 1v1 约战防打扰）</span>
+              <small class="cs-field-note">留空为公开房间</small>
+            </div>
+            <div class="cs-password-wrap">
+              <input id="customRoomPassword" class="cs-input" type="password" maxlength="24" autocomplete="new-password" placeholder="输入密码（不填则任何人可加入）" aria-label="房间密码">
+              <button type="button" id="toggleCustomPassword" class="cs-pw-toggle" aria-label="显示或隐藏密码">显示</button>
             </div>
           </div>
 
@@ -244,6 +276,31 @@
           <button type="button" id="customLaunchBtn" class="cs-btn-gold">创建并进入 →</button>
         </div>
       </footer>
+    </section>
+  </div>
+
+  <!-- Password Join Modal for Locked Custom Rooms -->
+  <div id="roomPasswordModal" class="cs-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="pwModalTitle" hidden>
+    <section class="cs-modal-card cs-pw-modal-card">
+      <header class="cs-modal-header">
+        <div>
+          <span class="cs-eyebrow">LOCKED ROOM</span>
+          <h2 id="pwModalTitle">输入房间密码</h2>
+        </div>
+        <button type="button" id="closeRoomPasswordModal" class="cs-modal-close" aria-label="取消加入">取消 ×</button>
+      </header>
+      <p class="cs-modal-desc" id="pwModalRoomMeta">该房间已开启密码保护，请输入房主设定的密码加入。</p>
+      <form id="roomPasswordForm" class="cs-pw-form">
+        <div class="cs-password-wrap">
+          <input id="roomPasswordInput" class="cs-input" type="password" maxlength="24" autocomplete="off" placeholder="输入房间密码" aria-label="房间密码">
+          <button type="button" id="toggleJoinPassword" class="cs-pw-toggle" aria-label="显示或隐藏密码">显示</button>
+        </div>
+        <p id="roomPasswordError" class="cs-pw-error" role="alert" hidden></p>
+        <div class="cs-pw-actions">
+          <button type="button" id="cancelRoomPasswordBtn" class="cs-btn">取消</button>
+          <button type="submit" id="roomPasswordSubmit" class="cs-btn-gold">验证并加入 →</button>
+        </div>
+      </form>
     </section>
   </div>
 

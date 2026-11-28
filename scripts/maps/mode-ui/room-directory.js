@@ -72,10 +72,18 @@ export function mountRoomDirectory(section, {
   }
 
   function row(room, graphicsMode, last) {
-    const card = node('article', 'directory-room', '');
+    const locked = room.locked === true;
+    const card = node('article', 'directory-room' + (locked ? ' is-locked' : ''), '');
     const details = node('div', 'directory-details', '');
     const name = room.mapNameZh || room.mapName || room.mapId;
-    details.append(node('h3', '', name + ' · ' + modeLabels[room.mode]));
+    const title = node('h3', '', name + ' · ' + modeLabels[room.mode]);
+    if (locked) {
+      const lockBadge = document.createElement('span');
+      lockBadge.className = 'room-lock-badge';
+      lockBadge.innerHTML = '<svg viewBox="0 0 12 12" fill="none" aria-hidden="true"><rect x="2.25" y="5.25" width="7.5" height="5.25" rx="0.8" stroke="currentColor" stroke-width="1.2"/><path d="M4 5.25V3.75a2 2 0 1 1 4 0v1.5" stroke="currentColor" stroke-width="1.2"/></svg><span>加密</span>';
+      title.append(lockBadge);
+    }
+    details.append(title);
     const seats = room.capacity - room.humans;
     const nodePrefix = room.nodeLabel ? room.nodeLabel + ' · ' : '';
     details.append(node('div', 'directory-meta', nodePrefix + '房间 ' + room.code + ' · ' + room.humans + ' 名玩家 · '
@@ -84,8 +92,12 @@ export function mountRoomDirectory(section, {
     const joinable = room.joinable && seats > 0;
     const fallback = graphicsMode === 'quality' && !room.qualityAvailable;
     const rejoin = last?.room === room.code && (last.mapId ?? 'de_dust2') === room.mapId;
-    const action = node(joinable ? 'a' : 'span', 'directory-join', joinable
-      ? (rejoin ? '重新加入' : '加入房间') + (fallback ? ' · 高帧率' : '') : (seats ? '节点已满' : '已满员'));
+    const joinLabel = rejoin ? '重新加入' : (locked ? '输入密码' : '加入房间');
+    const action = node(
+      joinable ? 'a' : 'span',
+      'directory-join' + (joinable && locked ? ' directory-join-locked' : ''),
+      joinable ? joinLabel + (fallback ? ' · 高帧率' : '') : (seats ? '节点已满' : '已满员'),
+    );
     if (joinable) {
       action.href = directoryJoinPath(room, graphicsMode);
       action.dataset.room = room.mapId + ':' + room.code;

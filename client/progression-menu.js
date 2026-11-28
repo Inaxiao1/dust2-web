@@ -19,6 +19,20 @@ import { getSharedToyProgress } from './toy-cloud-progress.js';
 import { skinPreviewURL } from './skin-preview.js';
 import './progression.css';
 
+const FOLLOW_SHOWCASE_IDS = [
+  'bayonet-vanilla',
+  'flip-vanilla',
+  'ak47-ice-coaled-1143',
+  'm4a4-temukau-1228',
+];
+
+const TRIPLE_SHOWCASE_IDS = [
+  'butterfly-vanilla',
+  'karambit-vanilla',
+  'ak47-vulcan',
+  'awp-asiimov',
+];
+
 const ROADMAP_ITEMS = [
   { kind: 'skin', id: 'ak47-slate-1035' },
   { kind: 'skin', id: 'navaja-vanilla' },
@@ -96,31 +110,45 @@ export class ProgressionMenu {
               <article class="prog-social-card" data-social-card="follow">
                 <div class="prog-social-top">
                   <div>
-                    <span class="prog-tag prog-tag-follow">关注 UP 主礼包</span>
-                    <h4>关注即领 2 名探员 + 10 款精选皮肤/匕首</h4>
+                    <div class="prog-tag-row">
+                      <span class="prog-tag prog-tag-follow">关注 UP 主礼包</span>
+                      <span class="prog-gift-dot" data-follow-dot aria-label="可领取"></span>
+                    </div>
+                    <h4>刺刀 / 折叠刀 + 可燃冰 AK-47 等 12 件免费领</h4>
                   </div>
-                  <span class="prog-state-pill" data-follow-state>未解锁</span>
+                  <span class="prog-state-pill" data-follow-state>待领取</span>
                 </div>
+                <div class="prog-gift-showcase" data-follow-showcase></div>
                 <p class="prog-social-items" data-follow-items></p>
                 <div class="prog-social-actions">
                   <button type="button" class="prog-btn-subtle" data-go-follow>前往 UP 主主页</button>
-                  <button type="button" class="prog-btn-gold" data-check-follow>验证关注并解锁</button>
+                  <button type="button" class="prog-btn-gold prog-claim-cta" data-check-follow>
+                    <span data-check-follow-label>验证关注并领取</span>
+                    <i class="prog-cta-dot" data-follow-btn-dot aria-hidden="true"></i>
+                  </button>
                 </div>
               </article>
 
               <article class="prog-social-card" data-social-card="triple">
                 <div class="prog-social-top">
                   <div>
-                    <span class="prog-tag prog-tag-triple">一键三连礼包</span>
-                    <h4>点赞+投币+收藏解锁 2 名王牌探员 + 蝴蝶刀/爪子刀/火神等 10 款</h4>
+                    <div class="prog-tag-row">
+                      <span class="prog-tag prog-tag-triple">一键三连礼包</span>
+                      <span class="prog-gift-dot" data-triple-dot aria-label="可领取"></span>
+                    </div>
+                    <h4>蝴蝶刀 / 爪子刀 + 火神 / 二西莫夫等 12 件免费领</h4>
                   </div>
-                  <span class="prog-state-pill" data-triple-state>未解锁</span>
+                  <span class="prog-state-pill" data-triple-state>待领取</span>
                 </div>
+                <div class="prog-gift-showcase" data-triple-showcase></div>
                 <div class="prog-triple-steps" data-triple-steps></div>
                 <p class="prog-social-items" data-triple-items></p>
                 <div class="prog-social-actions">
                   <button type="button" class="prog-btn-subtle" data-go-video>前往视频三连</button>
-                  <button type="button" class="prog-btn-gold" data-check-triple>验证三连并解锁</button>
+                  <button type="button" class="prog-btn-gold prog-claim-cta" data-check-triple>
+                    <span data-check-triple-label>验证三连并领取</span>
+                    <i class="prog-cta-dot" data-triple-btn-dot aria-hidden="true"></i>
+                  </button>
                 </div>
               </article>
             </div>
@@ -269,42 +297,62 @@ export class ProgressionMenu {
     this.element.querySelector('[data-prog-unlock-summary]').textContent =
       `已解锁 ${summary.skinsUnlocked} / ${summary.skinsTotal} 皮肤与匕首 · ${summary.agentsUnlocked} / ${summary.agentsTotal} 探员`;
 
-    // Follow card
-    const followNames = [
-      ...TOY_FOLLOW_AGENT_IDS.map((id) => getAgent(id)?.name?.split(' ')[0] || id),
-      ...TOY_FOLLOW_SKIN_IDS.slice(0, 6).map((id) => {
+    // Render real bundled knife & gun preview showcase cards for Follow & Triple gifts
+    const renderGiftShowcase = (container, skinIds, unlocked) => {
+      if (!container) return;
+      container.replaceChildren();
+      for (const id of skinIds) {
         const s = getSkin(id);
-        if (!s) return id;
+        if (!s) continue;
+        const isKnife = s.weapon === 'knife';
         const cleanName = s.name.replace(' · 原厂涂装', '');
-        return s.weapon === 'knife' ? cleanName : `${getWeapon(s.weapon)?.name || s.weapon}·${cleanName}`;
-      }),
-    ];
-    this.element.querySelector('[data-follow-items]').textContent = `包含：${followNames.join('、')} 等共 ${TOY_FOLLOW_AGENT_IDS.length + TOY_FOLLOW_SKIN_IDS.length} 件`;
+        const sub = isKnife ? '匕首' : (getWeapon(s.weapon)?.name || s.weapon);
+        const tile = document.createElement('div');
+        tile.className = `prog-gift-tile ${isKnife ? 'is-knife' : 'is-gun'}${unlocked ? ' owned' : ''}`;
+        tile.dataset.previewSkin = s.id;
+        tile.innerHTML = `
+          <div class="prog-gift-art">
+            <span class="prog-gift-kind">${isKnife ? '匕首' : sub}</span>
+            <img src="${skinPreviewURL(s)}" alt="${cleanName}" loading="eager" decoding="async">
+          </div>
+          <div class="prog-gift-caption">
+            <strong>${cleanName}</strong>
+          </div>
+        `;
+        container.append(tile);
+      }
+    };
+
+    // Follow card
+    renderGiftShowcase(this.element.querySelector('[data-follow-showcase]'), FOLLOW_SHOWCASE_IDS, p.social.followed);
+    const followAgents = TOY_FOLLOW_AGENT_IDS.map((id) => getAgent(id)?.name?.split(' ')[0] || id).join('、');
+    this.element.querySelector('[data-follow-items]').textContent =
+      `另含 ${followAgents} 2 名专属探员与 6 款步枪/狙击/手枪涂装，共 ${TOY_FOLLOW_AGENT_IDS.length + TOY_FOLLOW_SKIN_IDS.length} 件永久解锁`;
     const followState = this.element.querySelector('[data-follow-state]');
-    followState.textContent = p.social.followed ? '✓ 已解锁' : '待验证';
+    followState.textContent = p.social.followed ? '已领取' : '待领取';
     followState.classList.toggle('done', p.social.followed);
     this.element.querySelector('[data-social-card="follow"]').classList.toggle('unlocked', p.social.followed);
+    this.element.querySelector('[data-follow-dot]').hidden = p.social.followed;
+    this.element.querySelector('[data-follow-btn-dot]').hidden = p.social.followed;
+    this.element.querySelector('[data-check-follow-label]').textContent = p.social.followed ? '已解锁关注礼包' : '验证关注并领取';
 
     // Triple card
-    const tripleNames = [
-      ...TOY_TRIPLE_AGENT_IDS.map((id) => getAgent(id)?.name?.split(' ')[0] || id),
-      ...TOY_TRIPLE_SKIN_IDS.slice(0, 6).map((id) => {
-        const s = getSkin(id);
-        if (!s) return id;
-        const cleanName = s.name.replace(' · 原厂涂装', '');
-        return s.weapon === 'knife' ? cleanName : `${getWeapon(s.weapon)?.name || s.weapon}·${cleanName}`;
-      }),
-    ];
-    this.element.querySelector('[data-triple-items]').textContent = `包含：${tripleNames.join('、')} 等共 ${TOY_TRIPLE_AGENT_IDS.length + TOY_TRIPLE_SKIN_IDS.length} 件`;
+    renderGiftShowcase(this.element.querySelector('[data-triple-showcase]'), TRIPLE_SHOWCASE_IDS, p.social.tripled);
+    const tripleAgents = TOY_TRIPLE_AGENT_IDS.map((id) => getAgent(id)?.name?.split(' ')[0] || id).join('、');
+    this.element.querySelector('[data-triple-items]').textContent =
+      `另含 ${tripleAgents} 2 名王牌探员与 6 款人气枪械涂装，共 ${TOY_TRIPLE_AGENT_IDS.length + TOY_TRIPLE_SKIN_IDS.length} 件永久解锁`;
     this.element.querySelector('[data-triple-steps]').innerHTML = [
-      ['👍 点赞', p.social.liked || p.social.tripled],
-      ['🪙 投币', p.social.coined || p.social.tripled],
-      ['⭐ 收藏', p.social.favorited || p.social.tripled],
-    ].map(([label, done]) => `<span class="prog-step ${done ? 'done' : ''}">${label} ${done ? '✓' : ''}</span>`).join('');
+      ['点赞', p.social.liked || p.social.tripled],
+      ['投币', p.social.coined || p.social.tripled],
+      ['收藏', p.social.favorited || p.social.tripled],
+    ].map(([label, done]) => `<span class="prog-step ${done ? 'done' : ''}"><i class="prog-step-mark" aria-hidden="true">${done ? '✓' : '·'}</i>${label}</span>`).join('');
     const tripleState = this.element.querySelector('[data-triple-state]');
-    tripleState.textContent = p.social.tripled ? '✓ 已解锁' : '待三连';
+    tripleState.textContent = p.social.tripled ? '已领取' : '待三连';
     tripleState.classList.toggle('done', p.social.tripled);
     this.element.querySelector('[data-social-card="triple"]').classList.toggle('unlocked', p.social.tripled);
+    this.element.querySelector('[data-triple-dot]').hidden = p.social.tripled;
+    this.element.querySelector('[data-triple-btn-dot]').hidden = p.social.tripled;
+    this.element.querySelector('[data-check-triple-label]').textContent = p.social.tripled ? '已解锁三连礼包' : '验证三连并领取';
 
     // Disable action buttons while busy
     for (const btn of this.element.querySelectorAll('[data-prog-sync],[data-check-follow],[data-check-triple],[data-go-follow],[data-go-video]')) {

@@ -80,6 +80,83 @@ import {expandGlassState} from '../shared/private-map-breakables.js';
 const privateMap=globalThis.__DUST2_PRIVATE_MAP__||null;
 const TICKET_STORAGE_KEY='cs.join.ticket.v1';
 const RESUME_STORAGE_KEY='cs.resume.v1';
+const ROOM_PASSWORD_STORAGE_KEY='cs.room.password.v1';
+let pendingRoomPassword='';
+function consumeStagedRoomPassword(expectedMapId,expectedRoomCode,isExisting){
+  try{
+    const raw=sessionStorage.getItem(ROOM_PASSWORD_STORAGE_KEY);
+    if(!raw)return '';
+    const entry=JSON.parse(raw);
+    if(!entry||typeof entry.password!=='string'||!entry.password.trim()){sessionStorage.removeItem(ROOM_PASSWORD_STORAGE_KEY);return '';}
+    if(entry.at&&Date.now()-Number(entry.at)>5*60*1000){sessionStorage.removeItem(ROOM_PASSWORD_STORAGE_KEY);return '';}
+    if(expectedMapId&&entry.mapId&&entry.mapId!==expectedMapId)return '';
+    if(isExisting){
+      if(entry.mode==='create')return '';
+      if(entry.room&&expectedRoomCode&&entry.room!==expectedRoomCode)return '';
+    }else if(entry.mode==='join'){
+      return '';
+    }
+    return entry.password.trim().slice(0,24);
+  }catch{return '';}
+}
+function clearStagedRoomPassword(){
+  pendingRoomPassword='';
+  try{sessionStorage.removeItem(ROOM_PASSWORD_STORAGE_KEY);}catch{}
+}
+function promptRoomPassword({roomCode='',message='',isWrong=false}={}){
+  return new Promise(resolve=>{
+    const prev=document.getElementById('match-password-prompt');
+    if(prev)prev.remove();
+    const overlay=document.createElement('div');
+    overlay.id='match-password-prompt';
+    overlay.className='overlay';
+    overlay.style.cssText='z-index:140;background:rgba(10,16,21,0.84);backdrop-filter:blur(10px);';
+    overlay.setAttribute('role','dialog');
+    overlay.setAttribute('aria-modal','true');
+    overlay.innerHTML=`
+      <section style="width:min(420px,92vw);background:#152024fa;border:1px solid #ffffff28;padding:22px 24px;box-shadow:0 24px 80px #000b;color:#eff2ed;display:flex;flex-direction:column;gap:12px;">
+        <div>
+          <span style="display:block;font-size:10.5px;font-weight:700;letter-spacing:0.16em;color:#e3bd6b;margin-bottom:4px;">LOCKED ROOM</span>
+          <h2 style="margin:0;font-size:21px;">输入房间密码${roomCode?` · ${roomCode}`:''}</h2>
+        </div>
+        <p style="margin:0;font-size:12.5px;line-height:1.55;color:${isWrong?'#f4a4a4':'#aabac0'};"></p>
+        <form style="display:flex;flex-direction:column;gap:12px;">
+          <div style="display:flex;border:1px solid #ffffff30;background:#0e171c;">
+            <input type="password" maxlength="24" autocomplete="off" placeholder="请输入房间密码" style="flex:1;min-width:0;border:0;background:transparent;color:#eff2ed;padding:10px 12px;font-size:13.5px;outline:none;">
+            <button type="button" data-pw-toggle style="border:0;border-left:1px solid #ffffff22;background:#1b2930;color:#b8c7cc;padding:0 12px;font-size:12px;cursor:pointer;">显示</button>
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:10px;">
+            <button type="button" data-pw-cancel style="padding:9px 15px;border:1px solid #ffffff28;background:#213139;color:#e8efeb;font-size:12.5px;font-weight:600;cursor:pointer;">返回大厅</button>
+            <button type="submit" style="padding:9px 18px;border:1px solid #f0cf84;background:linear-gradient(135deg,#ecc97b 0%,#d9ae52 100%);color:#161d21;font-size:12.5px;font-weight:800;cursor:pointer;">验证并进入 →</button>
+          </div>
+        </form>
+      </section>
+    `;
+    const msgEl=overlay.querySelector('p');
+    msgEl.textContent=message||'该房间已设密码保护，请输入房间密码后加入。';
+    const input=overlay.querySelector('input');
+    const toggleBtn=overlay.querySelector('[data-pw-toggle]');
+    const cancelBtn=overlay.querySelector('[data-pw-cancel]');
+    const form=overlay.querySelector('form');
+    const finish=(val)=>{overlay.remove();resolve(val);};
+    toggleBtn.onclick=()=>{
+      const show=input.type==='password';
+      input.type=show?'text':'password';
+      toggleBtn.textContent=show?'隐藏':'显示';
+      input.focus();
+    };
+    cancelBtn.onclick=()=>finish(null);
+    overlay.addEventListener('keydown',e=>{if(e.code==='Escape'){e.preventDefault();finish(null);}});
+    form.onsubmit=(e)=>{
+      e.preventDefault();
+      const val=input.value.trim().slice(0,24);
+      if(!val){msgEl.textContent='请输入房间密码。';msgEl.style.color='#f4a4a4';input.focus();return;}
+      finish(val);
+    };
+    document.body.append(overlay);
+    setTimeout(()=>input.focus(),20);
+  });
+}
 function consumeJoinTicket(expectedMapId){
   try{
     const raw=sessionStorage.getItem(TICKET_STORAGE_KEY);
@@ -537,7 +614,13 @@ async function start(joinExisting=false, directoryNavigation=false){
     const signal=downloadAbort.signal;
     setLoadStage('download','核对房间武器外观');
     const code=$('room-code').value.trim().toUpperCase();
-    let appearance=joinExisting?await queryRoomAppearance(connection.socketURL,code,{signal}):readRoomAppearance({});
+    const cosmeticsUrl=(!stagedJoinTicket&&privateMap?.wsFallbackUrls?.[0])||connection.socketURL;
+    let appearance=joinExisting
+      ? await queryRoomAppearance(cosmeticsUrl,code,{signal}).catch(err=>{
+          if(signal?.aborted||cosmeticsUrl===connection.socketURL)throw err;
+          return queryRoomAppearance(connection.socketURL,code,{signal});
+        })
+      : readRoomAppearance({});
     const sides=$('team').value==='auto'?['CT','T']:[$('team').value];
     const ownAgents=sides.map(side=>agentsUI.loadout[side]);
     const prepared={hands:new Set(),files:new Set()};
@@ -661,8 +744,10 @@ async function connect(joinExisting,revision,resumeOpts=null,transportOpts=null)
     const reqRoom=resumeOpts?.room||ticket?.roomCode||(joinExisting?$('room-code').value.trim().toUpperCase():undefined);
     const reqExisting=isResuming?true:(ticket?.action==='join'?true:(ticket?.action==='create'?false:joinExisting));
     const storedResume=resumeOpts?.resumeToken||(reqExisting?readStoredResume(privateMap?.mapId||'de_dust2',reqRoom):null);
+    const joinPassword=isOfflineLocal?'':(pendingRoomPassword||consumeStagedRoomPassword(privateMap?.mapId||'de_dust2',reqRoom,reqExisting));
+    if(joinPassword)pendingRoomPassword=joinPassword;
     lastFullSnapshot=null;snapHistory.clear();lastAppliedSid=0;lastAckedSid=0;lastSentAckSid=0;lastAckSentAt=0;lastResyncReqAt=0;
-    activeSocket.send(JSON.stringify({type:'join',clientBuild:CLIENT_BUILD,rulesVersion:RULES_VERSION,assetVersion:ASSET_VERSION,rtcAsyncClose:1,ackDelta:1,...(privateMap?{mapId:privateMap.mapId,mapSignature:privateMap.mapSignature,physicsSha256:privateMap.physicsSha256}:{}),existing:reqExisting,...(revision?{appearanceRevision:revision}:{}),...(ticket?.joinToken?{joinToken:ticket.joinToken}:{}),...(storedResume?{resumeToken:storedResume}:{}),playerUid:toyProgress.uid||getStoredOperatorUid(),reconnect:true,snapshotDelta:1,name,movementProtocol:1,shotProtocol:1,room:reqRoom,mode:ticket?.mode||$('mode').value,team:$('team').value,primary,skins:skins.loadout,weaponLoadout:armory.loadout,agents:agentsUI.loadout,musicKit:matchAudio.kit,bots:Number($('bots').value),botDifficulty:preferredBotDifficulty}));
+    activeSocket.send(JSON.stringify({type:'join',clientBuild:CLIENT_BUILD,rulesVersion:RULES_VERSION,assetVersion:ASSET_VERSION,rtcAsyncClose:1,ackDelta:1,...(privateMap?{mapId:privateMap.mapId,mapSignature:privateMap.mapSignature,physicsSha256:privateMap.physicsSha256}:{}),existing:reqExisting,...(revision?{appearanceRevision:revision}:{}),...(ticket?.joinToken?{joinToken:ticket.joinToken}:{}),...(storedResume?{resumeToken:storedResume}:{}),...(joinPassword?{password:joinPassword}:{}),playerUid:toyProgress.uid||getStoredOperatorUid(),reconnect:true,snapshotDelta:1,name,movementProtocol:1,shotProtocol:1,room:reqRoom,mode:ticket?.mode||$('mode').value,team:$('team').value,primary,skins:skins.loadout,weaponLoadout:armory.loadout,agents:agentsUI.loadout,musicKit:matchAudio.kit,bots:Number($('bots').value),botDifficulty:preferredBotDifficulty}));
     // Watchdog for half-open UDP: if DataChannel opened but no server reply arrives within 3s,
     // transparently fall back to WebSocket instead of leaving the player stuck on the loading screen.
     if(!forceWs&&activeSocket.transportMode==='UDP'){
@@ -692,13 +777,14 @@ async function connect(joinExisting,revision,resumeOpts=null,transportOpts=null)
       if(!isOfflineLocal)preferences.setItem('dust2.last-session',JSON.stringify({room:data.room,mode:data.mode,mapId:privateMap?.mapId||'de_dust2',at:Date.now()}));
       activeResumeToken=isOfflineLocal?null:(data.resumeToken||null);activeReconnectGraceMs=isOfflineLocal?0:(Number(data.reconnectGraceMs)||30000);reconnectAttempts=0;
       if(!isOfflineLocal)saveStoredResume(privateMap?.mapId||'de_dust2',data.room,activeResumeToken,activeReconnectGraceMs);
+      clearStagedRoomPassword();
       movementSupported=data.movementProtocol===1;movementPrediction.reset();fixed=0;networkAcc=0;
       clearConnectTimers();displayedHostBots=null;matchPresentation.reset();connectionId=myId=data.id;room=data.room;mode=data.mode;connected=true;seq=0;shotId=0;lastShotEvidence=null;shotPrediction.reset();remotePlayers.clear();frameSamples.length=0;jumpId=0;reloadId=0;lastReliableReloadId=0;lastReliableInteract=false;lastSentSlot4Fire=false;resetScope();clearGameInput();lastSentInputSeq=-1;shotPrediction.pending=[];self=null;lastSnapshotAlive=false;previousHealth=100;handledEvents.clear();previousWeapon=null;previousReload=0;hud.reset();chat.reset();chat.element.hidden=false;matchView.reset();spectating=null;diagnostics.event(isOfflineLocal?'local-connected':(data.resumed?'reconnected':'connected'));
       document.exitPointerLock?.();document.body.classList.remove('mouse-captured');$('loading-screen').hidden=true;
       $('menu').hidden=true;$('hud').hidden=false;document.body.classList.add('playing');
       $('pause-menu').dataset.entry='first';
-      $('pause-title').textContent=isOfflineLocal?'本地人机 · 准备就绪':(data.resumed?'重连成功':'准备就绪');
-      $('pause-context').textContent=`${isOfflineLocal?'本地离线 (0ms)':`房间 ${room}`} · ${data.team==='CT'?'反恐精英':'恐怖分子'} · ${mode==='defuse'?'竞技爆破':'团队死斗'}`;
+      $('pause-title').textContent=isOfflineLocal?'人机练习 · 准备就绪':(data.resumed?'重连成功':'准备就绪');
+      $('pause-context').textContent=`${isOfflineLocal?'离线人机':`房间 ${room}${data.locked?' (已加密)':''}`} · ${data.team==='CT'?'反恐精英':'恐怖分子'} · ${mode==='defuse'?'竞技爆破':'团队死斗'}`;
       $('resume-button').firstChild.textContent='进入战场 ';
       $('pause-menu').hidden=false;
       roomMenu.update(snapshot,connectionId);
@@ -764,7 +850,30 @@ async function connect(joinExisting,revision,resumeOpts=null,transportOpts=null)
     else if(data.type==='botsUpdated'){hud.toast(data.ok?'机器人数量已更新':data.message||'更新未完成');}
     else if(data.type==='weaponDropped'){if(data.ok)hud.toast('已丢弃 '+getWeapon(data.weaponId).name);}
     else if(data.type==='teamGear'){shop.message('已确认，请留意队伍聊天和地上的枪械。');}
-    else if(data.type==='error'){gotServerReply=true;if(data.code==='CHAT_REJECTED')chat.error(data.message);if(data.code==='TEAM_GEAR_REJECTED')shop.message(data.message);if(data.code?.startsWith('BOT_DIFFICULTY'))botSettings.settle();if(data.code?.startsWith('AGENT'))pendingAgentEquip?.reject(data.message);if(data.code?.startsWith('SKIN'))pendingSkinEquip?.reject(data.message);if(data.code?.startsWith('LOADOUT'))pendingLoadout?.reject(data.message);if(/^(BUY|REFUND)/.test(data.code||''))shop.result({ok:false,message:data.message});hud.toast(data.message||'操作未完成');$('menu-status').textContent=data.message||'服务器拒绝连接';if(!connected){rejected=true;clearConnectTimers();loadError(new Error(data.message||'服务器拒绝连接'));settle(null);activeSocket.close();}}
+    else if(data.type==='error'){gotServerReply=true;
+      if(!connected&&(data.code==='PASSWORD_REQUIRED'||data.code==='WRONG_PASSWORD')){
+        clearConnectTimers();
+        clearStagedRoomPassword();
+        handingOff=true;
+        socket=null;intentionalLeave=true;
+        activeSocket.close(1000,'password-prompt');
+        const targetCode=resumeOpts?.room||$('room-code').value.trim().toUpperCase();
+        promptRoomPassword({roomCode:targetCode,message:data.message,isWrong:data.code==='WRONG_PASSWORD'}).then(nextPw=>{
+          if(nextPw===null){
+            loading=false;$('start-button').disabled=false;$('join-button').disabled=false;
+            if(isPortalMatchRoute){location.assign(lobbyHref('#onlineRooms'));}
+            else{$('loading-screen').hidden=true;showMenu();$('menu-status').textContent='已取消加入加密房间。';}
+            settle(null);
+            return;
+          }
+          pendingRoomPassword=nextPw;
+          $('loading-screen').hidden=false;$('loading-error').hidden=true;$('loading-spinner').hidden=false;
+          $('load-bytes').textContent='正在验证房间密码…';$('load-files').textContent='连接加密房间';
+          connect(joinExisting,null,null,transportOpts).then(settle);
+        });
+        return;
+      }
+      if(data.code==='CHAT_REJECTED')chat.error(data.message);if(data.code==='TEAM_GEAR_REJECTED')shop.message(data.message);if(data.code?.startsWith('BOT_DIFFICULTY'))botSettings.settle();if(data.code?.startsWith('AGENT'))pendingAgentEquip?.reject(data.message);if(data.code?.startsWith('SKIN'))pendingSkinEquip?.reject(data.message);if(data.code?.startsWith('LOADOUT'))pendingLoadout?.reject(data.message);if(/^(BUY|REFUND)/.test(data.code||''))shop.result({ok:false,message:data.message});hud.toast(data.message||'操作未完成');$('menu-status').textContent=data.message||'服务器拒绝连接';if(!connected){rejected=true;clearConnectTimers();loadError(new Error(data.message||'服务器拒绝连接'));settle(null);activeSocket.close();}}
   });
   socket.addEventListener('close',event=>{clearConnectTimers();if(socket!==activeSocket)return;const wasConnected=connected;connected=false;loading=false;mouseFire=false;$('start-button').disabled=false;$('join-button').disabled=false;if(rejected||intentionalLeave)return;
     const canAutoReconnect=(wasConnected||isResuming)&&event.code!==1000&&activeResumeToken&&room&&activeReconnectGraceMs>0&&reconnectAttempts<4;

@@ -110,7 +110,7 @@ async function bootstrap(){
  const pauseHeading=document.querySelector('#pause-menu .eyebrow');if(pauseHeading)pauseHeading.textContent=map.name.toUpperCase()+' / IN MATCH';
  const boardHeading=document.querySelector('#scoreboard .board-heading h2');if(boardHeading){boardHeading.replaceChildren(document.createTextNode(map.name.toUpperCase()+' '));const label=document.createElement('small');label.textContent='战况';boardHeading.append(label);}
  for(const el of document.querySelectorAll('.map-emblem img,.loading-tactical img')){el.src=map.overview.image;el.alt=map.name+' 战术地图';}
- const banner=document.querySelector('.loading-map-title>p');if(banner)banner.textContent=isOfflineMode?map.nameZh+' · 本地人机模式（0ms 零流量）':map.nameZh+' · 5v5 联网战术对战';
+ const banner=document.querySelector('.loading-map-title>p');if(banner)banner.textContent=isOfflineMode?map.nameZh+' · 离线人机练习（纯本地运行）':map.nameZh+' · 5v5 联网战术对战';
  const cover=rt
   ? new URL('./mode-previews/'+map.id+'-performance.webp',document.baseURI).href
   : delivery.mapBaseURL

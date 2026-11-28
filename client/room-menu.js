@@ -23,8 +23,8 @@ export class RoomMenu {
   close(resume=false){this.element.hidden=true;this.onClose?.(resume);}
   update(snapshot,myId){
     this.snapshot=snapshot;this.myId=myId;if(!snapshot?.seats)return;
-    const key=JSON.stringify([snapshot.room,snapshot.hostId,snapshot.seats]);if(key===this.key)return;this.key=key;
-    this.element.querySelector('.room-code').textContent=snapshot.room;
+    const key=JSON.stringify([snapshot.room,snapshot.locked,snapshot.hostId,snapshot.seats]);if(key===this.key)return;this.key=key;
+    this.element.querySelector('.room-code').textContent=snapshot.locked?`${snapshot.room} · 已加密`:snapshot.room;
     const host=snapshot.hostId===myId,container=this.element.querySelector('.room-teams');container.replaceChildren();
     for(const team of ['CT','T']){
       const column=document.createElement('section');column.className='room-team '+team.toLowerCase();

@@ -133,10 +133,11 @@ export function applyArmorDamage(rawDamage, player, { headshot=false, armorRatio
 }
 
 export class GameRoom {
-  constructor(code, { mode = 'defuse', bots = 6, botDifficulty = 'normal', visibility = 'public', clock = () => Date.now(), rules = {}, traceBullet=defaultTraceBullet, privateMap=null } = {}) {
+  constructor(code, { mode = 'defuse', bots = 6, botDifficulty = 'normal', visibility = 'public', password = '', clock = () => Date.now(), rules = {}, traceBullet=defaultTraceBullet, privateMap=null } = {}) {
     this.gridVision = rules.gridVision ?? (process.env.DUSTII_GRID_VISION === '1');
     this.privateMap=privateMap; this.code = code; this.mode = mode==='deathmatch'?'deathmatch':'defuse'; this.desiredBots = botCount(bots);
     this.visibility = visibility;
+    this.password = typeof password === 'string' ? password : '';
     mode=this.mode;this.traceBullet=traceBullet;this.hostId=null;this.botDifficulty=normalizeBotDifficulty(botDifficulty);
     this.clock = clock; this.rules = { ...RULES, ...rules }; this.players = new Map(); this.clients = new Map();
     this.botUtilityTimeline=new BotUtilityTimeline(clock);
@@ -166,6 +167,7 @@ export class GameRoom {
   get humanCount() { return this.clients.size; }
   get humanCapacity() { return this.botDifficulty === 'vitality' ? 5 : MAX_PLAYERS; }
   get joinable() { return this.humanCount < this.humanCapacity && this.match.status !== 'ended'; }
+  get locked() { return Boolean(this.password); }
   get botCount(){return [...this.players.values()].filter(p=>p.bot).length;}
   teamForSide(side){return this.teamSides.A===side?'A':'B';}
   matchSnapshot(){return {...this.match,teams:Object.fromEntries(Object.entries(this.teamSides).map(([id,side])=>[id,{side,score:this.scores[side]}]))};}
@@ -237,6 +239,12 @@ export class GameRoom {
     for (const [token, session] of this.disconnectedSessions) {
       if (now > session.expiresAt) this.disconnectedSessions.delete(token);
     }
+  }
+
+  hasValidResumeToken(resumeToken, playerUid = null) {
+    this.pruneDisconnectedSessions();
+    const saved = typeof resumeToken === 'string' && resumeToken ? this.disconnectedSessions.get(resumeToken) : null;
+    return Boolean(saved && (!saved.playerUid || !playerUid || saved.playerUid === playerUid));
   }
 
   saveReconnectSession(id, graceMs = 30000) {
@@ -1276,7 +1284,7 @@ export class GameRoom {
       respawnIn: p.respawnAt ? ceil2((p.respawnAt - now) / 1000) : 0, lastShotTime: p.lastShotTime }));
     const events = drainEvents ? this.events.splice(0) : [...this.events];
     const roundTimeLeft = this.round.phaseEndsAt ? Math.max(0, (this.round.phaseEndsAt - now) / 1000) : 0;
-    return { type: 'snapshot', radarBySide:radarBySide(this),ctSpottedBomb:isBombSpotted(this), ...(this.privateMap?{mapId:this.privateMap.mapId,mapSignature:this.privateMap.mapSignature,physicsSha256:this.privateMap.config.physicsSha256,...(this.mapBreakables?.networkSnapshot()||{mapBreakables:[]})}:{}), time: now, room: this.code, mode: this.mode, hostId:this.hostId,seats:this.roomSeats(),botDifficulty:this.botDifficulty,desiredBots:this.desiredBots,botCount:this.botCount,match:this.matchSnapshot(),players,weaponRequests:privateRequests(this),droppedWeapons:this.droppedWeapons.snapshot(),defuseKits:this.defuseKits.map(k=>({...k})),...this.grenades.snapshot(),
+    return { type: 'snapshot', radarBySide:radarBySide(this),ctSpottedBomb:isBombSpotted(this), ...(this.privateMap?{mapId:this.privateMap.mapId,mapSignature:this.privateMap.mapSignature,physicsSha256:this.privateMap.config.physicsSha256,...(this.mapBreakables?.networkSnapshot()||{mapBreakables:[]})}:{}), time: now, room: this.code, locked: this.locked, mode: this.mode, hostId:this.hostId,seats:this.roomSeats(),botDifficulty:this.botDifficulty,desiredBots:this.desiredBots,botCount:this.botCount,match:this.matchSnapshot(),players,weaponRequests:privateRequests(this),droppedWeapons:this.droppedWeapons.snapshot(),defuseKits:this.defuseKits.map(k=>({...k})),...this.grenades.snapshot(),
       round: { ...this.round, timeLeft: roundTimeLeft > 10.5 ? Math.ceil(roundTimeLeft) : round1(roundTimeLeft) },
       bomb: { ...this.bomb, x: round2(this.bomb.x), y: round2(this.bomb.y), z: round2(this.bomb.z), progress: Math.round((this.bomb.progress || 0) * 1000) / 1000, remaining: this.bomb.state === 'planted' ? round1(Math.max(0, (this.bomb.explodesAt - now) / 1000)) : 0 }, scores: { ...this.scores }, events };
   }

@@ -4,6 +4,7 @@ import agentsCss from './agents.css?inline';
 import loadoutCss from './loadout-menu.css?inline';
 import skinsCss from './skins.css?inline';
 import progressionCss from './progression.css?inline';
+import mailCss from './mail.css?inline';
 import touchControlsCss from './touch-controls.css?inline';
 import touchLayoutEditorCss from './touch-layout-editor.css?inline';
 import { preferences } from './persistence.js';
@@ -25,6 +26,7 @@ import { AgentMenu } from './agent-menu.js';
 import { LoadoutMenu } from './loadout-menu.js';
 import { SkinMenu } from './skin-menu.js';
 import { ProgressionMenu } from './progression-menu.js';
+import { MailMenu } from './mail-menu.js';
 import { upgradeAllSelects } from './tactical-select.js';
 import { getStoredVisualStyle, setStoredVisualStyle } from './arena-look-presets.js';
 
@@ -36,7 +38,7 @@ function createHub() {
     if (!document.getElementById('lobbyHubInlineStyles')) {
       const style = document.createElement('style');
       style.id = 'lobbyHubInlineStyles';
-      style.textContent = [interfaceCss, controlsCss, agentsCss, loadoutCss, skinsCss, progressionCss, touchControlsCss, touchLayoutEditorCss].join('\n');
+      style.textContent = [interfaceCss, controlsCss, agentsCss, loadoutCss, skinsCss, progressionCss, mailCss, touchControlsCss, touchLayoutEditorCss].join('\n');
       document.head.append(style);
     }
     try {
@@ -193,6 +195,11 @@ function createHub() {
       onOpenSkins: () => skins.open(),
       onOpenAgents: () => agents.open(),
     });
+    const mailbox = new MailMenu({
+      progressStore,
+      onOpenSkins: () => skins.open(),
+      onOpenAgents: () => agents.open(),
+    });
     const skins = new SkinMenu({
       progressStore,
       onEquip: async () => {},
@@ -219,6 +226,7 @@ function createHub() {
     // Click backdrop outside modal card to close cleanly
     for (const [el, closeFn] of [
       [progression.element, () => progression.close()],
+      [mailbox.element, () => mailbox.close()],
       [agents.element, () => agents.close()],
       [armory.element, () => armory.close()],
       [skins.element, () => skins.close()],
@@ -231,6 +239,7 @@ function createHub() {
 
     function closeAll() {
       progression.close();
+      mailbox.close();
       agents.close();
       armory.close();
       skins.close();
@@ -239,9 +248,11 @@ function createHub() {
 
     return {
       progressStore,
+      mailbox,
       open(panel) {
         closeAll();
         if (panel === 'progression') progression.open();
+        else if (panel === 'mail') mailbox.open();
         else if (panel === 'agents') agents.open();
         else if (panel === 'loadout') armory.open();
         else if (panel === 'skins') skins.open();
@@ -265,4 +276,9 @@ export async function initHubProgression() {
   return hub.progressStore;
 }
 
-globalThis.__CS2_LOBBY_HUB__ = { openHubPanel, initHubProgression };
+export async function refreshHubMail() {
+  const hub = await createHub();
+  return hub.mailbox.refresh();
+}
+
+globalThis.__CS2_LOBBY_HUB__ = { openHubPanel, initHubProgression, refreshHubMail };
