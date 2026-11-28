@@ -51,7 +51,7 @@ export class PrivateMapBots {
   let s=this.states.get(p.id);if(!s){s={revision:0,index:0,path:[],controller:null,blocked:new Set(),target:null,reactionAt:0,alignedFor:0,thinkAt:0,patrolAt:0,utilityAfter:this.room.clock()+9000+(p.seat||0)*600};this.states.set(p.id,s);}return s;
  }
  route(p,s,goal,preferred=null){
-  const graph=s.blocked.size?new MapTacticalGraph(this.graph.map,[...this.graph.nodes.values()],{standAllowed:this.graph.standAllowed,edgeAllowed:(a,b)=>this.graph.edgeAllowed(a,b)&&!s.blocked.has(`${a.id}>${b.id}`)}):this.graph;
+  const graph=s.blocked.size?new MapTacticalGraph(this.graph.map,this.graph.nodes,{standAllowed:this.graph.standAllowed,edgeAllowed:(a,b)=>this.graph.edgeAllowed(a,b)&&!s.blocked.has(`${a.id}>${b.id}`)}):this.graph;
   const order=this.director.orders.get(p.id),urgent=this.room.bomb.state==='planted'&&this.room.bomb.explodesAt-this.room.clock()<15000;
   const choice=selectPrivateRoute(graph,p,goal,{preferred,teammates:[...this.room.players.values()].filter(q=>q.team===p.team&&q.id!==p.id),reports:this.perception.snapshot(p.team),round:this.room.round.number,seat:p.seat||0,role:order?.role,urgent}),path=choice.path;
   s.routeVariant=choice.variant;s.routeReason=choice.reason;if(choice.variant>0)this.stats.alternateRoutes++;
