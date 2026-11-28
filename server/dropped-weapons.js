@@ -1,4 +1,5 @@
-const point=p=>({x:p.x,y:p.y,z:p.z});
+const round2 = v => Math.round(v * 100) / 100;
+const point = p => ({ x: round2(p.x), y: round2(p.y), z: round2(p.z) });
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z);
 export class DroppedWeapons {
   constructor({clock=()=>Date.now(),raycastWorld=()=>null,maxItems=64,lifetimeSeconds=120}={}){this.clock=clock;this.raycastWorld=raycastWorld;this.maxItems=maxItems;this.lifetimeSeconds=lifetimeSeconds;this.items=[];this.serial=0;}
@@ -42,5 +43,12 @@ export class DroppedWeapons {
       }
     }
   }
-  snapshot(){return this.items.map(({id,weaponId,skinId,ammo,reserve,yaw,expiresAt,...position})=>({id,weaponId,skinId,ammo,reserve,yaw,...point(position),remaining:Math.max(0,(expiresAt-this.clock())/1000)}));}
+  snapshot(){
+    const now=this.clock();
+    return this.items.map(({id,weaponId,skinId,ammo,reserve,yaw,expiresAt,...position})=>({
+      id,weaponId,skinId,ammo,reserve,yaw:round2(yaw||0),...point(position),
+      // Quantize remaining TTL into 10s buckets so static dropped guns do not bust delta snapshots 15x/sec.
+      remaining:Math.max(1,Math.ceil(Math.max(0,(expiresAt-now)/1000)/10)*10),
+    }));
+  }
 }

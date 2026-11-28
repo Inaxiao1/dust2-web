@@ -835,7 +835,7 @@ const server=http.createServer(async(req,res)=>{
 const shardWss=new WebSocketServer({
   noServer:true,
   maxPayload:4096,
-  perMessageDeflate:{serverNoContextTakeover:true,clientNoContextTakeover:true,threshold:1024,concurrencyLimit:8,zlibDeflateOptions:{level:1,memLevel:7}},
+  perMessageDeflate:{serverNoContextTakeover:true,clientNoContextTakeover:true,threshold:2048,concurrencyLimit:8,zlibDeflateOptions:{level:1,memLevel:7}},
 });
 const rtcAdapters=new Set();
 const shardHeartbeat=setInterval(()=>{
@@ -1002,13 +1002,38 @@ function routeShardedWebSocket(mapId,query,req,clientWs){
     clientWs.once('close',()=>clearTimeout(firstPing));
   }
   let state='unbound',boundWorker=null,upstreamWs=null,released=false,welcomed=false;
+  let lastBpSent=0,bpTimer=null;
   const pending=[];
   const idleTimer=setTimeout(()=>{if(state==='unbound')safeCloseWs(clientWs,1008,'Handshake timeout');},20000);
   idleTimer.unref?.();
+  const sendBackpressure=(bytes)=>{
+    if(state!=='bound'||upstreamWs?.readyState!==WebSocket.OPEN)return;
+    const clamped=bytes>24576?Math.min(1048576,Math.round(bytes)):0;
+    if(clamped===lastBpSent||(clamped>0&&lastBpSent>0&&Math.abs(clamped-lastBpSent)<8192))return;
+    lastBpSent=clamped;
+    try{upstreamWs.send(JSON.stringify({type:'_bp',b:clamped}));}catch{}
+  };
+  const scheduleBpDrainCheck=()=>{
+    if(bpTimer||state==='closed')return;
+    bpTimer=setInterval(()=>{
+      if(state!=='bound'||clientWs.readyState!==WebSocket.OPEN){
+        clearInterval(bpTimer);bpTimer=null;return;
+      }
+      const cur=clientWs.bufferedAmount||0;
+      if(cur<=12288){
+        sendBackpressure(0);
+        clearInterval(bpTimer);bpTimer=null;
+      }else{
+        sendBackpressure(cur);
+      }
+    },60);
+    bpTimer.unref?.();
+  };
   const cleanup=(code,reason)=>{
     if(state==='closed')return;
     state='closed';
     clearTimeout(idleTimer);
+    if(bpTimer){clearInterval(bpTimer);bpTimer=null;}
     if(boundWorker&&!released){
       released=true;
       boundWorker.connections=Math.max(0,boundWorker.connections-1);
@@ -1112,8 +1137,17 @@ function routeShardedWebSocket(mapId,query,req,clientWs){
           }
         }
         if(clientWs.readyState===WebSocket.OPEN){
-          if(clientWs.bufferedAmount>1024*1024){cleanup(1008,'Client too slow');return;}
+          const curBuf=clientWs.bufferedAmount||0;
+          if(curBuf>512*1024){cleanup(1008,'Client too slow');return;}
           clientWs.send(uData,{binary:uBinary});
+          const afterBuf=clientWs.bufferedAmount||0;
+          if(afterBuf>24576){
+            sendBackpressure(afterBuf);
+            scheduleBpDrainCheck();
+          }else if(lastBpSent>0&&afterBuf<=12288){
+            sendBackpressure(0);
+            if(bpTimer){clearInterval(bpTimer);bpTimer=null;}
+          }
         }
       });
     }catch{

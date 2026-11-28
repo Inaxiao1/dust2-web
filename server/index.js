@@ -408,6 +408,7 @@ export async function startGameServer({
     if (wss.clients.size > maxWsConnections) { workerMetrics.wsConnectionsRejected++; socket.close(1013, 'Server busy'); return; }
     socket.isAlive = true; socket.playerId = null; socket.roomCode = null; socket.binaryProtocol = 0; socket.lastBinaryPlayers = null;
     socket.snapshotDelta = 0; socket.lastDeltaSnap = null; socket.reconnectOptIn = false; socket.resumeToken = null;
+    socket.gatewayBufferedBytes = 0; socket.lastSnapshotSentAt = 0; socket.pendingEvents = [];
     socket.transport = req?.headers?.['x-cs2-transport'] === 'udp' ? 'udp' : 'ws';
     socket.fromGateway = req?.headers?.['x-cs2-gateway'] === '1';
     socket.ipHash = typeof req?.headers?.['x-cs2-client-ip-hash'] === 'string'
@@ -441,6 +442,11 @@ export async function startGameServer({
         }
       }
       catch { error(socket, 'BAD_MESSAGE', '消息格式无效。'); if (++socket.strikes > 5) socket.close(1008, 'Bad messages'); return; }
+      if (socket.fromGateway && msg.type === '_bp') {
+        socket.tokens = Math.min(150, socket.tokens + 1);
+        socket.gatewayBufferedBytes = Math.max(0, Number(msg.b) || 0);
+        return;
+      }
       if (msg.type === 'ping') {
         if (socket.playerId) telemetry.recordClientPing(socket.playerId, { rtt: Number(msg.rtt), fps: Number(msg.fps), tr: msg.tr });
         send(socket, { type: 'pong', time: typeof msg.time === 'number' ? msg.time : null, serverTime: now });
@@ -661,10 +667,20 @@ export async function startGameServer({
           telemetry.observeRoomEvents(room, snapshot.events);
           for (const socket of room.clients.values()) {
             if (socket.readyState === WebSocket.OPEN) {
+              const effectiveBuffered = Math.max(socket.bufferedAmount || 0, socket.gatewayBufferedBytes || 0);
               if (socket.bufferedAmount > 1024 * 1024) { workerMetrics.slowClientDrops++; socket.close(1008, 'Client too slow'); continue; }
               const side = room.players.get(socket.playerId)?.team;
               if (!sideSnaps.has(side)) sideSnaps.set(side, snapshotForSide(snapshot, side));
               const sideSnap = sideSnaps.get(side);
+              // Lossless backpressure coalescing: when client transport queue exceeds 24 KB,
+              // skip intermediate movement ticks while preserving all gameplay events and baseline
+              // so the next tick produces a fresh lossless delta with zero bufferbloat.
+              if (socket.snapshotDelta === 1 && socket.lastDeltaSnap && socket.binaryProtocol !== 2 && effectiveBuffered > 24576 && (nowWall - socket.lastSnapshotSentAt) < 250) {
+                if (sideSnap.events?.length && socket.pendingEvents.length < 128) {
+                  for (const ev of sideSnap.events) socket.pendingEvents.push(ev);
+                }
+                continue;
+              }
               if (socket.binaryProtocol === 2) {
                 const frame = encodeSnapshotBinary(sideSnap, socket.lastBinaryPlayers);
                 socket.lastBinaryPlayers = new Map(sideSnap.players.map(p => [p.id, { ...p }]));
@@ -672,7 +688,10 @@ export async function startGameServer({
               } else if (socket.snapshotDelta === 1 && socket.lastDeltaSnap) {
                 const playerSnap = snapshotForPlayer(sideSnap, socket.playerId);
                 let payload;
-                if (playerSnap === sideSnap) {
+                if (socket.pendingEvents.length > 0) {
+                  const merged = { ...playerSnap, events: [...socket.pendingEvents.splice(0), ...(playerSnap.events || [])] };
+                  payload = JSON.stringify(encodeDeltaSnapshot(merged, socket.lastDeltaSnap));
+                } else if (playerSnap === sideSnap) {
                   let byPrev = deltaViews.get(side);
                   if (!byPrev) { byPrev = new Map(); deltaViews.set(side, byPrev); }
                   payload = byPrev.get(socket.lastDeltaSnap);
@@ -695,6 +714,7 @@ export async function startGameServer({
                   socket.send(jsonViews.get(side));
                 }
               }
+              socket.lastSnapshotSentAt = nowWall;
             }
           }
         }

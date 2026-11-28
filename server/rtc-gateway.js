@@ -177,6 +177,23 @@ export async function createRtcGateway({
   }
   if (!ndc?.PeerConnection) return null;
 
+  // Tune usrsctp for real-time FPS traffic: replace RFC 4960's 1000ms RTO.Min & 200ms delayed SACK
+  // defaults with low-latency recovery and H-TCP congestion control to prevent multi-second stalls.
+  try {
+    ndc.setSctpSettings?.({
+      recvBufferSize: 512 * 1024,
+      sendBufferSize: 512 * 1024,
+      maxChunksOnQueue: 512,
+      initialCongestionWindow: 20,
+      maxBurst: 16,
+      congestionControlModule: 2,
+      delayedSackTime: 20,
+      minRetransmitTimeout: 120,
+      initialRetransmitTimeout: 200,
+      maxRetransmitTimeout: 1000,
+    });
+  } catch {}
+
   const activePeers = new Set();
   const pendingPeers = new Set();
   const effectivePublicIp = publicIp || localIp;

@@ -1264,8 +1264,9 @@ export class GameRoom {
       roundKills:p.roundKills||0,lifeKills:p.lifeKills||0,killCards:p.killCards||[],
       respawnIn: p.respawnAt ? ceil2((p.respawnAt - now) / 1000) : 0, lastShotTime: p.lastShotTime }));
     const events = drainEvents ? this.events.splice(0) : [...this.events];
+    const roundTimeLeft = this.round.phaseEndsAt ? Math.max(0, (this.round.phaseEndsAt - now) / 1000) : 0;
     return { type: 'snapshot', radarBySide:radarBySide(this),ctSpottedBomb:isBombSpotted(this), ...(this.privateMap?{mapId:this.privateMap.mapId,mapSignature:this.privateMap.mapSignature,physicsSha256:this.privateMap.config.physicsSha256,...(this.mapBreakables?.networkSnapshot()||{mapBreakables:[]})}:{}), time: now, room: this.code, mode: this.mode, hostId:this.hostId,seats:this.roomSeats(),botDifficulty:this.botDifficulty,desiredBots:this.desiredBots,botCount:this.botCount,match:this.matchSnapshot(),players,weaponRequests:privateRequests(this),droppedWeapons:this.droppedWeapons.snapshot(),defuseKits:this.defuseKits.map(k=>({...k})),...this.grenades.snapshot(),
-      round: { ...this.round, timeLeft: this.round.phaseEndsAt ? round1(Math.max(0, (this.round.phaseEndsAt - now) / 1000)) : 0 },
+      round: { ...this.round, timeLeft: roundTimeLeft > 10.5 ? Math.ceil(roundTimeLeft) : round1(roundTimeLeft) },
       bomb: { ...this.bomb, x: round2(this.bomb.x), y: round2(this.bomb.y), z: round2(this.bomb.z), progress: Math.round((this.bomb.progress || 0) * 1000) / 1000, remaining: this.bomb.state === 'planted' ? round1(Math.max(0, (this.bomb.explodesAt - now) / 1000)) : 0 }, scores: { ...this.scores }, events };
   }
 }
